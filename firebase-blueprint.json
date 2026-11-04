@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A garment piece in the VANTREL clothing catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "sku": { "type": "string" },
+        "category": { "type": "string" },
+        "subCategory": { "type": "string" },
+        "regularPrice": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "totalStock": { "type": "number" },
+        "fabric": { "type": "string" },
+        "gsm": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "slug", "sku", "category", "regularPrice", "totalStock"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order with status history and fulfillment info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "total": { "type": "number" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "orderStatus": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "orderNumber", "total", "orderStatus", "paymentMethod", "createdAt"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "A promotional discount code",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "type": { "type": "string" },
+        "value": { "type": "number" },
+        "minOrder": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "expiryDate": { "type": "string" }
+      },
+      "required": ["code", "type", "value", "minOrder", "isActive"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A customer or administrator account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" },
+        "loyaltyPoints": { "type": "number" }
+      },
+      "required": ["id", "name", "phone", "role"]
+    },
+    "WishlistItem": {
+      "title": "WishlistItem",
+      "description": "Saved product in user's wishlist",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "addedAt": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "image": { "type": "string" }
+      },
+      "required": ["productId", "addedAt"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Storefront, shipping fees, and merchant configurations",
+      "type": "object",
+      "properties": {
+        "storeName": { "type": "string" },
+        "deliveryFeeInsideDhaka": { "type": "number" },
+        "deliveryFeeOutsideDhaka": { "type": "number" },
+        "freeShippingThreshold": { "type": "number" }
+      },
+      "required": ["storeName", "deliveryFeeInsideDhaka", "deliveryFeeOutsideDhaka"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Garment pieces catalog"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders and fulfillment status"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Promotional discount codes"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and loyalty accounts"
+    },
+    "/users/{userId}/wishlist/{productId}": {
+      "schema": "WishlistItem",
+      "description": "User saved wishlist items"
+    },
+    "/settings/{settingId}": {
+      "schema": "StoreSettings",
+      "description": "Global storefront configurations"
+    }
+  }
+}
