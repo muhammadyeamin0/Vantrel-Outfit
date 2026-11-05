@@ -158,7 +158,7 @@ export const ContactPage: React.FC = () => {
                 <div>
                   <p className="font-bold text-white">Facebook Support & Messaging</p>
                   <a
-                    href="https://www.facebook.com/share/18qNnMStUm/"
+                    href="https://www.facebook.com/vantreloutfit"
                     target="_blank"
                     rel="noreferrer"
                     className="text-[#1877F2] hover:underline font-semibold block mt-0.5"
@@ -190,7 +190,7 @@ export const ContactPage: React.FC = () => {
                 <span>Chat on WhatsApp Business (হোয়াটসঅ্যাপ)</span>
               </a>
               <a
-                href="https://www.facebook.com/share/18qNnMStUm/"
+                href="https://www.facebook.com/vantreloutfit"
                 target="_blank"
                 rel="noreferrer"
                 className="w-full py-2.5 px-4 bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -299,7 +299,7 @@ export const FaqPage: React.FC = () => {
     },
     {
       q: 'Can I exchange the size if the garment does not fit me?',
-      a: 'Yes, absolutely. We offer a 7-day hassle-free size replacement policy. Simply message our WhatsApp Business (https://wa.me/message/E6PISGJZC63TA1) or Facebook page (https://www.facebook.com/share/18qNnMStUm/) with your Order ID, and our courier will deliver the replacement size right to your door.'
+      a: 'Yes, absolutely. We offer a 7-day hassle-free size replacement policy. Simply message our WhatsApp Business (https://wa.me/message/E6PISGJZC63TA1) or Facebook page (https://www.facebook.com/vantreloutfit) with your Order ID, and our courier will deliver the replacement size right to your door.'
     },
     {
       q: 'How do I pay using bKash or Nagad?',

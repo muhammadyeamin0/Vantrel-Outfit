@@ -262,6 +262,7 @@ export interface StoreSettings {
   whatsapp: string;
   whatsappUrl?: string;
   facebookUrl?: string;
+  instagramUrl?: string;
   email: string;
   address: string;
   bKashMerchantNumber: string;

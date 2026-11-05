@@ -249,7 +249,7 @@ export const OrderConfirmationPage: React.FC = () => {
                 </span>
                 <p className="text-xs text-[#202522]/60 mt-1">
                   Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh<br />
-                  WhatsApp: https://wa.me/message/E6PISGJZC63TA1 · Facebook: https://www.facebook.com/share/18qNnMStUm/
+                  WhatsApp: https://wa.me/message/E6PISGJZC63TA1 · Facebook: https://www.facebook.com/vantreloutfit · Instagram: https://www.instagram.com/vantreloutfit
                 </p>
               </div>
             </div>

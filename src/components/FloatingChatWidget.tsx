@@ -7,7 +7,7 @@ export const FloatingChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   const whatsappUrl = 'https://wa.me/message/E6PISGJZC63TA1';
-  const facebookUrl = 'https://www.facebook.com/share/18qNnMStUm/';
+  const facebookUrl = 'https://www.facebook.com/vantreloutfit';
 
   return (
     <div className="fixed bottom-20 right-4 sm:bottom-20 sm:right-6 z-40 select-none">

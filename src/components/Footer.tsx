@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore, PageRoute } from '../context/StoreContext';
 import { ProductCategory } from '../types';
-import { Mail, Phone, MapPin, Send, ShieldCheck, ArrowUpRight, MessageCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, ShieldCheck, ArrowUpRight, MessageCircle, Instagram } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const { settings, setCurrentPage, setSelectedCategory, showToast } = useStore();
@@ -170,13 +170,22 @@ export const Footer: React.FC = () => {
                 <span>হোয়াটসঅ্যাপ হেল্পলাইন (WhatsApp Business)</span>
               </a>
               <a
-                href="https://www.facebook.com/share/18qNnMStUm/"
+                href="https://www.facebook.com/vantreloutfit"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 hover:text-[#1877F2] text-white/90 transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5 text-[#1877F2] shrink-0" />
-                <span>ফেসবুক সাপোর্ট (Facebook Support)</span>
+                <span>ফেসবুক পেজ (fb.com/vantreloutfit)</span>
+              </a>
+              <a
+                href="https://www.instagram.com/vantreloutfit"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 hover:text-[#E4405F] text-white/90 transition-colors"
+              >
+                <Instagram className="w-3.5 h-3.5 text-[#E4405F] shrink-0" />
+                <span>ইনস্টাগ্রাম (instagram.com/vantreloutfit)</span>
               </a>
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-[#FF762E] shrink-0" />

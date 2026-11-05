@@ -313,7 +313,7 @@ export const TopCategoryStrip: React.FC = () => {
                     </a>
 
                     <a
-                      href="https://www.facebook.com/share/18qNnMStUm/"
+                      href="https://www.facebook.com/vantreloutfit"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="py-2 px-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-[11px] sm:text-xs font-bold rounded-xl text-center flex items-center justify-center gap-1.5 transition-all shadow-xs"

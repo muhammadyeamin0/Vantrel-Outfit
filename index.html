@@ -51,6 +51,35 @@
       "@context": "https://schema.org",
       "@graph": [
         {
+          "@type": "Organization",
+          "@id": "https://www.vantreloutfit.shop/#organization",
+          "name": "VANTREL OUTFIT",
+          "alternateName": "Vantrel Outfit",
+          "url": "https://www.vantreloutfit.shop/",
+          "logo": {
+            "@type": "ImageObject",
+            "@id": "https://www.vantreloutfit.shop/#logo",
+            "url": "https://www.vantreloutfit.shop/assets/images/vantrel-logo.png",
+            "caption": "VANTREL OUTFIT Logo",
+            "width": 1080,
+            "height": 1080
+          },
+          "image": "https://www.vantreloutfit.shop/assets/images/vantrel-logo.png",
+          "description": "এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন।",
+          "sameAs": [
+            "https://www.facebook.com/vantreloutfit",
+            "https://www.instagram.com/vantreloutfit"
+          ],
+          "contactPoint": [
+            {
+              "@type": "ContactPoint",
+              "contactType": "Customer Service",
+              "availableLanguage": ["Bangla", "English"],
+              "areaServed": "BD"
+            }
+          ]
+        },
+        {
           "@type": "ClothingStore",
           "@id": "https://www.vantreloutfit.shop/#store",
           "name": "VANTREL OUTFIT",
@@ -61,6 +90,10 @@
           "priceRange": "৳৳",
           "currenciesAccepted": "BDT",
           "paymentAccepted": "Cash on Delivery, bKash, Nagad",
+          "sameAs": [
+            "https://www.facebook.com/vantreloutfit",
+            "https://www.instagram.com/vantreloutfit"
+          ],
           "address": {
             "@type": "PostalAddress",
             "addressCountry": "BD"
@@ -73,7 +106,7 @@
           "name": "VANTREL OUTFIT",
           "description": "এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন।",
           "publisher": {
-            "@id": "https://www.vantreloutfit.shop/#store"
+            "@id": "https://www.vantreloutfit.shop/#organization"
           }
         }
       ]

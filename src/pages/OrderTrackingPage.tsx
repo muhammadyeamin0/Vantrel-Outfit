@@ -494,7 +494,7 @@ export const OrderTrackingPage: React.FC = () => {
                   <span>হোয়াটসঅ্যাপ (WhatsApp)</span>
                 </a>
                 <a
-                  href="https://www.facebook.com/share/18qNnMStUm/"
+                  href="https://www.facebook.com/vantreloutfit"
                   target="_blank"
                   rel="noreferrer"
                   className="px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center gap-1.5"

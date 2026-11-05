@@ -305,7 +305,10 @@ export const DynamicMetaTags: React.FC = () => {
         description:
           'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। Premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.',
         priceRange: '৳৳',
-        sameAs: ['https://www.facebook.com/share/18qNnMStUm/'],
+        sameAs: [
+          'https://www.facebook.com/vantreloutfit',
+          'https://www.instagram.com/vantreloutfit'
+        ],
         address: {
           '@type': 'PostalAddress',
           streetAddress: 'Banani / Gulshan Hub',
