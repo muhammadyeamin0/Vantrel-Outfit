@@ -257,6 +257,7 @@ export interface StoreContextType {
   moveProductUp: (id: string) => void;
   moveProductDown: (id: string) => void;
   pinProductToTop: (id: string) => void;
+  toggleTopProduct: (id: string) => Promise<void>;
   moveProductToTop: (id: string) => void;
   getProductById: (id: string) => Product | undefined;
   getProductBySlug: (slug: string) => Product | undefined;
@@ -1784,6 +1785,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   };
 
+  const toggleTopProduct = async (id: string) => {
+    const target = products.find((p) => p.id === id);
+    if (!target) return;
+    const willBeTop = !target.isTopProduct;
+
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, isTopProduct: willBeTop } : p))
+    );
+
+    try {
+      if (db) {
+        await setDoc(doc(db, 'products', id), { isTopProduct: willBeTop }, { merge: true });
+      }
+    } catch (e) {
+      console.warn('Firestore toggleTopProduct warning:', e);
+    }
+
+    showToast(
+      willBeTop ? '⭐ Top Product Added' : 'Removed from Top Products',
+      willBeTop
+        ? `"${target.name}" এখন হোমপেজের টপ/পপুলার প্রোডাক্ট সেকশনে প্রদর্শিত হবে।`
+        : `"${target.name}" হোমপেজ টপ প্রোডাক্ট তালিকা থেকে সরানো হয়েছে।`,
+      'success'
+    );
+  };
+
   const getProductById = (id: string) => {
     if (!id) return products[0] || INITIAL_PRODUCTS[0];
     return (
@@ -3055,6 +3082,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         moveProductUp,
         moveProductDown,
         pinProductToTop,
+        toggleTopProduct,
         moveProductToTop,
         getProductById,
         getProductBySlug,

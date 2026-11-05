@@ -120,13 +120,20 @@ export const AuthModal: React.FC = () => {
       <div className="bg-white w-full max-w-md rounded-3xl border border-[#E5E1D5] shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-5 border-b border-[#E5E1D5] flex items-center justify-between bg-[#F7F5EF]">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF762E]">
-              VANTREL ID
-            </span>
-            <h3 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
-              Customer Portal
-            </h3>
+          <div className="flex items-center gap-3">
+            <img
+              src="/assets/images/vantrel-logo.png"
+              alt="VANTREL"
+              className="w-10 h-10 object-contain rounded-xl bg-black p-1 shadow-xs border border-stone-300 shrink-0"
+            />
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF762E]">
+                VANTREL ID
+              </span>
+              <h3 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
+                Customer Portal
+              </h3>
+            </div>
           </div>
           <button
             onClick={() => setIsAuthModalOpen(false)}

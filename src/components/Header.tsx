@@ -98,15 +98,20 @@ export const Header: React.FC = () => {
             </button>
           </div>
 
-          {/* Zone 1: Single text element wordmark */}
+          {/* Zone 1: Single brand cluster with official logo & wordmark */}
           <a
             href="#home"
             onClick={(e) => {
               e.preventDefault();
               handleNavClick('home');
             }}
-            className="flex items-center tracking-wider shrink-0 select-none group"
+            className="flex items-center gap-2.5 sm:gap-3 tracking-wider shrink-0 select-none group"
           >
+            <img
+              src="/assets/images/vantrel-logo.png"
+              alt="VANTREL"
+              className="h-8 w-8 sm:h-9 sm:w-9 object-contain rounded-md bg-black border border-white/10 group-hover:border-[#FF762E]/60 transition-colors"
+            />
             <span className="font-heading text-2xl sm:text-3xl font-black tracking-[0.15em] text-white uppercase">
               VANTREL
             </span>
@@ -243,9 +248,16 @@ export const Header: React.FC = () => {
           <div className="fixed inset-y-0 left-0 w-4/5 max-w-sm bg-[#F7F5EF] text-[#202522] shadow-2xl flex flex-col border-r border-[#E5E1D5]">
             {/* Mobile Header */}
             <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-[#E5E1D5]">
-              <span className="font-heading text-xl font-extrabold tracking-tight text-[#14221C] uppercase">
-                VAN<span className="text-[#FF762E]">TREL</span>
-              </span>
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/assets/images/vantrel-logo.png"
+                  alt="VANTREL"
+                  className="w-8 h-8 object-contain rounded-md bg-black p-0.5 border border-stone-200"
+                />
+                <span className="font-heading text-xl font-extrabold tracking-tight text-[#14221C] uppercase">
+                  VAN<span className="text-[#FF762E]">TREL</span>
+                </span>
+              </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1.5 rounded-lg text-[#202522]/60 hover:text-[#14221C]"

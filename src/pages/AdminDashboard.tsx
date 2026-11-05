@@ -49,8 +49,11 @@ import {
   Building2,
   Navigation,
   Pin,
+  Star,
+  Sparkles,
   RotateCcw
 } from 'lucide-react';
+import { extractColorsFromMultipleImages } from '../utils/colorExtractor';
 import { FinancesTab } from '../components/admin/FinancesTab';
 import { ModeratorsTab } from '../components/admin/ModeratorsTab';
 import { ThemesTab } from '../components/admin/ThemesTab';
@@ -71,6 +74,7 @@ export const AdminDashboard: React.FC = () => {
     moveProductUp,
     moveProductDown,
     pinProductToTop,
+    toggleTopProduct,
     moveProductToTop,
     categories,
     addCategory,
@@ -195,6 +199,7 @@ export const AdminDashboard: React.FC = () => {
   ]);
   const [newColorName, setNewColorName] = useState('');
   const [newColorHex, setNewColorHex] = useState('#14221C');
+  const [isDetectingColors, setIsDetectingColors] = useState<boolean>(false);
   const [prodGsm, setProdGsm] = useState<number>(420);
   const [prodVideoUrl, setProdVideoUrl] = useState<string>('');
   const [prodCost, setProdCost] = useState<number>(1200);
@@ -203,6 +208,7 @@ export const AdminDashboard: React.FC = () => {
   const [prodIsNewArrival, setProdIsNewArrival] = useState<boolean>(true);
   const [prodIsBestSeller, setProdIsBestSeller] = useState<boolean>(false);
   const [prodIsPinned, setProdIsPinned] = useState<boolean>(false);
+  const [prodIsTopProduct, setProdIsTopProduct] = useState<boolean>(false);
 
   // Products Table Filter & Bulk Selection State
   const [productSearch, setProductSearch] = useState<string>('');
@@ -641,6 +647,7 @@ export const AdminDashboard: React.FC = () => {
     setProdIsNewArrival(true);
     setProdIsBestSeller(false);
     setProdIsPinned(false);
+    setProdIsTopProduct(false);
     setProdFit('Relaxed Drop-Shoulder Oversized Silhouette');
     setProdDesc('Engineered in limited quantities with architectural boxy drape.');
     setProdTagline('Premium heavyweight streetwear essential.');
@@ -672,6 +679,7 @@ export const AdminDashboard: React.FC = () => {
     setProdIsNewArrival(p.isNewArrival ?? false);
     setProdIsBestSeller(p.isBestSeller ?? false);
     setProdIsPinned(Boolean(p.isPinned));
+    setProdIsTopProduct(Boolean(p.isTopProduct));
     setProdFit(p.fit);
     setProdDesc(p.description);
     setProdTagline(p.tagline);
@@ -683,10 +691,37 @@ export const AdminDashboard: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
+  const handleAutoDetectColors = async (imagesToProcess = prodImages) => {
+    if (!imagesToProcess || imagesToProcess.length === 0) {
+      showToast('No Images', 'কালার ডিটেক্ট করতে প্রথমে প্রোডাক্টের ছবি যুক্ত করুন।', 'info');
+      return;
+    }
+    setIsDetectingColors(true);
+    try {
+      const detected = await extractColorsFromMultipleImages(imagesToProcess);
+      if (detected.length > 0) {
+        setProdColors(detected);
+        showToast(
+          'অটো কালার ডিটেক্ট সম্পন্ন',
+          `${detected.length}টি কালার (${detected.map((c) => c.name).join(', ')}) ছবি থেকে স্বয়ংক্রিয়ভাবে যোগ করা হয়েছে।`,
+          'success'
+        );
+      } else {
+        showToast('Info', 'ছবি থেকে কোনো কালার এক্সট্র্যাক্ট করা যায়নি। আপনি ম্যানুয়ালি যোগ করতে পারেন।', 'info');
+      }
+    } catch (err) {
+      console.warn('Color detection error:', err);
+    } finally {
+      setIsDetectingColors(false);
+    }
+  };
+
   const handleAddImage = () => {
     if (newImageUrl.trim()) {
-      setProdImages((prev) => [...prev, newImageUrl.trim()]);
+      const updated = [...prodImages, newImageUrl.trim()];
+      setProdImages(updated);
       setNewImageUrl('');
+      handleAutoDetectColors(updated);
     }
   };
 
@@ -713,17 +748,31 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newImages: string[] = [];
+    let readCount = 0;
+
+    Array.from(files).forEach((file) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setProdImages((prev) => [...prev, event.target!.result as string]);
-          showToast('Image Loaded', 'Local image ready for upload.', 'info');
+          newImages.push(event.target.result as string);
+        }
+        readCount++;
+        if (readCount === files.length) {
+          setProdImages((prev) => {
+            const combined = [...prev, ...newImages];
+            handleAutoDetectColors(combined);
+            return combined;
+          });
+          showToast('Images Uploaded', `${newImages.length}টি ছবি লোড হয়েছে এবং কালার ডিটেক্ট করা হয়েছে।`, 'info');
         }
       };
       reader.readAsDataURL(file);
-    }
+    });
+    e.target.value = '';
   };
 
   const handleAddColor = () => {
@@ -781,6 +830,7 @@ export const AdminDashboard: React.FC = () => {
         isNewArrival: prodIsNewArrival,
         isBestSeller: prodIsBestSeller,
         isPinned: prodIsPinned,
+        isTopProduct: prodIsTopProduct,
         sku: prodSku.trim(),
         totalStock: prodStock,
         fabric: prodFabric.trim(),
@@ -824,6 +874,7 @@ export const AdminDashboard: React.FC = () => {
         isNewArrival: prodIsNewArrival,
         isBestSeller: prodIsBestSeller,
         isPinned: prodIsPinned,
+        isTopProduct: prodIsTopProduct,
         rating: 5.0,
         reviewCount: 0,
         totalStock: prodStock
@@ -837,6 +888,7 @@ export const AdminDashboard: React.FC = () => {
   const filteredProducts = products.filter((p) => {
     if (productCategoryFilter !== 'All' && p.category !== productCategoryFilter) return false;
     if (productStatusFilter !== 'All') {
+      if (productStatusFilter === 'top' && !p.isTopProduct) return false;
       if (productStatusFilter === 'archived' && (!p.isArchived && p.status !== 'archived')) return false;
       if (productStatusFilter === 'published' && (p.isArchived || p.status === 'archived' || p.status === 'draft')) return false;
       if (productStatusFilter === 'draft' && (p.status !== 'draft' || p.isArchived)) return false;
@@ -1070,16 +1122,23 @@ export const AdminDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E5E1D5]">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 bg-[#14221C] text-white text-[10px] font-bold uppercase rounded">
-                VANTREL Core Admin
-              </span>
-              <span className="text-xs text-[#202522]/50">Enterprise E-Commerce Suite</span>
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/assets/images/vantrel-logo.png"
+              alt="VANTREL"
+              className="w-13 h-13 sm:w-14 sm:h-14 object-contain rounded-2xl bg-black p-1.5 shadow-md border border-neutral-800 shrink-0"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-[#14221C] text-white text-[10px] font-bold uppercase rounded">
+                  VANTREL Core Admin
+                </span>
+                <span className="text-xs text-[#202522]/50">Enterprise E-Commerce Suite</span>
+              </div>
+              <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#14221C] tracking-tight uppercase mt-1">
+                Admin Panel & Backend Console
+              </h1>
             </div>
-            <h1 className="font-heading text-3xl font-extrabold text-[#14221C] tracking-tight uppercase mt-1">
-              Admin Panel & Backend Console
-            </h1>
           </div>
 
           <div className="flex items-center gap-3">
@@ -1697,6 +1756,72 @@ export const AdminDashboard: React.FC = () => {
               </span>
             </div>
 
+            {/* Homepage Top Products Quick Control Banner */}
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-300 rounded-2xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-amber-400 text-neutral-950 rounded-lg shadow-2xs">
+                    <Star className="w-4 h-4 fill-current" />
+                  </span>
+                  <div>
+                    <h4 className="font-heading font-extrabold text-sm text-[#14221C]">
+                      হোমপেজ টপ / পপুলার প্রোডাক্টস কন্ট্রোল
+                    </h4>
+                    <p className="text-[11px] text-[#202522]/70">
+                      স্টোরের যে যে প্রোডাক্টে <span className="font-bold text-amber-950">⭐ Top Product</span> মার্ক করবেন, সেগুলো সরাসরি হোমপেজের টপ/পপুলার সেকশনে প্রদর্শিত হবে।
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-2.5 py-1 bg-amber-200/80 text-amber-950 text-xs font-black rounded-lg border border-amber-400">
+                    {products.filter((p) => p.isTopProduct && !p.isArchived && p.status !== 'archived').length}টি প্রোডাক্ট হোমপেজে লাইভ
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setProductStatusFilter(productStatusFilter === 'top' ? 'All' : 'top')}
+                    className="px-3 py-1 bg-[#14221C] text-white hover:bg-neutral-800 text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                  >
+                    {productStatusFilter === 'top' ? 'সব প্রোডাক্ট দেখুন' : 'শুধু টপ প্রোডাক্টস দেখুন'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Top Product Preview Chips */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/70">
+                <span className="text-[11px] font-bold text-amber-900 shrink-0">বর্তমানে নির্বাচিত টপ প্রোডাক্টস:</span>
+                {products
+                  .filter((p) => p.isTopProduct && !p.isArchived && p.status !== 'archived')
+                  .map((tp) => (
+                    <div
+                      key={tp.id}
+                      className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/90 border border-amber-300 rounded-xl shadow-2xs text-xs text-[#14221C]"
+                    >
+                      <img
+                        src={tp.images[0]}
+                        alt=""
+                        className="w-5 h-5 rounded object-cover bg-stone-100 shrink-0"
+                      />
+                      <span className="font-bold truncate max-w-[140px] sm:max-w-[180px]">
+                        {tp.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleTopProduct(tp.id)}
+                        className="p-0.5 text-stone-400 hover:text-rose-600 rounded cursor-pointer"
+                        title="টপ প্রোডাক্ট থেকে বাদ দিন"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                {products.filter((p) => p.isTopProduct && !p.isArchived && p.status !== 'archived').length === 0 && (
+                  <span className="text-xs text-amber-800 italic">
+                    কোনো প্রোডাক্ট টপ হিসেবে মার্ক করা নেই। নিচের টেবিল থেকে ⭐ আইকনে ক্লিক করে যেকোনো প্রোডাক্টকে টপ করুন।
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Quick Status Filter Tabs */}
             <div className="flex items-center gap-2 border-b border-[#E5E1D5] pb-2 overflow-x-auto">
               <button
@@ -1711,6 +1836,22 @@ export const AdminDashboard: React.FC = () => {
                 <span>সবগুলো প্রোডাক্ট</span>
                 <span className="text-[10px] opacity-80 px-1.5 py-0.2 rounded-full bg-black/20">
                   {products.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setProductStatusFilter('top')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  productStatusFilter === 'top'
+                    ? 'bg-amber-500 text-neutral-950 shadow-xs ring-1 ring-amber-600'
+                    : 'bg-amber-100/70 text-amber-950 hover:bg-amber-200'
+                }`}
+              >
+                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
+                <span>⭐ হোমপেজ টপ প্রোডাক্টস</span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-amber-200 text-amber-950">
+                  {products.filter((p) => p.isTopProduct && !p.isArchived && p.status !== 'archived').length}
                 </span>
               </button>
 
@@ -1780,6 +1921,7 @@ export const AdminDashboard: React.FC = () => {
                   className="w-full px-3 py-2 text-xs bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-semibold text-[#14221C]"
                 >
                   <option value="All">All Statuses</option>
+                  <option value="top">⭐ Top Products Only (টপ প্রোডাক্টস)</option>
                   <option value="published">Published Only</option>
                   <option value="draft">Drafts Only</option>
                   <option value="archived">Archived Only</option>
@@ -1799,6 +1941,20 @@ export const AdminDashboard: React.FC = () => {
                     className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold"
                   >
                     Publish
+                  </button>
+                  <button
+                    onClick={() => {
+                      selectedProductIds.forEach((id) => {
+                        const target = products.find((p) => p.id === id);
+                        if (target && !target.isTopProduct) toggleTopProduct(id);
+                      });
+                      setSelectedProductIds([]);
+                    }}
+                    className="px-3 py-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 rounded-lg font-bold flex items-center gap-1 shadow-2xs"
+                    title="নির্বাচিত সব প্রোডাক্টকে হোমপেজ টপ প্রোডাক্ট করুন"
+                  >
+                    <Star className="w-3 h-3 fill-current" />
+                    <span>⭐ Mark Top</span>
                   </button>
                   <button
                     onClick={handleBulkArchive}
@@ -1911,11 +2067,19 @@ export const AdminDashboard: React.FC = () => {
                               </button>
                             </div>
                           </div>
-                          {p.isPinned && (
-                            <span className="inline-block mt-0.5 text-[8px] font-extrabold text-amber-800 bg-amber-100 px-1 py-0.2 rounded uppercase tracking-wider">
-                              Pinned
-                            </span>
-                          )}
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            {p.isPinned && (
+                              <span className="text-[8px] font-extrabold text-amber-800 bg-amber-100 px-1 py-0.2 rounded uppercase tracking-wider">
+                                Pinned
+                              </span>
+                            )}
+                            {p.isTopProduct && (
+                              <span className="text-[8px] font-extrabold text-amber-950 bg-amber-300 px-1 py-0.2 rounded uppercase tracking-wider flex items-center gap-0.5 shadow-2xs">
+                                <Star className="w-2 h-2 fill-current" />
+                                <span>Top</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 font-semibold text-[#14221C] flex items-center gap-3">
                           <img
@@ -1926,6 +2090,12 @@ export const AdminDashboard: React.FC = () => {
                           <div>
                             <div className="flex items-center gap-2">
                               <span>{p.name}</span>
+                              {p.isTopProduct && (
+                                <span className="px-1.5 py-0.2 bg-amber-400 text-neutral-950 text-[9px] font-extrabold rounded flex items-center gap-0.5 shadow-2xs" title="হোমপেজ টপ প্রোডাক্ট">
+                                  <Star className="w-2.5 h-2.5 fill-current" />
+                                  <span>TOP</span>
+                                </span>
+                              )}
                               {p.gsm && (
                                 <span className="px-1.5 py-0.2 bg-[#14221C] text-[#FF762E] text-[9px] font-bold rounded">
                                   {p.gsm} GSM
@@ -1976,6 +2146,18 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleTopProduct(p.id)}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              p.isTopProduct
+                                ? 'text-amber-950 bg-amber-400 hover:bg-amber-500 ring-2 ring-amber-500 shadow-xs'
+                                : 'text-stone-500 hover:text-amber-600 bg-[#F7F5EF]'
+                            }`}
+                            title={p.isTopProduct ? 'হোমপেজ টপ প্রোডাক্ট থেকে বাদ দিন (Remove from Top)' : '⭐ হোমপেজ টপ প্রোডাক্ট করুন (Mark as Top Product)'}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${p.isTopProduct ? 'fill-amber-950 text-amber-950' : ''}`} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => pinProductToTop(p.id)}
@@ -4292,35 +4474,74 @@ service cloud.firestore {
                   </div>
 
                   <div>
-                    <label className="block font-bold text-[#14221C] mb-2 uppercase tracking-wider text-[11px]">
-                      কালার যুক্ত করুন ({prodColors.map((c) => c.name).join(', ')})
-                    </label>
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      {prodColors.map((c, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#E5E1D5] rounded-lg text-xs font-semibold"
-                        >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                      <div>
+                        <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
+                          কালার / রঙের ভ্যারিয়েন্ট ({prodColors.length}টি যুক্ত আছে)
+                        </label>
+                        <p className="text-[10px] text-[#202522]/60">
+                          ছবি আপলোড বা অ্যাড করলেই স্বয়ংক্রিয়ভাবে কালার ডিটেক্ট হয়ে যাবে।
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoDetectColors()}
+                        disabled={isDetectingColors || prodImages.length === 0}
+                        className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-neutral-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 border border-amber-600/30"
+                        title="যুক্ত করা সব ছবি থেকে অটোমেটিক কালার ডিটেক্ট করে এখানে বসিয়ে দিবে"
+                      >
+                        <Sparkles className={`w-3.5 h-3.5 ${isDetectingColors ? 'animate-spin text-amber-900' : 'text-amber-950'}`} />
+                        <span>{isDetectingColors ? 'কালার ডিটেক্ট হচ্ছে...' : '⚡ ছবি থেকে অটো কালার ডিটেক্ট'}</span>
+                      </button>
+                    </div>
+
+                    {prodColors.length > 0 ? (
+                      <div className="flex items-center gap-2 mb-2.5 flex-wrap p-2.5 bg-[#F7F5EF] rounded-xl border border-[#E5E1D5]">
+                        {prodColors.map((c, i) => (
                           <span
-                            className="w-3 h-3 rounded-full border border-black/20"
-                            style={{ backgroundColor: c.hex }}
-                          />
-                          <span>{c.name}</span>
+                            key={i}
+                            className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-[#E5E1D5] rounded-xl text-xs font-bold shadow-2xs group hover:border-[#14221C] transition-colors"
+                          >
+                            <span
+                              className="w-3.5 h-3.5 rounded-full border border-black/25 shadow-xs shrink-0"
+                              style={{ backgroundColor: c.hex }}
+                              title={c.hex}
+                            />
+                            <span className="text-[#14221C]">{c.name}</span>
+                            <span className="text-[10px] text-stone-400 font-mono">{c.hex}</span>
+                            <button
+                              type="button"
+                              onClick={() => setProdColors(prodColors.filter((_, idx) => idx !== i))}
+                              className="text-stone-400 hover:text-rose-600 font-bold ml-1 p-0.5 rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Remove color"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-amber-50/70 border border-dashed border-amber-300 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>নিচে ছবি যুক্ত করুন—ছবি অনুযায়ী স্বয়ংক্রিয়ভাবে কালার ডিটেক্ট হয়ে যুক্ত হবে।</span>
+                        </div>
+                        {prodImages.length > 0 && (
                           <button
                             type="button"
-                            onClick={() => setProdColors(prodColors.filter((_, idx) => idx !== i))}
-                            className="text-stone-400 hover:text-rose-600 font-bold ml-0.5"
+                            onClick={() => handleAutoDetectColors()}
+                            className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded-lg text-[11px] shrink-0"
                           >
-                            ×
+                            এখনই ডিটেক্ট করুন
                           </button>
-                        </span>
-                      ))}
-                    </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="কালারের নাম (যেমন: Black, Olive)..."
+                        placeholder="ম্যানুয়ালি নতুন কালার যোগ করতে চাইলে নাম লিখুন (ঐচ্ছিক)..."
                         value={newColorName}
                         onChange={(e) => setNewColorName(e.target.value)}
                         className="flex-1 px-3 py-1.5 bg-white border border-[#E5E1D5] rounded-lg text-xs"
@@ -4433,9 +4654,10 @@ service cloud.firestore {
                     </button>
                     <label className="px-4 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] rounded-xl font-bold uppercase cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors">
                       <Upload className="w-3.5 h-3.5 text-[#FF762E]" />
-                      <span>Upload Local File</span>
+                      <span>Upload Local Files (১ বা একাধিক)</span>
                       <input
                         type="file"
+                        multiple
                         accept="image/*"
                         onChange={handleFileUpload}
                         className="hidden"
@@ -4456,8 +4678,13 @@ service cloud.firestore {
                       <button
                         key={preset.label}
                         type="button"
-                        onClick={() => setProdImages((prev) => [...prev, preset.url])}
+                        onClick={() => {
+                          const updated = [...prodImages, preset.url];
+                          setProdImages(updated);
+                          handleAutoDetectColors(updated);
+                        }}
                         className="px-2 py-1 bg-white border border-[#E5E1D5] hover:border-[#FF762E] text-[10px] font-bold rounded-lg text-[#14221C] transition-colors cursor-pointer"
+                        title="এই স্যাম্পল ছবি যোগ করুন এবং ছবি থেকে অটো কালার ডিটেক্ট করুন"
                       >
                         + {preset.label}
                       </button>
@@ -4643,7 +4870,18 @@ service cloud.firestore {
 
                       {/* Colors Palette */}
                       <div>
-                        <label className="block font-bold text-[#14221C] mb-1">Color Palette</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block font-bold text-[#14221C] text-xs">Color Palette ({prodColors.length})</label>
+                          <button
+                            type="button"
+                            onClick={() => handleAutoDetectColors()}
+                            disabled={isDetectingColors || prodImages.length === 0}
+                            className="px-2.5 py-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>অটো কালার ডিটেক্ট</span>
+                          </button>
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           {prodColors.map((c, i) => (
                             <span
@@ -4731,6 +4969,18 @@ service cloud.firestore {
                             <span className="flex items-center gap-1 text-amber-800 font-bold">
                               <Pin className="w-3.5 h-3.5 text-amber-600" />
                               <span>📌 সবার উপরে পিন করুন (Pin to Top)</span>
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#14221C]">
+                            <input
+                              type="checkbox"
+                              checked={prodIsTopProduct}
+                              onChange={(e) => setProdIsTopProduct(e.target.checked)}
+                              className="rounded border-[#E5E1D5] text-amber-500"
+                            />
+                            <span className="flex items-center gap-1 text-amber-950 font-bold bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-300">
+                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                              <span>⭐ টপ প্রোডাক্ট (হোমপেজ টপ সেকশনে প্রদর্শন করুন)</span>
                             </span>
                           </label>
                         </div>

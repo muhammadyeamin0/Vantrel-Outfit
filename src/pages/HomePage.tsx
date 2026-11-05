@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCategory, Product } from '../types';
 import {
@@ -8,7 +8,8 @@ import {
   ArrowRight,
   Check,
   Zap,
-  ShoppingBag
+  ShoppingBag,
+  Star
 } from 'lucide-react';
 
 interface HeroSlide {
@@ -114,49 +115,44 @@ export const HomePage: React.FC = () => {
     }
   ];
 
-  // Exactly matching the 5 Popular Products from the reference mockup
-  const popularItems = [
-    {
-      id: 'prod-001',
-      name: 'Essential Oversized T-Shirt',
-      price: 1250,
-      image: '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png',
-      category: 'T-Shirts' as ProductCategory,
-      swatches: ['#1C1C1E', '#D9D4C7', '#4D5154']
-    },
-    {
-      id: 'prod-002',
-      name: 'Minimal Logo T-Shirt',
-      price: 1150,
-      image: '/src/assets/images/product_minimal_white_tee_1793118980970.jpg',
-      category: 'T-Shirts' as ProductCategory,
-      swatches: ['#FAF8F5', '#37383B', '#161618']
-    },
-    {
-      id: 'prod-003',
-      name: 'Cargo Pants',
-      price: 2350,
-      image: '/src/assets/images/product_denim_cargo_1792588592254.jpg',
-      category: 'Pants' as ProductCategory,
-      swatches: ['#1E1F22', '#3B4134', '#565759']
-    },
-    {
-      id: 'prod-004',
-      name: 'Signature Hoodie',
-      price: 2850,
-      image: '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
-      category: 'Hoodies' as ProductCategory,
-      swatches: ['#111111', '#3E4044', '#1F2E26']
-    },
-    {
-      id: 'prod-005',
-      name: 'Classic Panjabi',
-      price: 1950,
-      image: '/src/assets/images/product_panjabi_casual_1792588592268.jpg',
-      category: 'Traditional Wear' as ProductCategory,
-      swatches: ['#EAE6DD', '#141416', '#444C3D']
+  // Dynamic Popular / Top Products managed directly by Admin & Store database
+  const popularItems = useMemo(() => {
+    // Only visible/active products (exclude archived)
+    const activeProducts = products.filter((p) => p.status !== 'archived' && !p.isArchived);
+
+    // Products explicitly marked as Top Product in Admin Panel
+    const topProducts = activeProducts.filter((p) => p.isTopProduct);
+
+    let chosen: Product[] = [...topProducts];
+
+    // If fewer than 5 top products are marked, complement with other active products
+    if (chosen.length < 5) {
+      const remaining = activeProducts.filter((p) => !chosen.some((c) => c.id === p.id));
+      const sortedRemaining = remaining.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        if (a.isBestSeller && !b.isBestSeller) return -1;
+        if (!a.isBestSeller && b.isBestSeller) return 1;
+        return 0;
+      });
+      chosen = [...chosen, ...sortedRemaining.slice(0, 5 - chosen.length)];
     }
-  ];
+
+    return chosen.slice(0, 10).map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.discountPrice || p.regularPrice,
+      regularPrice: p.regularPrice,
+      image: p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png',
+      category: p.category,
+      swatches: (p.colors && p.colors.length > 0)
+        ? p.colors.map((c) => c.hex)
+        : ['#1C1C1E', '#D9D4C7'],
+      isNew: Boolean(p.isNewArrival),
+      isTop: Boolean(p.isTopProduct),
+      rawProduct: p
+    }));
+  }, [products]);
 
   const handleCategoryNav = (cat: ProductCategory) => {
     setSelectedCategory(cat);
@@ -164,57 +160,29 @@ export const HomePage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleProductClick = (item: typeof popularItems[0]) => {
+  const handleProductClick = (item: { id: string }) => {
     openProductDetail(item.id);
   };
 
-  const handleQuickBuyNow = (e: React.MouseEvent, item: typeof popularItems[0]) => {
+  const handleQuickBuyNow = (e: React.MouseEvent, item: (typeof popularItems)[0]) => {
     e.stopPropagation();
-    const realProduct =
-      products.find((p) => p.id === item.id) ||
-      products.find((p) => p.name.toLowerCase().includes(item.name.toLowerCase())) ||
-      ({
-        ...products[0],
-        id: item.id,
-        name: item.name,
-        discountPrice: item.price,
-        regularPrice: Math.round(item.price * 1.25),
-        images: [item.image],
-        category: item.category,
-        sizes: ['M', 'L', 'XL', 'XXL'],
-        colors: item.swatches.map((hex, i) => ({ name: `Color ${i + 1}`, hex }))
-      } as Product);
-
+    const realProduct = item.rawProduct || products.find((p) => p.id === item.id) || products[0];
     const swatchIdx = selectedSwatches[item.id] || 0;
     const selectedColorName = realProduct.colors[swatchIdx]?.name || realProduct.colors[0]?.name || 'Standard';
+    const defaultSize = realProduct.sizes?.includes('M') ? 'M' : realProduct.sizes?.[0] || 'M';
 
-    buyNow(realProduct, 'L', selectedColorName, 1);
+    buyNow(realProduct, defaultSize, selectedColorName, 1);
   };
 
-  const handleQuickAddToCart = (e: React.MouseEvent, item: typeof popularItems[0]) => {
+  const handleQuickAddToCart = (e: React.MouseEvent, item: (typeof popularItems)[0]) => {
     e.stopPropagation();
     setAddingId(item.id);
-
-    // Find actual product in state or construct safe cart item
-    const realProduct =
-      products.find((p) => p.id === item.id) ||
-      products.find((p) => p.name.toLowerCase().includes(item.name.toLowerCase())) ||
-      ({
-        ...products[0],
-        id: item.id,
-        name: item.name,
-        discountPrice: item.price,
-        regularPrice: Math.round(item.price * 1.25),
-        images: [item.image],
-        category: item.category,
-        sizes: ['M', 'L', 'XL', 'XXL'],
-        colors: item.swatches.map((hex, i) => ({ name: `Color ${i + 1}`, hex }))
-      } as Product);
-
+    const realProduct = item.rawProduct || products.find((p) => p.id === item.id) || products[0];
     const swatchIdx = selectedSwatches[item.id] || 0;
     const selectedColorName = realProduct.colors[swatchIdx]?.name || realProduct.colors[0]?.name || 'Standard';
+    const defaultSize = realProduct.sizes?.includes('M') ? 'M' : realProduct.sizes?.[0] || 'M';
 
-    addToCart(realProduct, 'L', selectedColorName, 1, false);
+    addToCart(realProduct, defaultSize, selectedColorName, 1, false);
     showToast('Added to Cart', `${item.name} added to your shopping bag.`, 'success');
 
     setTimeout(() => {
@@ -345,11 +313,20 @@ export const HomePage: React.FC = () => {
           {/* Section Header */}
           <div className="flex items-end justify-between mb-8 sm:mb-10 pb-4 border-b border-neutral-300/60">
             <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2 py-0.5 bg-black text-white text-[10px] font-bold uppercase tracking-wider">
+                  Curated Collection
+                </span>
+                <span className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                  <span>Top Selected</span>
+                </span>
+              </div>
               <h2 className="font-heading text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-black">
-                Popular Products
+                Top & Popular Products
               </h2>
-              <p className="text-xs sm:text-sm text-neutral-600 mt-1 font-medium">
-                Best selling items from our collection
+              <p className="text-xs sm:text-sm text-neutral-600 mt-0.5 font-medium">
+                Best selling and top-curated garments from our store collection
               </p>
             </div>
             <button
@@ -370,7 +347,8 @@ export const HomePage: React.FC = () => {
             {popularItems.map((item) => {
               const activeSwatch = selectedSwatches[item.id] || 0;
               const isAdding = addingId === item.id;
-              const regularPrice = Math.round(item.price * 1.25);
+              const regularPrice = item.regularPrice || Math.round(item.price * 1.25);
+              const hasDiscount = regularPrice > item.price;
 
               return (
                 <div
@@ -392,8 +370,18 @@ export const HomePage: React.FC = () => {
                       className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute top-2 left-2 bg-black text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
-                      New
+                    <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                      {item.isTop && (
+                        <div className="flex items-center gap-1 bg-amber-400 text-neutral-950 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 shadow-xs">
+                          <Star className="w-2.5 h-2.5 fill-current" />
+                          <span>TOP</span>
+                        </div>
+                      )}
+                      {item.isNew && !item.isTop && (
+                        <div className="bg-black text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+                          New
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -414,9 +402,11 @@ export const HomePage: React.FC = () => {
                       <span className="text-sm sm:text-base font-black text-black tabular-nums">
                         ৳ {item.price.toLocaleString('en-IN')}
                       </span>
-                      <span className="text-[11px] text-neutral-400 line-through tabular-nums">
-                        ৳ {regularPrice.toLocaleString('en-IN')}
-                      </span>
+                      {hasDiscount && (
+                        <span className="text-[11px] text-neutral-400 line-through tabular-nums">
+                          ৳ {regularPrice.toLocaleString('en-IN')}
+                        </span>
+                      )}
                     </div>
 
                     {/* Color Swatch Dots */}

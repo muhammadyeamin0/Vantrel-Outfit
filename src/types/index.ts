@@ -101,6 +101,7 @@ export interface Product {
   isBestSeller?: boolean;
   isArchived?: boolean;
   isPinned?: boolean;
+  isTopProduct?: boolean;
   sortOrder?: number;
   costPrice?: number;
   status?: 'published' | 'draft' | 'archived';
@@ -248,6 +249,7 @@ export interface Coupon {
 export interface StoreSettings {
   storeName: string;
   slogan: string;
+  logoUrl?: string;
   announcementText: string;
   deliveryFeeInsideDhaka: number;
   deliveryFeeOutsideDhaka: number;

@@ -237,14 +237,21 @@ export const OrderConfirmationPage: React.FC = () => {
         <div className="bg-white p-6 sm:p-10 rounded-3xl border border-[#E5E1D5] shadow-sm space-y-8 print:p-0 print:border-none print:shadow-none">
           {/* Invoice Header */}
           <div className="flex flex-col sm:flex-row justify-between gap-6 pb-6 border-b border-[#E5E1D5]">
-            <div>
-              <span className="font-heading text-2xl font-black text-[#14221C] uppercase tracking-tight">
-                VANTREL
-              </span>
-              <p className="text-xs text-[#202522]/60 mt-1">
-                Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh<br />
-                WhatsApp: https://wa.me/message/E6PISGJZC63TA1 · Facebook: https://www.facebook.com/share/18qNnMStUm/
-              </p>
+            <div className="flex items-center gap-3.5">
+              <img
+                src="/assets/images/vantrel-logo.png"
+                alt="VANTREL"
+                className="w-14 h-14 object-contain rounded-xl bg-black p-1.5 shadow-xs border border-stone-200 shrink-0"
+              />
+              <div>
+                <span className="font-heading text-2xl font-black text-[#14221C] uppercase tracking-tight">
+                  VANTREL
+                </span>
+                <p className="text-xs text-[#202522]/60 mt-1">
+                  Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh<br />
+                  WhatsApp: https://wa.me/message/E6PISGJZC63TA1 · Facebook: https://www.facebook.com/share/18qNnMStUm/
+                </p>
+              </div>
             </div>
 
             <div className="text-left sm:text-right space-y-1 text-xs">

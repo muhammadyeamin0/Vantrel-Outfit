@@ -126,13 +126,20 @@ export const OrderTrackingPage: React.FC = () => {
     <div className="bg-[#F7F5EF] min-h-screen py-10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Title */}
-        <div className="text-center max-w-xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
-            Bangladesh Logistics Tracking
-          </span>
-          <h1 className="font-heading text-3xl font-extrabold text-[#14221C] tracking-tight uppercase">
-            Track Your Order
-          </h1>
+        <div className="text-center max-w-xl mx-auto space-y-2.5">
+          <img
+            src="/assets/images/vantrel-logo.png"
+            alt="VANTREL"
+            className="w-14 h-14 object-contain rounded-2xl bg-black p-1.5 shadow-sm mx-auto border border-stone-200"
+          />
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
+              Bangladesh Logistics Tracking
+            </span>
+            <h1 className="font-heading text-3xl font-extrabold text-[#14221C] tracking-tight uppercase">
+              Track Your Order
+            </h1>
+          </div>
           <p className="text-xs text-[#202522]/60">
             Enter your unique VANTREL order identifier and verified phone number to inspect delivery progress.
           </p>

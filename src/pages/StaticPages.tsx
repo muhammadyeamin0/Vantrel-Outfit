@@ -20,6 +20,11 @@ export const AboutPage: React.FC = () => {
     <div className="bg-[#F7F5EF] min-h-screen py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center space-y-3">
+          <img
+            src="/assets/images/vantrel-logo.png"
+            alt="VANTREL"
+            className="w-16 h-16 object-contain rounded-2xl bg-black p-2 shadow-md mx-auto border border-stone-200"
+          />
           <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
             Our Manifesto
           </span>

@@ -35,8 +35,13 @@ export const Footer: React.FC = () => {
                 e.preventDefault();
                 navigateTo('home');
               }}
-              className="inline-block"
+              className="inline-flex items-center gap-3 group select-none"
             >
+              <img
+                src="/assets/images/vantrel-logo.png"
+                alt="VANTREL"
+                className="w-10 h-10 object-contain rounded-lg bg-black border border-white/15 p-0.5 group-hover:border-white/40 transition-colors"
+              />
               <span className="font-heading text-2xl font-black tracking-[0.15em] text-white uppercase">
                 VANTREL
               </span>

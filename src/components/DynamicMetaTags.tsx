@@ -301,7 +301,7 @@ export const DynamicMetaTags: React.FC = () => {
         '@type': 'ClothingStore',
         name: 'VANTREL',
         url: origin,
-        logo: defaultImage,
+        logo: `${origin}/assets/images/vantrel-logo.png`,
         description:
           'Define Your Narrative. Premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.',
         priceRange: '৳৳',
