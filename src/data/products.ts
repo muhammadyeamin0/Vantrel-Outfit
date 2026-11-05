@@ -982,10 +982,10 @@ export const INITIAL_COUPONS: Coupon[] = [
 ];
 
 export const INITIAL_SETTINGS: StoreSettings = {
-  storeName: 'VANTREL',
+  storeName: 'VANTREL OUTFIT',
   slogan: 'Define Your Narrative.',
   logoUrl: '/assets/images/vantrel-logo.png',
-  announcementText: '✨ VANTREL LUXURY MENSWEAR | INSIDE DHAKA ৳70 · OUTSIDE DHAKA ৳120 | COD & bKash',
+  announcementText: '✨ VANTREL OUTFIT LUXURY MENSWEAR | INSIDE DHAKA ৳70 · OUTSIDE DHAKA ৳120 | COD & bKash',
   deliveryFeeInsideDhaka: 70,
   deliveryFeeOutsideDhaka: 120,
   deliveryFeeRemote: 140,
@@ -996,7 +996,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   whatsapp: 'https://wa.me/message/E6PISGJZC63TA1',
   whatsappUrl: 'https://wa.me/message/E6PISGJZC63TA1',
   facebookUrl: 'https://www.facebook.com/share/18qNnMStUm/',
-  email: 'concierge@vantrel.com',
+  email: 'concierge@vantreloutfit.shop',
   address: 'Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh',
   bKashMerchantNumber: '01711234567',
   isBkashActive: false,
@@ -1009,7 +1009,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   refereeRewardBDT: 100,
   smsProvider: 'greenweb',
   smsApiKey: 'gw_live_demo_key_sec892',
-  smsSenderId: 'VANTREL',
+  smsSenderId: 'VANTREL OUTFIT',
   orderNotificationEmail: 'muhammadeyamin0@gmail.com',
   gmailNotificationUser: 'muhammadeyamin0@gmail.com',
   gmailNotificationAppPassword: 'mnul thdc eztk hmfc'

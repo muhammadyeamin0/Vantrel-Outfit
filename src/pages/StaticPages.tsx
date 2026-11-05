@@ -22,7 +22,7 @@ export const AboutPage: React.FC = () => {
         <div className="text-center space-y-3">
           <img
             src="/assets/images/vantrel-logo.png"
-            alt="VANTREL"
+            alt="VANTREL OUTFIT"
             className="w-16 h-16 object-contain rounded-2xl bg-black p-2 shadow-md mx-auto border border-stone-200"
           />
           <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
@@ -32,7 +32,7 @@ export const AboutPage: React.FC = () => {
             Define Your Narrative.
           </h1>
           <p className="text-xs sm:text-sm text-[#202522]/70 max-w-xl mx-auto leading-relaxed">
-            VANTREL was established in Dhaka to redefine contemporary South Asian apparel through heavyweight textiles, understated silhouettes, and structural architectural integrity.
+            VANTREL OUTFIT was established in Dhaka to redefine contemporary South Asian apparel through heavyweight textiles, understated silhouettes, and structural architectural integrity.
           </p>
         </div>
 
@@ -387,7 +387,7 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Defective or Damaged Pieces</h3>
             <p>
-              In the rare event of a manufacturing defect or wrong item dispatched, VANTREL bears 100% of the courier costs to replace the item immediately.
+              In the rare event of a manufacturing defect or wrong item dispatched, VANTREL OUTFIT bears 100% of the courier costs to replace the item immediately.
             </p>
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">3. Refund Processing</h3>
@@ -411,7 +411,7 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Payment Security</h3>
             <p>
-              VANTREL NEVER asks for or stores your mobile banking PINs, OTP codes, or card CVVs. All mobile transactions occur directly within official bKash/Nagad USSD or secure SSL gateways.
+              VANTREL OUTFIT NEVER asks for or stores your mobile banking PINs, OTP codes, or card CVVs. All mobile transactions occur directly within official bKash/Nagad USSD or secure SSL gateways.
             </p>
           </>
         )}
@@ -425,7 +425,7 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Pricing in BDT</h3>
             <p>
-              All prices displayed on VANTREL are denominated in Bangladeshi Taka (৳) and include all applicable local manufacturing costs.
+              All prices displayed on VANTREL OUTFIT are denominated in Bangladeshi Taka (৳) and include all applicable local manufacturing costs.
             </p>
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Order Integrity</h3>

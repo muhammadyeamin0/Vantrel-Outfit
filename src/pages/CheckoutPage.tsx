@@ -353,7 +353,7 @@ export const CheckoutPage: React.FC = () => {
         {/* Streamlined Header */}
         <div className="text-center sm:text-left pb-2 border-b border-[#E5E1D5]">
           <span className="text-[11px] font-bold uppercase tracking-widest text-[#FF762E]">
-            VANTREL DIRECT FAST ORDER
+            VANTREL OUTFIT DIRECT FAST ORDER
           </span>
           <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#14221C] tracking-tight uppercase mt-0.5">
             অর্ডার নিশ্চিত করতে আপনার তথ্য দিন

@@ -852,7 +852,7 @@ export const AdminDashboard: React.FC = () => {
         description: prodDesc.trim(),
         category: finalCategory,
         subCategory: prodSubCategory.trim() || 'Streetwear',
-        brand: 'VANTREL',
+        brand: 'VANTREL OUTFIT',
         sku: prodSku.trim(),
         regularPrice: prodPrice,
         discountPrice: prodDiscountPrice < prodPrice ? prodDiscountPrice : undefined,
@@ -1125,13 +1125,13 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center gap-3.5">
             <img
               src="/assets/images/vantrel-logo.png"
-              alt="VANTREL"
+              alt="VANTREL OUTFIT"
               className="w-13 h-13 sm:w-14 sm:h-14 object-contain rounded-2xl bg-black p-1.5 shadow-md border border-neutral-800 shrink-0"
             />
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 bg-[#14221C] text-white text-[10px] font-bold uppercase rounded">
-                  VANTREL Core Admin
+                  VANTREL OUTFIT Core Admin
                 </span>
                 <span className="text-xs text-[#202522]/50">Enterprise E-Commerce Suite</span>
               </div>
@@ -4275,7 +4275,7 @@ service cloud.firestore {
               <div className="flex justify-between items-center pb-4 border-b border-[#E5E1D5]">
                 <div>
                   <h3 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
-                    {editingProductId ? 'Edit VANTREL Garment Piece' : 'Add New VANTREL Garment (CRUD)'}
+                    {editingProductId ? 'Edit VANTREL OUTFIT Garment Piece' : 'Add New VANTREL OUTFIT Garment (CRUD)'}
                   </h3>
                   <p className="text-[11px] text-[#202522]/60">All properties required by production e-commerce specifications.</p>
                 </div>

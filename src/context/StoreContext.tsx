@@ -641,6 +641,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return {
           ...INITIAL_SETTINGS,
           ...parsed,
+          storeName: parsed.storeName === 'VANTREL' ? 'VANTREL OUTFIT' : (parsed.storeName || 'VANTREL OUTFIT'),
+          announcementText: parsed.announcementText && parsed.announcementText.includes('VANTREL LUXURY') ? parsed.announcementText.replace('VANTREL LUXURY', 'VANTREL OUTFIT LUXURY') : (parsed.announcementText || INITIAL_SETTINGS.announcementText),
           deliveryFeeInsideDhaka: parsed.deliveryFeeInsideDhaka === 100 || parsed.deliveryFeeInsideDhaka === 80 ? 70 : (parsed.deliveryFeeInsideDhaka || 70),
           deliveryFeeOutsideDhaka: parsed.deliveryFeeOutsideDhaka === 150 ? 120 : (parsed.deliveryFeeOutsideDhaka || 120)
         };

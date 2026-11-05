@@ -24,7 +24,7 @@ export const FloatingChatWidget: React.FC = () => {
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-[#14221C]" />
               </div>
               <div>
-                <h4 className="text-sm font-bold tracking-tight">VANTREL Support Helpline</h4>
+                <h4 className="text-sm font-bold tracking-tight">VANTREL OUTFIT Support</h4>
                 <p className="text-[10px] text-white/70">Online · WhatsApp & Facebook</p>
               </div>
             </div>
@@ -40,7 +40,7 @@ export const FloatingChatWidget: React.FC = () => {
           {/* Quick FAQ / Topics */}
           <div className="p-4 bg-[#F7F5EF] space-y-3">
             <div className="text-[11px] text-[#202522]/80 leading-relaxed bg-white p-3 rounded-2xl border border-[#E5E1D5] shadow-xs">
-              👋 স্বাগতম <strong>VANTREL</strong>-এ। সাইজ নির্বাচন, অর্ডার সংক্রান্ত প্রশ্ন বা যেকোনো সহায়তায় আমাদের অফিশিয়াল <strong>হোয়াটসঅ্যাপ বিজনেস</strong> অথবা <strong>ফেসবুকে</strong> মেসেজ দিন।
+              👋 স্বাগতম <strong>VANTREL OUTFIT</strong>-এ। সাইজ নির্বাচন, অর্ডার সংক্রান্ত প্রশ্ন বা যেকোনো সহায়তায় আমাদের অফিশিয়াল <strong>হোয়াটসঅ্যাপ বিজনেস</strong> অথবা <strong>ফেসবুকে</strong> মেসেজ দিন।
             </div>
 
             <div className="space-y-1.5">

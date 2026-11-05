@@ -39,11 +39,11 @@ export const Footer: React.FC = () => {
             >
               <img
                 src="/assets/images/vantrel-logo.png"
-                alt="VANTREL"
+                alt="VANTREL OUTFIT"
                 className="w-10 h-10 object-contain rounded-lg bg-black border border-white/15 p-0.5 group-hover:border-white/40 transition-colors"
               />
-              <span className="font-heading text-2xl font-black tracking-[0.15em] text-white uppercase">
-                VANTREL
+              <span className="font-heading text-xl sm:text-2xl font-black tracking-[0.12em] text-white uppercase whitespace-nowrap">
+                VANTREL OUTFIT
               </span>
             </a>
             <p className="text-xs text-white/70 max-w-sm leading-relaxed">
@@ -210,7 +210,7 @@ export const Footer: React.FC = () => {
         {/* Bottom Bar & Trust Indicators */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/50">
           <div>
-            © {new Date().getFullYear()} VANTREL. All rights reserved. Registered fashion trademark in Bangladesh.
+            © {new Date().getFullYear()} VANTREL OUTFIT. All rights reserved. Registered fashion trademark in Bangladesh.
           </div>
 
           {/* Payment Badges Supported in Bangladesh */}

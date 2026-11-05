@@ -129,7 +129,7 @@ export const OrderTrackingPage: React.FC = () => {
         <div className="text-center max-w-xl mx-auto space-y-2.5">
           <img
             src="/assets/images/vantrel-logo.png"
-            alt="VANTREL"
+            alt="VANTREL OUTFIT"
             className="w-14 h-14 object-contain rounded-2xl bg-black p-1.5 shadow-sm mx-auto border border-stone-200"
           />
           <div>
@@ -141,7 +141,7 @@ export const OrderTrackingPage: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-[#202522]/60">
-            Enter your unique VANTREL order identifier and verified phone number to inspect delivery progress.
+            Enter your unique VANTREL OUTFIT order identifier and verified phone number to inspect delivery progress.
           </p>
         </div>
 
@@ -400,7 +400,7 @@ export const OrderTrackingPage: React.FC = () => {
                   <span>Request Return / Exchange</span>
                 </div>
                 <p className="text-[11px] text-[#202522]/70">
-                  VANTREL offers 7-day hassle-free returns on unworn pieces with tags attached.
+                  VANTREL OUTFIT offers 7-day hassle-free returns on unworn pieces with tags attached.
                 </p>
                 <textarea
                   rows={2}
@@ -482,7 +482,7 @@ export const OrderTrackingPage: React.FC = () => {
             <div className="p-4 bg-[#14221C] text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
               <div className="space-y-0.5 text-center sm:text-left">
                 <div className="font-bold">Need assistance with your consignment?</div>
-                <div className="text-white/70 text-[11px]">Connect with VANTREL Support via WhatsApp Business or Facebook.</div>
+                <div className="text-white/70 text-[11px]">Connect with VANTREL OUTFIT Support via WhatsApp Business or Facebook.</div>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <a

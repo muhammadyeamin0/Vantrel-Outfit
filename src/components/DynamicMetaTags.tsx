@@ -129,71 +129,71 @@ export const DynamicMetaTags: React.FC = () => {
           canonicalUrl = `${origin}/?page=checkout`;
           break;
         case 'confirmation':
-          title = 'Order Confirmed | VANTREL Bangladesh';
+          title = 'Order Confirmed | VANTREL OUTFIT';
           description =
-            'Thank you for shopping with VANTREL. We are carefully packaging your order with custom branded box packaging.';
+            'Thank you for shopping with VANTREL OUTFIT. We are carefully packaging your order with custom branded box packaging.';
           canonicalUrl = `${origin}/?page=confirmation`;
           break;
         case 'tracking':
-          title = 'Live Order Tracking | VANTREL Bangladesh';
+          title = 'Live Order Tracking | VANTREL OUTFIT';
           description =
             'Track your parcel dispatch and courier status live with Steadfast, Pathao, or RedX logistics tracking.';
           canonicalUrl = `${origin}/?page=tracking`;
           break;
         case 'account':
-          title = 'Customer Account & Rewards | VANTREL';
+          title = 'Customer Account & Rewards | VANTREL OUTFIT';
           description =
             'Manage your saved delivery addresses, past orders, and redeem loyalty points on your favorite streetwear.';
           canonicalUrl = `${origin}/?page=account`;
           break;
         case 'admin':
-          title = 'VANTREL Operations Dashboard | Admin Panel';
+          title = 'VANTREL OUTFIT Operations Dashboard | Admin Panel';
           description =
             'Administrative portal for live orders, customer addresses, inventory, courier dispatch, and finance management.';
           canonicalUrl = `${origin}/?page=admin`;
           break;
         case 'about':
-          title = 'About VANTREL — The Narrative & Craftsmanship';
+          title = 'About VANTREL OUTFIT — The Narrative & Craftsmanship';
           description =
-            'Discover VANTREL’s dedication to uncompromising GSM weights, architectural streetwear silhouettes, and ethical local production.';
+            'Discover VANTREL OUTFIT’s dedication to uncompromising GSM weights, architectural streetwear silhouettes, and ethical local production.';
           canonicalUrl = `${origin}/?page=about`;
           break;
         case 'contact':
-          title = 'Contact VANTREL Support';
+          title = 'Contact VANTREL OUTFIT Support';
           description =
-            'Get in touch with the VANTREL team on our official Facebook page for sizing help, custom orders, or customer support.';
+            'Get in touch with the VANTREL OUTFIT team on our official Facebook page for sizing help, custom orders, or customer support.';
           canonicalUrl = `${origin}/?page=contact`;
           break;
         case 'faqs':
         case 'size-guide':
-          title = 'Size Guide & FAQs | VANTREL Streetwear';
+          title = 'Size Guide & FAQs | VANTREL OUTFIT';
           description =
             'Explore our detailed chest & length measurements for oversized t-shirts, drop-shoulder hoodies, and fabric care instructions.';
           canonicalUrl = `${origin}/?page=faqs`;
           break;
         case 'shipping-policy':
-          title = 'Shipping & Delivery Policy | VANTREL Bangladesh';
+          title = 'Shipping & Delivery Policy | VANTREL OUTFIT';
           description =
             'Delivery inside Dhaka: ৳70 (24-48 hrs). Outside Dhaka: ৳120 (48-72 hrs). 100% open-box checking allowed with Steadfast Courier.';
           canonicalUrl = `${origin}/?page=shipping-policy`;
           break;
         case 'return-policy':
-          title = '7-Day Easy Exchange Policy | VANTREL';
+          title = '7-Day Easy Exchange Policy | VANTREL OUTFIT';
           description =
             'Hassle-free 7-day exchange for any size or fit issues. We ensure full customer satisfaction on every garment.';
           canonicalUrl = `${origin}/?page=return-policy`;
           break;
         case 'privacy-policy':
         case 'terms':
-          title = 'Privacy & Terms of Service | VANTREL';
+          title = 'Privacy & Terms of Service | VANTREL OUTFIT';
           description =
-            'Read our customer privacy commitments, data security, and terms of service for purchases made on VANTREL.';
+            'Read our customer privacy commitments, data security, and terms of service for purchases made on VANTREL OUTFIT.';
           canonicalUrl = `${origin}/?page=privacy-policy`;
           break;
         default:
-          title = 'VANTREL — Premium Bangladeshi Fashion & Streetwear';
+          title = 'VANTREL OUTFIT — Premium Quality & Trendsetting Fashion';
           description =
-            'Define Your Narrative. Discover premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.';
+            'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। Discover premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.';
           canonicalUrl = `${origin}/`;
           break;
       }
@@ -217,7 +217,7 @@ export const DynamicMetaTags: React.FC = () => {
     setMetaTag('name', 'description', description);
 
     // 4. Inject Open Graph tags
-    setMetaTag('property', 'og:site_name', 'VANTREL');
+    setMetaTag('property', 'og:site_name', 'VANTREL OUTFIT');
     setMetaTag('property', 'og:type', ogType);
     setMetaTag('property', 'og:title', title);
     setMetaTag('property', 'og:description', description);
@@ -277,7 +277,7 @@ export const DynamicMetaTags: React.FC = () => {
         category: activeProduct.category,
         brand: {
           '@type': 'Brand',
-          name: 'VANTREL'
+          name: 'VANTREL OUTFIT'
         },
         offers: {
           '@type': 'Offer',
@@ -290,7 +290,7 @@ export const DynamicMetaTags: React.FC = () => {
             : 'https://schema.org/OutOfStock',
           seller: {
             '@type': 'Organization',
-            name: 'VANTREL Bangladesh'
+            name: 'VANTREL OUTFIT'
           }
         }
       };
@@ -299,11 +299,11 @@ export const DynamicMetaTags: React.FC = () => {
       const storeSchema = {
         '@context': 'https://schema.org',
         '@type': 'ClothingStore',
-        name: 'VANTREL',
+        name: 'VANTREL OUTFIT',
         url: origin,
         logo: `${origin}/assets/images/vantrel-logo.png`,
         description:
-          'Define Your Narrative. Premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.',
+          'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। Premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.',
         priceRange: '৳৳',
         sameAs: ['https://www.facebook.com/share/18qNnMStUm/'],
         address: {

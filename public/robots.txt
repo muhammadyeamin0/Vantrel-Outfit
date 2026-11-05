@@ -1,5 +1,5 @@
 # https://www.robotstxt.org/robotstxt.html
-# Robots.txt for VANTREL (https://www.vantreloutfit.shop)
+# Robots.txt for VANTREL OUTFIT (https://www.vantreloutfit.shop)
 
 # Allow all reputable crawlers including Googlebot, Bingbot, Applebot, FacebookExternalHit
 User-agent: Googlebot

@@ -240,12 +240,12 @@ export const OrderConfirmationPage: React.FC = () => {
             <div className="flex items-center gap-3.5">
               <img
                 src="/assets/images/vantrel-logo.png"
-                alt="VANTREL"
+                alt="VANTREL OUTFIT"
                 className="w-14 h-14 object-contain rounded-xl bg-black p-1.5 shadow-xs border border-stone-200 shrink-0"
               />
               <div>
                 <span className="font-heading text-2xl font-black text-[#14221C] uppercase tracking-tight">
-                  VANTREL
+                  VANTREL OUTFIT
                 </span>
                 <p className="text-xs text-[#202522]/60 mt-1">
                   Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh<br />
