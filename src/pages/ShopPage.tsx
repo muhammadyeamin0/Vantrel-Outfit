@@ -157,6 +157,11 @@ export const ShopPage: React.FC = () => {
             if (a.isPinned !== b.isPinned) {
               return (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
             }
+            const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 9999;
+            const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 9999;
+            if (orderA !== orderB) {
+              return orderA - orderB;
+            }
             return (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0);
         }
       });

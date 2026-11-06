@@ -79,6 +79,9 @@ export const AdminDashboard: React.FC = () => {
     categories,
     addCategory,
     deleteCategory,
+    moveCategoryOrder,
+    reorderCategories,
+    moveProductInCategory,
     orders,
     clearAllOrders,
     deleteOrder,
@@ -171,10 +174,12 @@ export const AdminDashboard: React.FC = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showAdvancedSpecs, setShowAdvancedSpecs] = useState(false);
 
-  // Category Management state
+  // Category Management & Product Reordering state
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [customCategoryText, setCustomCategoryText] = useState('');
+  const [catProductSortCategory, setCatProductSortCategory] = useState<string>('T-Shirts');
+  const [directRankInputs, setDirectRankInputs] = useState<Record<string, string>>({});
 
   // Product Form fields - Complete properties required by brief
   const [prodName, setProdName] = useState('');
@@ -2050,7 +2055,13 @@ export const AdminDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 disabled={idx === 0}
-                                onClick={() => moveProductUp(p.id)}
+                                onClick={() => {
+                                  if (productCategoryFilter !== 'All') {
+                                    moveProductInCategory(p.id, productCategoryFilter, 'up');
+                                  } else {
+                                    moveProductUp(p.id);
+                                  }
+                                }}
                                 className="p-0.5 hover:bg-stone-200 text-stone-600 disabled:opacity-20 rounded cursor-pointer disabled:cursor-not-allowed"
                                 title="উপরে নিন (Move Up)"
                               >
@@ -2059,13 +2070,34 @@ export const AdminDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 disabled={idx === filteredProducts.length - 1}
-                                onClick={() => moveProductDown(p.id)}
+                                onClick={() => {
+                                  if (productCategoryFilter !== 'All') {
+                                    moveProductInCategory(p.id, productCategoryFilter, 'down');
+                                  } else {
+                                    moveProductDown(p.id);
+                                  }
+                                }}
                                 className="p-0.5 hover:bg-stone-200 text-stone-600 disabled:opacity-20 rounded cursor-pointer disabled:cursor-not-allowed"
                                 title="নিচে নিন (Move Down)"
                               >
                                 <ChevronDown className="w-3.5 h-3.5" />
                               </button>
                             </div>
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => {
+                                if (productCategoryFilter !== 'All') {
+                                  moveProductInCategory(p.id, productCategoryFilter, 'top');
+                                } else {
+                                  moveProductToTop(p.id);
+                                }
+                              }}
+                              className="p-1 hover:bg-amber-100 text-stone-400 hover:text-amber-800 rounded disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              title="সবার উপরে নিন (Move to #1 / Top)"
+                            >
+                              <span className="text-[10px] font-black">🔝</span>
+                            </button>
                           </div>
                           <div className="flex items-center justify-center gap-1 mt-0.5">
                             {p.isPinned && (
@@ -2073,12 +2105,19 @@ export const AdminDashboard: React.FC = () => {
                                 Pinned
                               </span>
                             )}
-                            {p.isTopProduct && (
-                              <span className="text-[8px] font-extrabold text-amber-950 bg-amber-300 px-1 py-0.2 rounded uppercase tracking-wider flex items-center gap-0.5 shadow-2xs">
-                                <Star className="w-2 h-2 fill-current" />
-                                <span>Top</span>
-                              </span>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleTopProduct(p.id)}
+                              className={`text-[8px] font-extrabold px-1 py-0.2 rounded uppercase tracking-wider flex items-center gap-0.5 cursor-pointer transition-colors ${
+                                p.isTopProduct
+                                  ? 'text-amber-950 bg-amber-300 hover:bg-amber-400 shadow-2xs'
+                                  : 'text-stone-400 bg-stone-100 hover:bg-stone-200'
+                              }`}
+                              title={p.isTopProduct ? 'হোমপেজ টপ প্রোডাক্ট থেকে বাদ দিন' : '⭐ হোমপেজ টপ টেন / পপুলারে যুক্ত করুন'}
+                            >
+                              <Star className={`w-2 h-2 ${p.isTopProduct ? 'fill-current' : ''}`} />
+                              <span>{p.isTopProduct ? 'Top' : '+Top'}</span>
+                            </button>
                           </div>
                         </td>
                         <td className="px-4 py-3 font-semibold text-[#14221C] flex items-center gap-3">
@@ -2226,123 +2265,454 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2.5: CATEGORY MANAGEMENT (Create/Delete Unlimited Categories) */}
+        {/* TAB 2.5: CATEGORY MANAGEMENT & REORDERING STUDIO */}
         {activeTab === 'categories' && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-[#E5E1D5]">
-              <div>
-                <h3 className="font-heading text-xl font-bold text-[#14221C] uppercase tracking-tight flex items-center gap-2">
-                  <Tag className="w-5 h-5 text-[#FF762E]" />
-                  <span>ক্যাটাগরি কন্ট্রোল প্যানেল ({categories.length}টি ক্যাটাগরি)</span>
-                </h3>
-                <p className="text-xs text-[#202522]/60 mt-1">
-                  এখানে যত ইচ্ছা নতুন ক্যাটাগরি যুক্ত বা বাদ দিতে পারবেন। ক্যাটাগরি যোগ করার সাথে সাথে পুরো ওয়েবসাইটে তা লাইভ আপডেট হবে।
-                </p>
-              </div>
-
-              <div className="text-xs font-semibold text-neutral-500">
-                মোট প্রোডাক্ট: <span className="font-bold text-[#14221C]">{products.length}টি</span>
-              </div>
-            </div>
-
-            {/* Create Category Input Card */}
-            <div className="p-5 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#14221C]">
-                নতুন ক্যাটাগরি তৈরি করুন
-              </label>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newCategoryInput.trim()) {
-                    showToast('ভ্যালিডেশন এরর', 'ক্যাটাগরির নাম লিখুন', 'error');
-                    return;
-                  }
-                  addCategory(newCategoryInput.trim());
-                  setNewCategoryInput('');
-                }}
-                className="flex flex-col sm:flex-row gap-3"
-              >
-                <div className="relative flex-1">
-                  <Tag className="w-4 h-4 text-[#202522]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="যেমন: টি-শার্ট, ড্রপ শোল্ডার, হুডি, ফরমাল প্যান্ট, প্রিমিয়াম জ্যাকেট..."
-                    value={newCategoryInput}
-                    onChange={(e) => setNewCategoryInput(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E5E1D5] rounded-xl text-xs font-medium text-[#14221C] focus:outline-none focus:border-[#FF762E]"
-                  />
+          <div className="space-y-8">
+            {/* 1. Category Ordering Section */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-[#E5E1D5]">
+                <div>
+                  <h3 className="font-heading text-xl font-bold text-[#14221C] uppercase tracking-tight flex items-center gap-2">
+                    <Tag className="w-5 h-5 text-[#FF762E]" />
+                    <span>ক্যাটাগরি সাজান ও কন্ট্রোল প্যানেল ({categories.length}টি ক্যাটাগরি)</span>
+                  </h3>
+                  <p className="text-xs text-[#202522]/70 mt-1 max-w-2xl">
+                    ক্যাটাগরিগুলোকে সামনে-পিছনে সাজাতে নিচের <span className="font-bold text-[#14221C]">⬅️ সামনে নিন</span> ও <span className="font-bold text-[#14221C]">➡️ পিছনে নিন</span> বাটন ব্যবহার করুন। যেমন: টি-শার্টের আগে হুডি, কিংবা প্যান্টকে আগে নিতে পারেন। এখানে যেভাবে সাজাবেন, হোমপেজের ৪টি ক্যাটাগরি কার্ড এবং শপ পেজে হুবহু সেই ক্রমে দেখতে পাবেন।
+                  </p>
                 </div>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+
+                <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500 bg-[#F7F5EF] px-3 py-1.5 rounded-xl border border-[#E5E1D5] shrink-0">
+                  <span>মোট প্রোডাক্ট:</span>
+                  <span className="font-black text-[#14221C]">{products.length}টি</span>
+                </div>
+              </div>
+
+              {/* Create Category Input Card */}
+              <div className="p-5 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#14221C]">
+                  নতুন ক্যাটাগরি তৈরি করুন
+                </label>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newCategoryInput.trim()) {
+                      showToast('ভ্যালিডেশন এরর', 'ক্যাটাগরির নাম লিখুন', 'error');
+                      return;
+                    }
+                    addCategory(newCategoryInput.trim());
+                    setNewCategoryInput('');
+                  }}
+                  className="flex flex-col sm:flex-row gap-3"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>ক্যাটাগরি যুক্ত করুন</span>
-                </button>
-              </form>
-            </div>
+                  <div className="relative flex-1">
+                    <Tag className="w-4 h-4 text-[#202522]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="যেমন: টি-শার্ট, ড্রপ শোল্ডার, হুডি, ফরমাল প্যান্ট, প্রিমিয়াম জ্যাকেট..."
+                      value={newCategoryInput}
+                      onChange={(e) => setNewCategoryInput(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#E5E1D5] rounded-xl text-xs font-medium text-[#14221C] focus:outline-none focus:border-[#FF762E]"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>ক্যাটাগরি যুক্ত করুন</span>
+                  </button>
+                </form>
+              </div>
 
-            {/* Categories List Cards Grid */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#14221C]">
-                বর্তমান সক্রিয় ক্যাটাগরিসমূহ
-              </h4>
+              {/* Categories Reordering Cards Grid */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#14221C]">
+                      সক্রিয় ক্যাটাগরি তালিকা (ক্রম অনুযায়ী সাজানো)
+                    </h4>
+                    <p className="text-[11px] text-stone-500 mt-0.5">
+                      ১, ২, ৩... ক্রমানুসারে আপনার ওয়েবসাইটে ক্যাটাগরিগুলো প্রদর্শিত হবে।
+                    </p>
+                  </div>
+                  <span className="text-[10px] bg-stone-100 text-stone-700 font-bold px-2 py-1 rounded-md">
+                    বাটন দিয়ে আগে-পিছে নিন
+                  </span>
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {categories.map((cat) => {
-                  const prodCount = cat === 'All'
-                    ? products.length
-                    : products.filter(p => p.category.toLowerCase() === cat.toLowerCase()).length;
-                  const isAll = cat === 'All';
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {categories.map((cat, idx) => {
+                    const prodCount = cat === 'All'
+                      ? products.length
+                      : products.filter(p => p.category.toLowerCase() === cat.toLowerCase()).length;
+                    const isAll = cat === 'All';
+                    const isFirstMovable = !isAll && (idx === 1 || (categories[0] !== 'All' && idx === 0));
+                    const isLastMovable = !isAll && idx === categories.length - 1;
 
-                  return (
-                    <div
-                      key={cat}
-                      className="p-4 bg-white rounded-2xl border border-[#E5E1D5] hover:border-[#14221C] transition-all shadow-2xs flex flex-col justify-between space-y-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="font-heading text-sm font-bold text-[#14221C]">
-                            {cat}
+                    return (
+                      <div
+                        key={cat}
+                        className={`p-4 bg-white rounded-2xl border transition-all shadow-2xs flex flex-col justify-between space-y-3.5 ${
+                          isAll ? 'border-neutral-300 bg-stone-50/60' : 'border-[#E5E1D5] hover:border-[#14221C]'
+                        }`}
+                      >
+                        {/* Header & Position Badge */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-[#14221C] text-white font-mono text-[11px] font-black flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <div className="font-heading text-sm font-bold text-[#14221C]">
+                                {cat}
+                              </div>
+                              <div className="text-[11px] text-[#202522]/60 mt-0.5">
+                                {prodCount}টি প্রোডাক্ট যুক্ত আছে
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-[#202522]/60 mt-0.5">
-                            {prodCount}টি প্রোডাক্ট যুক্ত আছে
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                            isAll ? 'bg-[#14221C] text-white' : 'bg-[#FF762E]/15 text-[#FF762E]'
+                          }`}>
+                            {isAll ? 'সিস্টেম' : `#${idx + 1}`}
+                          </span>
+                        </div>
+
+                        {/* Reorder Buttons (Move Forward / Move Backward / Make First) */}
+                        {!isAll && (
+                          <div className="p-2 bg-[#F7F5EF] rounded-xl border border-[#E5E1D5] flex items-center justify-between gap-1">
+                            <button
+                              type="button"
+                              disabled={isFirstMovable}
+                              onClick={() => moveCategoryOrder(cat, 'up')}
+                              className="px-2 py-1 text-[11px] font-bold bg-white hover:bg-stone-100 disabled:opacity-25 border border-stone-200 rounded-lg text-stone-700 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed transition-all"
+                              title="সামনে / আগে নিন"
+                            >
+                              <ArrowLeft className="w-3 h-3 text-stone-500" />
+                              <span>সামনে</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isFirstMovable}
+                              onClick={() => moveCategoryOrder(cat, 'first')}
+                              className="px-1.5 py-1 text-[10px] font-black bg-amber-100 hover:bg-amber-200 disabled:opacity-25 border border-amber-300 rounded-lg text-amber-950 flex items-center gap-0.5 cursor-pointer disabled:cursor-not-allowed transition-all"
+                              title="এক ক্লিকে সবার শুরুতে নিন"
+                            >
+                              <span>🔝 শুরুতে</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isLastMovable}
+                              onClick={() => moveCategoryOrder(cat, 'down')}
+                              className="px-2 py-1 text-[11px] font-bold bg-white hover:bg-stone-100 disabled:opacity-25 border border-stone-200 rounded-lg text-stone-700 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed transition-all"
+                              title="পিছনে / পরে নিন"
+                            >
+                              <span>পিছনে</span>
+                              <ArrowRight className="w-3 h-3 text-stone-500" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Quick Actions */}
+                        <div className="flex items-center justify-between pt-2 border-t border-[#E5E1D5] text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCatProductSortCategory(cat);
+                              // Smooth scroll to product sorter below
+                              document.getElementById('cat-product-sorter-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="text-[#FF762E] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>প্রোডাক্ট সাজান</span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCurrentPage('shop');
+                              }}
+                              className="text-stone-500 hover:text-stone-800 p-1 rounded-md hover:bg-stone-100 transition-colors"
+                              title="শপে দেখুন"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+
+                            {!isAll && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  deleteCategory(cat);
+                                }}
+                                className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="মুছে ফেলুন"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          isAll ? 'bg-[#14221C] text-white' : 'bg-[#FF762E]/15 text-[#FF762E]'
-                        }`}>
-                          {isAll ? 'সিস্টেম' : 'কাস্টম'}
-                        </span>
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-[#E5E1D5] text-xs">
-                        <button
-                          onClick={() => {
-                            setCurrentPage('shop');
-                          }}
-                          className="text-[#FF762E] hover:underline font-semibold flex items-center gap-1"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>শপে দেখুন</span>
-                        </button>
+            {/* 2. Category-Wise Product Reordering & Top 10 Control Section */}
+            <div id="cat-product-sorter-section" className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-[#E5E1D5]">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 bg-[#FF762E] text-white text-[10px] font-black uppercase rounded-full">
+                      প্রোডাক্ট ক্রমানুসার ও সাজানো
+                    </span>
+                    <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                      <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
+                      <span>টপ টেন ও কাস্টম র্যাংকিং</span>
+                    </span>
+                  </div>
+                  <h3 className="font-heading text-xl font-bold text-[#14221C] uppercase tracking-tight">
+                    ক্যাটাগরিভিত্তিক প্রোডাক্ট ওপর-নিচ সাজান
+                  </h3>
+                  <p className="text-xs text-[#202522]/70 mt-1 max-w-2xl">
+                    যে কোনো ক্যাটাগরি সিলেক্ট করে তার ভেতরের প্রোডাক্টগুলো উপর থেকে নিচে আপনার পছন্দমতো সাজাতে পারেন। প্রয়োজনে যে কোনো প্রোডাক্টকে <span className="font-bold text-[#14221C]">🔝 ১ নম্বরে</span> বা <span className="font-bold text-amber-800">⭐ টপ প্রোডাক্ট</span> হিসেবে হোমপেজে হাইলাইট করতে পারেন।
+                  </p>
+                </div>
 
-                        {!isAll && (
-                          <button
-                            onClick={() => {
-                              deleteCategory(cat);
-                            }}
-                            className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete this category"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                {/* Category Selector Dropdown */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-stone-600 uppercase">ক্যাটাগরি:</label>
+                  <select
+                    value={catProductSortCategory}
+                    onChange={(e) => setCatProductSortCategory(e.target.value)}
+                    className="px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs font-bold text-[#14221C] focus:outline-none focus:border-[#FF762E]"
+                  >
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c} ({c === 'All' ? products.length : products.filter(p => p.category.toLowerCase() === c.toLowerCase()).length}টি)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                {categories.map((c) => {
+                  const count = c === 'All'
+                    ? products.length
+                    : products.filter(p => p.category.toLowerCase() === c.toLowerCase()).length;
+                  const isSelected = catProductSortCategory === c;
+
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCatProductSortCategory(c)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#14221C] text-white shadow-xs'
+                          : 'bg-[#F7F5EF] hover:bg-stone-200 text-stone-700 border border-[#E5E1D5]'
+                      }`}
+                    >
+                      <span>{c}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-800'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
                   );
                 })}
               </div>
+
+              {/* Products List for the Selected Category */}
+              {(() => {
+                const categoryProducts = catProductSortCategory === 'All'
+                  ? [...products].filter(p => !p.isArchived && p.status !== 'archived')
+                  : products.filter(p => p.category.toLowerCase() === catProductSortCategory.toLowerCase() && !p.isArchived && p.status !== 'archived');
+
+                if (categoryProducts.length === 0) {
+                  return (
+                    <div className="p-10 text-center bg-[#F7F5EF] rounded-2xl border border-dashed border-[#E5E1D5] space-y-2">
+                      <Package className="w-8 h-8 text-stone-400 mx-auto" />
+                      <p className="text-sm font-bold text-stone-700">
+                        "{catProductSortCategory}" ক্যাটাগরিতে এখনও কোনো প্রোডাক্ট যুক্ত করা হয়নি।
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        প্রোডাক্ট অ্যাড করার পর এখানে সেগুলোকে উপর-নিচ সাজাতে পারবেন।
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs font-semibold text-stone-500 px-1">
+                      <span>"{catProductSortCategory}" ক্যাটাগরির {categoryProducts.length}টি প্রোডাক্ট (ক্রম অনুযায়ী):</span>
+                      <span className="text-[11px] text-amber-800 font-bold">
+                        ⭐ স্টার বাটনে ক্লিক করে হোমপেজ টপ প্রোডাক্টে পাঠাতে পারেন
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-[#E5E1D5] border border-[#E5E1D5] rounded-2xl overflow-hidden bg-white shadow-2xs">
+                      {categoryProducts.map((p, idx) => {
+                        const isFirst = idx === 0;
+                        const isLast = idx === categoryProducts.length - 1;
+                        const price = p.discountPrice || p.regularPrice;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${
+                              p.isPinned ? 'bg-amber-50/40' : p.isTopProduct ? 'bg-amber-50/20' : 'hover:bg-stone-50/80'
+                            }`}
+                          >
+                            {/* Product Info & Rank */}
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              {/* Position Rank Badge */}
+                              <div className="w-9 h-9 rounded-xl bg-[#14221C] text-white font-mono text-sm font-black flex items-center justify-center shrink-0 shadow-xs">
+                                #{idx + 1}
+                              </div>
+
+                              {/* Thumbnail */}
+                              <img
+                                src={p.images?.[0] || '/assets/images/product_premium_hoodie_1792588590406.jpg'}
+                                alt=""
+                                className="w-12 h-14 object-cover rounded-xl bg-stone-100 border border-stone-200 shrink-0"
+                              />
+
+                              {/* Title, Category & Price */}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-heading font-bold text-sm text-[#14221C] truncate">
+                                    {p.name}
+                                  </h4>
+                                  {p.isPinned && (
+                                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase rounded">
+                                      Pinned #1
+                                    </span>
+                                  )}
+                                  {p.isTopProduct && (
+                                    <span className="px-1.5 py-0.5 bg-amber-300 text-amber-950 text-[9px] font-black uppercase rounded flex items-center gap-0.5 shadow-2xs">
+                                      <Star className="w-2.5 h-2.5 fill-current" />
+                                      <span>Top 10</span>
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-stone-500 mt-1">
+                                  <span className="font-bold text-[#14221C]">৳{price.toLocaleString()}</span>
+                                  <span>·</span>
+                                  <span>স্টক: {p.totalStock} পিস</span>
+                                  <span>·</span>
+                                  <span className="text-[11px] font-mono text-stone-400">SKU: {p.sku}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Reordering Controls (Up / Down / Top / Direct Rank / Top 10 Toggle) */}
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
+                              {/* Up / Down Controls */}
+                              <div className="flex items-center gap-1 bg-[#F7F5EF] p-1 rounded-xl border border-[#E5E1D5]">
+                                <button
+                                  type="button"
+                                  disabled={isFirst}
+                                  onClick={() => moveProductInCategory(p.id, catProductSortCategory, 'up')}
+                                  className="px-2.5 py-1 text-xs font-bold bg-white hover:bg-stone-100 disabled:opacity-25 border border-stone-200 rounded-lg text-stone-700 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed shadow-2xs transition-all"
+                                  title="এক ধাপ উপরে তুলুন"
+                                >
+                                  <ChevronUp className="w-4 h-4 text-stone-600" />
+                                  <span className="hidden sm:inline">উপরে</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={isLast}
+                                  onClick={() => moveProductInCategory(p.id, catProductSortCategory, 'down')}
+                                  className="px-2.5 py-1 text-xs font-bold bg-white hover:bg-stone-100 disabled:opacity-25 border border-stone-200 rounded-lg text-stone-700 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed shadow-2xs transition-all"
+                                  title="এক ধাপ নিচে নামান"
+                                >
+                                  <ChevronDown className="w-4 h-4 text-stone-600" />
+                                  <span className="hidden sm:inline">নিচে</span>
+                                </button>
+                              </div>
+
+                              {/* Move to Top #1 */}
+                              <button
+                                type="button"
+                                disabled={isFirst}
+                                onClick={() => moveProductInCategory(p.id, catProductSortCategory, 'top')}
+                                className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 disabled:opacity-25 border border-amber-300 text-amber-950 text-xs font-black rounded-xl flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed transition-all shadow-2xs"
+                                title="সবার উপরে ১ নম্বরে নিন"
+                              >
+                                <span>🔝 ১ নম্বরে নিন</span>
+                              </button>
+
+                              {/* Top 10 Homepage Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => toggleTopProduct(p.id)}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-xl border flex items-center gap-1 cursor-pointer transition-all shadow-2xs ${
+                                  p.isTopProduct
+                                    ? 'bg-amber-400 hover:bg-amber-500 border-amber-500 text-neutral-950 font-black'
+                                    : 'bg-stone-100 hover:bg-stone-200 border-stone-300 text-stone-600'
+                                }`}
+                                title={p.isTopProduct ? 'হোমপেজ টপ টেন থেকে বাদ দিন' : '⭐ হোমপেজ টপ টেনে যুক্ত করুন'}
+                              >
+                                <Star className={`w-3.5 h-3.5 ${p.isTopProduct ? 'fill-current text-black' : 'text-stone-400'}`} />
+                                <span>{p.isTopProduct ? 'টপ টেনে আছে' : '+টপ টেন'}</span>
+                              </button>
+
+                              {/* Direct Position / Rank Setter */}
+                              <div className="flex items-center gap-1 bg-[#F7F5EF] p-1 rounded-xl border border-[#E5E1D5]">
+                                <span className="text-[11px] font-bold text-stone-500 pl-1">পজিশন:</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={categoryProducts.length}
+                                  placeholder={String(idx + 1)}
+                                  value={directRankInputs[p.id] ?? ''}
+                                  onChange={(e) => {
+                                    setDirectRankInputs({
+                                      ...directRankInputs,
+                                      [p.id]: e.target.value
+                                    });
+                                  }}
+                                  className="w-12 px-1.5 py-0.5 text-center text-xs font-bold bg-white border border-stone-300 rounded-md text-[#14221C] focus:outline-none focus:border-[#FF762E]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rankVal = parseInt(directRankInputs[p.id] || '', 10);
+                                    if (isNaN(rankVal) || rankVal < 1 || rankVal > categoryProducts.length) {
+                                      showToast('সঠিক পজিশন লিখুন', `১ থেকে ${categoryProducts.length} এর মধ্যে নম্বর দিন`, 'error');
+                                      return;
+                                    }
+                                    moveProductInCategory(p.id, catProductSortCategory, 'up', rankVal);
+                                    setDirectRankInputs({
+                                      ...directRankInputs,
+                                      [p.id]: ''
+                                    });
+                                  }}
+                                  className="px-2 py-0.5 bg-[#14221C] hover:bg-neutral-800 text-white text-[11px] font-bold rounded-md cursor-pointer transition-colors"
+                                  title="পজিশন সেট করুন"
+                                >
+                                  সেট
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

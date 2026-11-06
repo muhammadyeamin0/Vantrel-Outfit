@@ -27,6 +27,7 @@ interface HeroSlide {
 export const HomePage: React.FC = () => {
   const {
     products,
+    categories,
     setCurrentPage,
     setSelectedCategory,
     openProductDetail,
@@ -87,33 +88,38 @@ export const HomePage: React.FC = () => {
 
   const activeSlide = heroSlides[currentSlide];
 
-  // Category Banner items matching mockup
-  const categoryBanners: {
-    title: string;
-    category: ProductCategory;
-    image: string;
-  }[] = [
-    {
-      title: 'T-SHIRTS',
-      category: 'T-Shirts',
-      image: '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png'
-    },
-    {
-      title: 'PANTS',
-      category: 'Pants',
-      image: '/assets/images/product_denim_cargo_1792588592254.jpg'
-    },
-    {
-      title: 'HOODIES',
-      category: 'Hoodies',
-      image: '/assets/images/product_premium_hoodie_1792588590406.jpg'
-    },
-    {
-      title: 'PANJABI',
-      category: 'Traditional Wear',
-      image: '/assets/images/product_panjabi_casual_1792588592268.jpg'
-    }
-  ];
+  // Category Banner items dynamically driven by Admin Panel category order
+  const categoryBanners = useMemo(() => {
+    const categoryImageMap: Record<string, string> = {
+      't-shirts': '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png',
+      'pants': '/assets/images/product_denim_cargo_1792588592254.jpg',
+      'pant': '/assets/images/product_denim_cargo_1792588592254.jpg',
+      'hoodies': '/assets/images/product_premium_hoodie_1792588590406.jpg',
+      'traditional wear': '/assets/images/product_panjabi_casual_1792588592268.jpg',
+      'panjabi': '/assets/images/product_panjabi_casual_1792588592268.jpg',
+      'jackets': '/assets/images/hero_fashion_yeamin_1792588589630.jpg',
+      'shirts': '/assets/images/bangladeshi_classic_shirt_1793107155017.jpg',
+      'polo shirts': 'https://images.unsplash.com/photo-1625910513413-562a1fc8f813?auto=format&fit=crop&w=500&q=80',
+      'sweater': 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=500&q=80',
+      'winter collection': '/assets/images/bangladeshi_hoodie_look_1793107183737.jpg'
+    };
+
+    const activeCats = categories.filter((c) => c !== 'All');
+
+    // Display the first 4 active categories according to admin defined order
+    return activeCats.slice(0, 4).map((cat) => {
+      const catKey = cat.toLowerCase();
+      const prodInCat = products.find(
+        (p) => (p.category.toLowerCase() === catKey || p.category.toLowerCase().includes(catKey)) && p.images && p.images.length > 0
+      );
+      const img = categoryImageMap[catKey] || prodInCat?.images[0] || '/assets/images/product_premium_hoodie_1792588590406.jpg';
+      return {
+        title: cat.toUpperCase(),
+        category: cat,
+        image: img
+      };
+    });
+  }, [categories, products]);
 
   // Dynamic Popular / Top Products managed directly by Admin & Store database
   const popularItems = useMemo(() => {

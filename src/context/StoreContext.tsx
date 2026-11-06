@@ -267,6 +267,14 @@ export interface StoreContextType {
   categories: ProductCategory[];
   addCategory: (name: ProductCategory) => void;
   deleteCategory: (name: ProductCategory) => void;
+  moveCategoryOrder: (category: ProductCategory, direction: 'up' | 'down' | 'first') => void;
+  reorderCategories: (newOrder: ProductCategory[]) => void;
+  moveProductInCategory: (
+    id: string,
+    categoryFilter: string,
+    direction: 'up' | 'down' | 'top',
+    targetRank?: number
+  ) => Promise<void>;
   banners: BannerConfig[];
   updateBanner: (id: string, updated: Partial<BannerConfig>) => void;
 
@@ -1881,12 +1889,123 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteCategory = (name: ProductCategory) => {
     if (name === 'All') return;
-    setCategories((prev) => prev.filter((c) => c !== name));
+    setCategories((prev) => {
+      const updated = prev.filter((c) => c !== name);
+      localStorage.setItem('vt_categories_v2', JSON.stringify(updated));
+      return updated;
+    });
     if (selectedCategory === name) {
       setSelectedCategory('All');
     }
     addAuditLog('CATEGORY_DELETE', `Removed category "${name}"`);
     showToast('Category Removed', `Category "${name}" removed.`, 'info');
+  };
+
+  const moveCategoryOrder = (category: ProductCategory, direction: 'up' | 'down' | 'first') => {
+    if (category === 'All') return;
+    setCategories((prev) => {
+      const idx = prev.indexOf(category);
+      if (idx === -1) return prev;
+      const copy = [...prev];
+      if (direction === 'first') {
+        copy.splice(idx, 1);
+        const allIdx = copy.indexOf('All');
+        if (allIdx === 0) {
+          copy.splice(1, 0, category);
+        } else {
+          copy.unshift(category);
+        }
+      } else if (direction === 'up') {
+        const targetIdx = idx - 1;
+        if (targetIdx < 0 || copy[targetIdx] === 'All') return prev;
+        const temp = copy[targetIdx];
+        copy[targetIdx] = copy[idx];
+        copy[idx] = temp;
+      } else if (direction === 'down') {
+        const targetIdx = idx + 1;
+        if (targetIdx >= copy.length) return prev;
+        const temp = copy[targetIdx];
+        copy[targetIdx] = copy[idx];
+        copy[idx] = temp;
+      }
+      localStorage.setItem('vt_categories_v2', JSON.stringify(copy));
+      return copy;
+    });
+    addAuditLog('CATEGORY_REORDER', `Reordered category "${category}" (${direction})`);
+    showToast('ক্যাটাগরি সাজানো হয়েছে', `"${category}" সফলভাবে আগে/পিছে নেওয়া হয়েছে।`, 'success');
+  };
+
+  const reorderCategories = (newOrder: ProductCategory[]) => {
+    setCategories(newOrder);
+    localStorage.setItem('vt_categories_v2', JSON.stringify(newOrder));
+    addAuditLog('CATEGORY_REORDER_ALL', `Updated all categories display order`);
+    showToast('ক্যাটাগরি ক্রম সেভ হয়েছে', 'ক্যাটাগরিসমূহ নতুন ক্রমানুসারে সাজানো হয়েছে।', 'success');
+  };
+
+  const moveProductInCategory = async (
+    id: string,
+    categoryFilter: string,
+    direction: 'up' | 'down' | 'top',
+    targetRank?: number
+  ) => {
+    let reorderedFullList: Product[] = [];
+
+    setProducts((prev) => {
+      const inCategory = categoryFilter === 'All'
+        ? [...prev]
+        : prev.filter((p) => p.category.toLowerCase() === categoryFilter.toLowerCase());
+
+      const catIdx = inCategory.findIndex((p) => p.id === id);
+      if (catIdx === -1) return prev;
+
+      const updatedCategoryList = [...inCategory];
+      const [item] = updatedCategoryList.splice(catIdx, 1);
+
+      if (typeof targetRank === 'number') {
+        const insertIdx = Math.max(0, Math.min(targetRank - 1, updatedCategoryList.length));
+        updatedCategoryList.splice(insertIdx, 0, item);
+      } else if (direction === 'top') {
+        updatedCategoryList.unshift(item);
+      } else if (direction === 'up') {
+        const newIdx = Math.max(0, catIdx - 1);
+        updatedCategoryList.splice(newIdx, 0, item);
+      } else if (direction === 'down') {
+        const newIdx = Math.min(updatedCategoryList.length, catIdx + 1);
+        updatedCategoryList.splice(newIdx, 0, item);
+      }
+
+      // Rebuild global products list preserving the new relative order of this category
+      let catPointer = 0;
+      reorderedFullList = prev.map((p) => {
+        if (categoryFilter === 'All' || p.category.toLowerCase() === categoryFilter.toLowerCase()) {
+          const replacement = updatedCategoryList[catPointer++];
+          return replacement || p;
+        }
+        return p;
+      });
+
+      // Update sortOrder on the affected products
+      reorderedFullList = reorderedFullList.map((p, idx) => ({
+        ...p,
+        sortOrder: idx
+      }));
+
+      return reorderedFullList;
+    });
+
+    if (db && reorderedFullList.length > 0) {
+      try {
+        const batch = writeBatch(db);
+        reorderedFullList.forEach((p, idx) => {
+          batch.set(doc(db, 'products', p.id), { sortOrder: idx }, { merge: true });
+        });
+        await batch.commit();
+      } catch (e) {
+        console.warn('Firestore sortOrder batch update error:', e);
+      }
+    }
+
+    showToast('প্রোডাক্ট পজিশন আপডেট হয়েছে', 'ক্যাটাগরির প্রোডাক্ট ক্রম সফলভাবে সাজানো হয়েছে।', 'success');
   };
 
   const updateBanner = (id: string, updated: Partial<BannerConfig>) => {
@@ -3134,6 +3253,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         categories,
         addCategory,
         deleteCategory,
+        moveCategoryOrder,
+        reorderCategories,
+        moveProductInCategory,
         banners,
         updateBanner,
         orders,
