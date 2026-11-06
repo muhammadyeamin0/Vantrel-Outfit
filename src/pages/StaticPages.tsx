@@ -23,7 +23,7 @@ export const AboutPage: React.FC = () => {
           <img
             src="/assets/images/vantrel-logo.png"
             alt="VANTREL OUTFIT"
-            className="w-16 h-16 object-contain rounded-2xl bg-black p-2 shadow-md mx-auto border border-stone-200"
+            className="w-16 h-16 object-contain rounded-2xl bg-[#14221C] p-2.5 shadow-md mx-auto border border-stone-800"
           />
           <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
             Our Manifesto

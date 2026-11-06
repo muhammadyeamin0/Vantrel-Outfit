@@ -110,7 +110,7 @@ export const Header: React.FC = () => {
             <img
               src="/assets/images/vantrel-logo.png"
               alt="VANTREL"
-              className="h-8 w-8 sm:h-9 sm:w-9 object-contain rounded-md bg-black border border-white/10 group-hover:border-[#FF762E]/60 transition-colors"
+              className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]"
             />
             <span className="font-heading text-2xl sm:text-3xl font-black tracking-[0.15em] text-white uppercase">
               VANTREL
@@ -252,7 +252,7 @@ export const Header: React.FC = () => {
                 <img
                   src="/assets/images/vantrel-logo.png"
                   alt="VANTREL"
-                  className="w-8 h-8 object-contain rounded-md bg-black p-0.5 border border-stone-200"
+                  className="w-8 h-8 object-contain rounded-lg bg-[#14221C] p-1.5 shadow-xs border border-stone-800"
                 />
                 <span className="font-heading text-xl font-extrabold tracking-tight text-[#14221C] uppercase">
                   VAN<span className="text-[#FF762E]">TREL</span>

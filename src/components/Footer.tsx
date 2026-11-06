@@ -40,7 +40,7 @@ export const Footer: React.FC = () => {
               <img
                 src="/assets/images/vantrel-logo.png"
                 alt="VANTREL OUTFIT"
-                className="w-10 h-10 object-contain rounded-lg bg-black border border-white/15 p-0.5 group-hover:border-white/40 transition-colors"
+                className="w-10 h-10 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]"
               />
               <span className="font-heading text-xl sm:text-2xl font-black tracking-[0.12em] text-white uppercase whitespace-nowrap">
                 VANTREL OUTFIT

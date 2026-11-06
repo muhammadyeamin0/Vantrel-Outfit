@@ -241,7 +241,7 @@ export const OrderConfirmationPage: React.FC = () => {
               <img
                 src="/assets/images/vantrel-logo.png"
                 alt="VANTREL OUTFIT"
-                className="w-14 h-14 object-contain rounded-xl bg-black p-1.5 shadow-xs border border-stone-200 shrink-0"
+                className="w-14 h-14 object-contain rounded-xl bg-[#14221C] p-2 shadow-xs border border-stone-800 shrink-0"
               />
               <div>
                 <span className="font-heading text-2xl font-black text-[#14221C] uppercase tracking-tight">

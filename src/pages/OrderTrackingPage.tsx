@@ -130,7 +130,7 @@ export const OrderTrackingPage: React.FC = () => {
           <img
             src="/assets/images/vantrel-logo.png"
             alt="VANTREL OUTFIT"
-            className="w-14 h-14 object-contain rounded-2xl bg-black p-1.5 shadow-sm mx-auto border border-stone-200"
+            className="w-14 h-14 object-contain rounded-2xl bg-[#14221C] p-2 shadow-sm mx-auto border border-stone-800"
           />
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">

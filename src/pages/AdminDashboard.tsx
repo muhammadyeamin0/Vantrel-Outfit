@@ -1126,7 +1126,7 @@ export const AdminDashboard: React.FC = () => {
             <img
               src="/assets/images/vantrel-logo.png"
               alt="VANTREL OUTFIT"
-              className="w-13 h-13 sm:w-14 sm:h-14 object-contain rounded-2xl bg-black p-1.5 shadow-md border border-neutral-800 shrink-0"
+              className="w-13 h-13 sm:w-14 sm:h-14 object-contain rounded-2xl bg-[#14221C] p-2 shadow-md border border-neutral-800 shrink-0"
             />
             <div>
               <div className="flex items-center gap-2">

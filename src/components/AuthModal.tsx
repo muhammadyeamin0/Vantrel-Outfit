@@ -124,7 +124,7 @@ export const AuthModal: React.FC = () => {
             <img
               src="/assets/images/vantrel-logo.png"
               alt="VANTREL"
-              className="w-10 h-10 object-contain rounded-xl bg-black p-1 shadow-xs border border-stone-300 shrink-0"
+              className="w-10 h-10 object-contain rounded-xl bg-[#14221C] p-1.5 shadow-xs border border-stone-800 shrink-0"
             />
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF762E]">
