@@ -95,7 +95,7 @@ export const ThemesTab: React.FC = () => {
     badge: 'Limited Drop',
     ctaText: 'Explore Now',
     ctaLink: 'shop',
-    bgImage: '/src/assets/images/hero_fashion_yeamin_1792588589630.jpg',
+    bgImage: '/assets/images/hero_fashion_yeamin_1792588589630.jpg',
     layerDepth: 35,
     lighting: 'warm' as 'warm' | 'cool' | 'neon' | 'ambient',
     isActive: true
@@ -126,7 +126,7 @@ export const ThemesTab: React.FC = () => {
       badge: 'Limited Drop',
       ctaText: 'Explore Now',
       ctaLink: 'shop',
-      bgImage: '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
+      bgImage: '/assets/images/product_premium_hoodie_1792588590406.jpg',
       layerDepth: 35,
       lighting: 'warm',
       isActive: true
@@ -142,7 +142,7 @@ export const ThemesTab: React.FC = () => {
       badge: b.badge,
       ctaText: b.ctaText,
       ctaLink: b.ctaLink,
-      bgImage: b.bgImage || b.bgImageUrl || '/src/assets/images/hero_fashion_yeamin_1792588589630.jpg',
+      bgImage: b.bgImage || b.bgImageUrl || '/assets/images/hero_fashion_yeamin_1792588589630.jpg',
       layerDepth: b.layerDepth ?? 35,
       lighting: b.lighting || 'warm',
       isActive: b.isActive

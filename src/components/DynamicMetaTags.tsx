@@ -81,7 +81,7 @@ export const DynamicMetaTags: React.FC = () => {
       : null;
 
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://vantrel.com';
-    const defaultImage = `${origin}/src/assets/images/hero_fashion_yeamin_1792588589630.jpg`;
+    const defaultImage = `${origin}/assets/images/hero_fashion_yeamin_1792588589630.jpg`;
 
     let title = 'VANTREL — Premium Bangladeshi Fashion & Streetwear';
     let description =

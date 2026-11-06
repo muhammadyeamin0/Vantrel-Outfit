@@ -1,15 +1,20 @@
 User-agent: *
 Allow: /
+Allow: /assets/
+Allow: /src/assets/
 Disallow: /admin
 Disallow: /api/
 
 User-agent: Googlebot
 Allow: /
+Allow: /assets/
+Allow: /src/assets/
 Disallow: /admin
 Disallow: /api/
 
 User-agent: Googlebot-Image
 Allow: /
 Allow: /assets/
+Allow: /src/assets/
 
 Sitemap: https://www.vantreloutfit.shop/sitemap.xml

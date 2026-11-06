@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
@@ -1085,6 +1086,30 @@ app.post('/api/banners-3d', (req: Request, res: Response) => {
   res.json({ success: true, banner });
 });
 
+
+// ==========================================
+// STATIC ASSETS & IMAGE ROUTING (PRODUCTION & DEV)
+// ==========================================
+const publicAssetsImages = path.resolve(__dirname, 'public', 'assets', 'images');
+const srcAssetsImages = path.resolve(__dirname, 'src', 'assets', 'images');
+
+// Support /assets/images statically with aggressive browser/crawler caching
+app.use('/assets/images', express.static(publicAssetsImages, { maxAge: '30d', etag: true }));
+
+// Support /src/assets/images fallback route for Googlebot and legacy indexed links
+app.use('/src/assets/images', express.static(publicAssetsImages, { maxAge: '30d', etag: true }));
+app.use('/src/assets/images', express.static(srcAssetsImages, { maxAge: '30d', etag: true }));
+
+app.get('/src/assets/images/:filename', (req: Request, res: Response) => {
+  const filename = path.basename(req.params.filename);
+  const p1 = path.join(publicAssetsImages, filename);
+  const p2 = path.join(srcAssetsImages, filename);
+  if (fs.existsSync(p1)) return res.sendFile(p1);
+  if (fs.existsSync(p2)) return res.sendFile(p2);
+  const fallback = path.join(publicAssetsImages, 'vantrel-logo.png');
+  if (fs.existsSync(fallback)) return res.sendFile(fallback);
+  res.status(404).type('text/plain').send('Image Not Found');
+});
 
 // ==========================================
 // VITE DEV SERVER OR PRODUCTION SERVING

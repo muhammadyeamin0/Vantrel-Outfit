@@ -189,7 +189,7 @@ export const AdminDashboard: React.FC = () => {
   const [prodDesc, setProdDesc] = useState('');
   const [prodTagline, setProdTagline] = useState('');
   const [prodImages, setProdImages] = useState<string[]>([
-    '/src/assets/images/product_premium_hoodie_1792588590406.jpg'
+    '/assets/images/product_premium_hoodie_1792588590406.jpg'
   ]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [prodSizes, setProdSizes] = useState<string[]>(['M', 'L', 'XL', 'XXL']);
@@ -651,7 +651,7 @@ export const AdminDashboard: React.FC = () => {
     setProdFit('Relaxed Drop-Shoulder Oversized Silhouette');
     setProdDesc('Engineered in limited quantities with architectural boxy drape.');
     setProdTagline('Premium heavyweight streetwear essential.');
-    setProdImages(['/src/assets/images/product_premium_hoodie_1792588590406.jpg']);
+    setProdImages(['/assets/images/product_premium_hoodie_1792588590406.jpg']);
     setProdSizes(['M', 'L', 'XL', 'XXL']);
     setProdColors([
       { name: 'Forest Pine', hex: '#14221C' },
@@ -683,7 +683,7 @@ export const AdminDashboard: React.FC = () => {
     setProdFit(p.fit);
     setProdDesc(p.description);
     setProdTagline(p.tagline);
-    setProdImages(p.images && p.images.length > 0 ? p.images : ['/src/assets/images/product_premium_hoodie_1792588590406.jpg']);
+    setProdImages(p.images && p.images.length > 0 ? p.images : ['/assets/images/product_premium_hoodie_1792588590406.jpg']);
     const allowed = ['M', 'L', 'XL', 'XXL'];
     const filteredSizes = (p.sizes || []).filter((s) => allowed.includes(s));
     setProdSizes(filteredSizes.length > 0 ? filteredSizes : ['M', 'L', 'XL', 'XXL']);
@@ -4669,11 +4669,11 @@ service cloud.firestore {
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
                     <span className="text-[10px] text-neutral-500 font-bold">স্যাম্পল ছবি যুক্ত করুন:</span>
                     {[
-                      { label: 'Hoodie', url: '/src/assets/images/product_premium_hoodie_1792588590406.jpg' },
-                      { label: 'T-Shirt', url: '/src/assets/images/product_luxury_tee_1792588607386.jpg' },
-                      { label: 'Panjabi', url: '/src/assets/images/product_silk_panjabi_1792588624103.jpg' },
-                      { label: 'Pants', url: '/src/assets/images/product_minimal_trouser_1792588656689.jpg' },
-                      { label: 'Jacket', url: '/src/assets/images/product_wool_jacket_1792588640706.jpg' }
+                      { label: 'Hoodie', url: '/assets/images/product_premium_hoodie_1792588590406.jpg' },
+                      { label: 'T-Shirt', url: '/assets/images/product_luxury_tee_1792588607386.jpg' },
+                      { label: 'Panjabi', url: '/assets/images/product_silk_panjabi_1792588624103.jpg' },
+                      { label: 'Pants', url: '/assets/images/product_minimal_trouser_1792588656689.jpg' },
+                      { label: 'Jacket', url: '/assets/images/product_wool_jacket_1792588640706.jpg' }
                     ].map((preset) => (
                       <button
                         key={preset.label}

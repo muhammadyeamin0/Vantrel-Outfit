@@ -45,6 +45,7 @@ import {
   deleteDoc,
   collection,
   onSnapshot,
+  getDocs,
   getDocFromServer,
   writeBatch
 } from 'firebase/firestore';
@@ -400,7 +401,7 @@ const SAMPLE_ORDERS: Order[] = [
         productId: 'prod-001',
         name: 'VANTREL Signature Heavyweight Pine Hoodie',
         slug: 'vantrel-heavyweight-pine-hoodie',
-        image: '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
+        image: '/assets/images/product_premium_hoodie_1792588590406.jpg',
         size: 'M',
         color: 'Forest Pine',
         price: 2650,
@@ -414,7 +415,7 @@ const SAMPLE_ORDERS: Order[] = [
         productId: 'prod-002',
         name: 'VANTREL Artisan Raw Cream Heavyweight Oversized Tee',
         slug: 'vantrel-artisan-cream-oversized-tee',
-        image: '/src/assets/images/product_oversized_tee_1792588591424.jpg',
+        image: '/assets/images/product_oversized_tee_1792588591424.jpg',
         size: 'L',
         color: 'Raw Ivory Cream',
         price: 1350,
@@ -470,7 +471,7 @@ const SAMPLE_ORDERS: Order[] = [
         productId: 'prod-003',
         name: 'VANTREL Dual Tone Relaxed Fit Selvedge Denim',
         slug: 'vantrel-selvedge-relaxed-denim',
-        image: '/src/assets/images/product_denim_cargo_1792588592254.jpg',
+        image: '/assets/images/product_denim_cargo_1792588592254.jpg',
         size: '32',
         color: 'Indigo / Charcoal Duo',
         price: 3150,
@@ -911,7 +912,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Real-time Firestore Products Sync for Shop Page & Admin Dashboard across Mobile & Laptop
   useEffect(() => {
     if (!IS_GOOGLE_CLOUD_CONNECTED || !db) return;
+
+    // Detect bots/crawlers (Googlebot, Lighthouse, Google-InspectionTool, bingbot, etc.)
+    const isBot =
+      typeof navigator !== 'undefined' &&
+      /bot|crawler|spider|crawling|googlebot|bingbot|google-inspectiontool|lighthouse/i.test(
+        navigator.userAgent || ''
+      );
+
     const productsCol = collection(db, 'products');
+
+    // Bots and search engine crawlers should perform a single one-time query instead of opening continuous streaming XHR channels
+    if (isBot) {
+      getDocs(productsCol)
+        .then((snapshot) => {
+          if (!snapshot.empty) {
+            const remoteProducts: Product[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as Product;
+              remoteProducts.push(
+                sanitizeProductSizes({
+                  ...data,
+                  id: docSnap.id,
+                  isArchived: Boolean(data.isArchived || data.status === 'archived')
+                })
+              );
+            });
+            if (remoteProducts.length > 0) {
+              setProducts(remoteProducts);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Bot products load notice:', err);
+        });
+      return;
+    }
 
     const unsubscribe = onSnapshot(
       productsCol,
@@ -1007,6 +1043,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Real-time Firestore Wishlist Sync for authenticated / logged-in user (only if GCP is enabled)
   useEffect(() => {
     if (!IS_GOOGLE_CLOUD_CONNECTED || !db) return;
+    const isBot =
+      typeof navigator !== 'undefined' &&
+      /bot|crawler|spider|crawling|googlebot|bingbot|google-inspectiontool|lighthouse/i.test(
+        navigator.userAgent || ''
+      );
+    if (isBot) return;
+
     const effectiveUserId = auth?.currentUser?.uid || (currentUser?.id ? currentUser.id : null);
     if (!effectiveUserId) return;
 

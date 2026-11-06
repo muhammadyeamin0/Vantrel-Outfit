@@ -62,7 +62,7 @@ export const HomePage: React.FC = () => {
       categoryList: 'HEAVYWEIGHT HOODIES & KNITS',
       ctaText: 'DISCOVER DROPS',
       category: 'Hoodies',
-      bgImage: '/src/assets/images/editorial_cream_hoodie_1793118980188.jpg'
+      bgImage: '/assets/images/editorial_cream_hoodie_1793118980188.jpg'
     },
     {
       id: 'slide-03',
@@ -101,17 +101,17 @@ export const HomePage: React.FC = () => {
     {
       title: 'PANTS',
       category: 'Pants',
-      image: '/src/assets/images/product_denim_cargo_1792588592254.jpg'
+      image: '/assets/images/product_denim_cargo_1792588592254.jpg'
     },
     {
       title: 'HOODIES',
       category: 'Hoodies',
-      image: '/src/assets/images/product_premium_hoodie_1792588590406.jpg'
+      image: '/assets/images/product_premium_hoodie_1792588590406.jpg'
     },
     {
       title: 'PANJABI',
       category: 'Traditional Wear',
-      image: '/src/assets/images/product_panjabi_casual_1792588592268.jpg'
+      image: '/assets/images/product_panjabi_casual_1792588592268.jpg'
     }
   ];
 
@@ -490,7 +490,7 @@ export const HomePage: React.FC = () => {
           {/* Left Panel: COMFORT MEETS STYLE (Model sitting on steps in cream hoodie) */}
           <div className="relative min-h-[460px] sm:min-h-[540px] lg:min-h-[600px] overflow-hidden bg-neutral-900 border border-white/10 group">
             <img
-              src="/src/assets/images/editorial_cream_hoodie_1793118980188.jpg"
+              src="/assets/images/editorial_cream_hoodie_1793118980188.jpg"
               alt="Comfort Meets Style"
               className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
               referrerPolicy="no-referrer"
@@ -524,7 +524,7 @@ export const HomePage: React.FC = () => {
             {/* Model back shot image in lower-right corner matching mockup */}
             <div className="absolute bottom-0 right-0 w-3/5 h-3/5 sm:w-1/2 sm:h-1/2 opacity-35 pointer-events-none overflow-hidden">
               <img
-                src="/src/assets/images/editorial_story_backshot_1793118981432.jpg"
+                src="/assets/images/editorial_story_backshot_1793118981432.jpg"
                 alt="Vantrel Streetwear Back Detail"
                 className="w-full h-full object-cover object-left-top"
                 referrerPolicy="no-referrer"

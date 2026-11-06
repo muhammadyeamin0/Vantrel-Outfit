@@ -26,7 +26,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPercent: 24,
     images: [
       '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png',
-      '/src/assets/images/product_oversized_tee_1792588591424.jpg'
+      '/assets/images/product_oversized_tee_1792588591424.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -92,8 +92,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 1150,
     discountPercent: 21,
     images: [
-      '/src/assets/images/product_minimal_white_tee_1793118980970.jpg',
-      '/src/assets/images/product_oversized_tee_1792588591424.jpg'
+      '/assets/images/product_minimal_white_tee_1793118980970.jpg',
+      '/assets/images/product_oversized_tee_1792588591424.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -146,7 +146,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 2350,
     discountPercent: 20,
     images: [
-      '/src/assets/images/product_denim_cargo_1792588592254.jpg'
+      '/assets/images/product_denim_cargo_1792588592254.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -193,8 +193,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 2850,
     discountPercent: 17,
     images: [
-      '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
-      '/src/assets/images/editorial_cream_hoodie_1793118980188.jpg'
+      '/assets/images/product_premium_hoodie_1792588590406.jpg',
+      '/assets/images/editorial_cream_hoodie_1793118980188.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -243,7 +243,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 1950,
     discountPercent: 20,
     images: [
-      '/src/assets/images/product_panjabi_casual_1792588592268.jpg'
+      '/assets/images/product_panjabi_casual_1792588592268.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -290,7 +290,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 6200,
     discountPercent: 17,
     images: [
-      '/src/assets/images/hero_fashion_yeamin_1792588589630.jpg'
+      '/assets/images/hero_fashion_yeamin_1792588589630.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -342,7 +342,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 1850,
     discountPercent: 16,
     images: [
-      '/src/assets/images/product_panjabi_casual_1792588592268.jpg'
+      '/assets/images/product_panjabi_casual_1792588592268.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -381,7 +381,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 2450,
     discountPercent: 17,
     images: [
-      '/src/assets/images/product_denim_cargo_1792588592254.jpg'
+      '/assets/images/product_denim_cargo_1792588592254.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -420,7 +420,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 950,
     discountPercent: 21,
     images: [
-      '/src/assets/images/product_oversized_tee_1792588591424.jpg'
+      '/assets/images/product_oversized_tee_1792588591424.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -457,7 +457,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 3250,
     discountPercent: 14,
     images: [
-      '/src/assets/images/product_panjabi_casual_1792588592268.jpg'
+      '/assets/images/product_panjabi_casual_1792588592268.jpg'
     ],
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-man-wearing-a-hoodie-in-a-studio-41132-large.mp4',
     sizes: ['M', 'L', 'XL', 'XXL'],
@@ -501,7 +501,7 @@ export const INITIAL_PRODUCTS: Product[] = [
         comment: 'Wore this for an engagement party. The subtle jacquard texture is ultra classy. 40 size fit me impeccably.',
         verifiedPurchase: true,
         location: 'Dhaka',
-        photos: ['/src/assets/images/product_panjabi_casual_1792588592268.jpg']
+        photos: ['/assets/images/product_panjabi_casual_1792588592268.jpg']
       }
     ],
     totalStock: 62,
@@ -521,7 +521,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 2150,
     discountPercent: 17,
     images: [
-      '/src/assets/images/product_oversized_tee_1792588591424.jpg'
+      '/assets/images/product_oversized_tee_1792588591424.jpg'
     ],
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-man-wearing-a-hoodie-in-a-studio-41132-large.mp4',
     sizes: ['M', 'L', 'XL', 'XXL'],
@@ -581,7 +581,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 1550,
     discountPercent: 18,
     images: [
-      '/src/assets/images/product_premium_hoodie_1792588590406.jpg'
+      '/assets/images/product_premium_hoodie_1792588590406.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -631,7 +631,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 3450,
     discountPercent: 18,
     images: [
-      '/src/assets/images/hero_fashion_yeamin_1792588589630.jpg'
+      '/assets/images/hero_fashion_yeamin_1792588589630.jpg'
     ],
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-man-wearing-a-hoodie-in-a-studio-41132-large.mp4',
     sizes: ['M', 'L', 'XL', 'XXL'],
@@ -878,7 +878,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     discountPrice: 2350,
     discountPercent: 15,
     images: [
-      '/src/assets/images/product_denim_cargo_1792588592254.jpg'
+      '/assets/images/product_denim_cargo_1792588592254.jpg'
     ],
     sizes: ['M', 'L', 'XL', 'XXL'],
     colors: [
@@ -1244,7 +1244,7 @@ export const INITIAL_BANNERS: import('../types').BannerConfig[] = [
     subtitle: 'Engineered from 420 GSM custom combed cotton for timeless metropolitan wear.',
     ctaText: 'EXPLORE DROP',
     ctaLink: 'shop',
-    bgImageUrl: '/src/assets/images/hero_fashion_model_1792588588825.jpg',
+    bgImageUrl: '/assets/images/hero_fashion_model_1792588588825.jpg',
     isActive: true
   },
   {
@@ -1253,7 +1253,7 @@ export const INITIAL_BANNERS: import('../types').BannerConfig[] = [
     subtitle: 'Minimalist silhouettes designed and crafted in Dhaka with double-needle reinforcement.',
     ctaText: 'VIEW LOOKBOOK',
     ctaLink: 'shop',
-    bgImageUrl: '/src/assets/images/craftsmanship_factory_1792588594240.jpg',
+    bgImageUrl: '/assets/images/craftsmanship_factory_1792588594240.jpg',
     isActive: true
   }
 ];
@@ -1276,7 +1276,7 @@ export const INITIAL_ORDERS: Order[] = [
         productId: 'prod-001',
         name: 'VANTREL Signature Heavyweight Pine Hoodie',
         slug: 'vantrel-heavyweight-pine-hoodie',
-        image: '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
+        image: '/assets/images/product_premium_hoodie_1792588590406.jpg',
         size: 'L',
         color: 'Forest Pine',
         price: 2650,
@@ -1326,7 +1326,7 @@ export const INITIAL_ORDERS: Order[] = [
         productId: 'prod-002',
         name: 'Minimalist Heavy Cotton Oversized Tee',
         slug: 'minimalist-heavy-cotton-oversized-tee',
-        image: '/src/assets/images/product_minimal_tshirt_1792588591873.jpg',
+        image: '/assets/images/product_minimal_tshirt_1792588591873.jpg',
         size: 'M',
         color: 'Off-White Ivory',
         price: 1350,
@@ -1478,8 +1478,8 @@ export const INITIAL_3D_BANNERS: Banner3DConfig[] = [
     ctaLink: 'shop',
     secondaryCtaText: 'LOOKBOOK',
     secondaryCtaLink: 'story',
-    bgImageUrl: '/src/assets/images/hero_fashion_model_1792588588825.jpg',
-    productCutoutUrl: '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
+    bgImageUrl: '/assets/images/hero_fashion_model_1792588588825.jpg',
+    productCutoutUrl: '/assets/images/product_premium_hoodie_1792588590406.jpg',
     depthIntensity: 'deep',
     overlayOpacity: 0.45,
     isActive: true
@@ -1494,8 +1494,8 @@ export const INITIAL_3D_BANNERS: Banner3DConfig[] = [
     ctaLink: 'shop',
     secondaryCtaText: 'FABRIC STORY',
     secondaryCtaLink: 'story',
-    bgImageUrl: '/src/assets/images/craftsmanship_factory_1792588594240.jpg',
-    productCutoutUrl: '/src/assets/images/product_minimal_tshirt_1792588591873.jpg',
+    bgImageUrl: '/assets/images/craftsmanship_factory_1792588594240.jpg',
+    productCutoutUrl: '/assets/images/product_minimal_tshirt_1792588591873.jpg',
     depthIntensity: 'ultra',
     overlayOpacity: 0.5,
     isActive: true
@@ -1508,8 +1508,8 @@ export const INITIAL_3D_BANNERS: Banner3DConfig[] = [
     description: 'Available in Ivory Cream, Pitch Black, and Forest Moss. Designed to be your daily uniform for years.',
     ctaText: 'BROWSE TEES',
     ctaLink: 'shop',
-    bgImageUrl: '/src/assets/images/hero_fashion_model_1792588588825.jpg',
-    productCutoutUrl: '/src/assets/images/product_oversized_tee_1792588591424.jpg',
+    bgImageUrl: '/assets/images/hero_fashion_model_1792588588825.jpg',
+    productCutoutUrl: '/assets/images/product_oversized_tee_1792588591424.jpg',
     depthIntensity: 'subtle',
     overlayOpacity: 0.4,
     isActive: true

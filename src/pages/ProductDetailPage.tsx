@@ -809,7 +809,7 @@ export const ProductDetailPage: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-3">
                     <input
                       type="text"
-                      placeholder="Paste image URL (e.g. /src/assets/images/... or web URL)"
+                      placeholder="Paste image URL (e.g. /assets/images/... or web URL)"
                       value={newReviewPhoto}
                       onChange={(e) => setNewReviewPhoto(e.target.value)}
                       className="flex-1 min-w-[200px] px-3 py-2 text-xs bg-white border border-[#E5E1D5] rounded-lg focus:outline-none focus:border-[#14221C]"

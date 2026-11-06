@@ -30,7 +30,7 @@ export const CASUAL_CATEGORIES: CategoryShowcaseItem[] = [
     count: 471,
     categoryKey: 'T-Shirts',
     filterKeywords: ['drop shoulder', 'oversized', 'box tee'],
-    image: '/src/assets/images/product_oversized_tee_1792588591424.jpg',
+    image: '/assets/images/product_oversized_tee_1792588591424.jpg',
     section: 'casual'
   },
   {
@@ -60,7 +60,7 @@ export const CASUAL_CATEGORIES: CategoryShowcaseItem[] = [
     count: 86,
     categoryKey: 'Shirts',
     filterKeywords: ['solid', 'classic', 'oxford', 'formal'],
-    image: '/src/assets/images/bangladeshi_classic_shirt_1793107155017.jpg',
+    image: '/assets/images/bangladeshi_classic_shirt_1793107155017.jpg',
     section: 'casual'
   },
   {
@@ -84,7 +84,7 @@ export const GENTS_WINTER_CATEGORIES: CategoryShowcaseItem[] = [
     count: 168,
     categoryKey: 'Hoodies',
     filterKeywords: ['hoodie', 'pullover', 'print hoodie', 'fleece'],
-    image: '/src/assets/images/product_premium_hoodie_1792588590406.jpg',
+    image: '/assets/images/product_premium_hoodie_1792588590406.jpg',
     section: 'winter'
   },
   {
@@ -94,7 +94,7 @@ export const GENTS_WINTER_CATEGORIES: CategoryShowcaseItem[] = [
     count: 6,
     categoryKey: 'Hoodies',
     filterKeywords: ['contrast', 'colorblock', 'two tone'],
-    image: '/src/assets/images/bangladeshi_hoodie_look_1793107183737.jpg',
+    image: '/assets/images/bangladeshi_hoodie_look_1793107183737.jpg',
     section: 'winter'
   },
   {
@@ -174,7 +174,7 @@ export const GENTS_WINTER_CATEGORIES: CategoryShowcaseItem[] = [
     count: 5,
     categoryKey: 'Pants',
     filterKeywords: ['pant', 'pants', 'trousers', 'jeans', 'chinos'],
-    image: '/src/assets/images/product_denim_cargo_1792588592254.jpg',
+    image: '/assets/images/product_denim_cargo_1792588592254.jpg',
     section: 'winter'
   },
   {

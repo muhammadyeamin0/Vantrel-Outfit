@@ -39,7 +39,7 @@ export const AboutPage: React.FC = () => {
         {/* Hero image banner */}
         <div className="rounded-3xl overflow-hidden border border-[#E5E1D5] shadow-md aspect-[16/9]">
           <img
-            src="/src/assets/images/hero_fashion_yeamin_1792588589630.jpg"
+            src="/assets/images/hero_fashion_yeamin_1792588589630.jpg"
             alt="YEAMIN WEAR Atelier"
             className="w-full h-full object-cover"
           />

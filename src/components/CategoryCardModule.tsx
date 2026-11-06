@@ -136,7 +136,7 @@ export const CategorySectionModule: React.FC<CategorySectionModuleProps> = ({
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-[#14221C] border-2 border-[#FF762E] flex items-center justify-center text-white shadow-xs overflow-hidden p-0.5">
                 <img
-                  src="/src/assets/images/bangladeshi_hoodie_look_1793107183737.jpg"
+                  src="/assets/images/bangladeshi_hoodie_look_1793107183737.jpg"
                   alt="Gent's Winter"
                   className="w-full h-full object-cover rounded-full"
                 />
