@@ -39,8 +39,11 @@ export type ProductCategory =
   | 'Accessories'
   | (string & {});
 
-export const ALLOWED_SIZES = ['M', 'L', 'XL', 'XXL'] as const;
-export type ProductSize = (typeof ALLOWED_SIZES)[number];
+export const ALLOWED_SIZES = [
+  '28', '29', '30', '31', '32', '33', '34', '36', '38',
+  'S', 'M', 'L', 'XL', 'XXL', '3XL'
+] as const;
+export type ProductSize = (typeof ALLOWED_SIZES)[number] | string;
 
 export interface ProductVariant {
   id: string;

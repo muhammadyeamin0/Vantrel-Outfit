@@ -78,6 +78,7 @@ export const AdminDashboard: React.FC = () => {
     moveProductToTop,
     categories,
     addCategory,
+    updateCategoryName,
     deleteCategory,
     moveCategoryOrder,
     reorderCategories,
@@ -176,6 +177,8 @@ export const AdminDashboard: React.FC = () => {
 
   // Category Management & Product Reordering state
   const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editCategoryInput, setEditCategoryInput] = useState<string>('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [customCategoryText, setCustomCategoryText] = useState('');
   const [catProductSortCategory, setCatProductSortCategory] = useState<string>('T-Shirts');
@@ -688,10 +691,14 @@ export const AdminDashboard: React.FC = () => {
     setProdFit(p.fit);
     setProdDesc(p.description);
     setProdTagline(p.tagline);
-    setProdImages(p.images && p.images.length > 0 ? p.images : ['/assets/images/product_premium_hoodie_1792588590406.jpg']);
-    const allowed = ['M', 'L', 'XL', 'XXL'];
+    const isPant = /pant|trouser|cargo|jogger|bottom|jeans/i.test(p.category || '');
+    const allowed = [
+      '28', '29', '30', '31', '32', '33', '34', '36', '38',
+      'S', 'M', 'L', 'XL', 'XXL', '3XL'
+    ];
     const filteredSizes = (p.sizes || []).filter((s) => allowed.includes(s));
-    setProdSizes(filteredSizes.length > 0 ? filteredSizes : ['M', 'L', 'XL', 'XXL']);
+    const fallbackSizes = isPant ? ['28', '30', '32', '34', '36'] : ['M', 'L', 'XL', 'XXL'];
+    setProdSizes(filteredSizes.length > 0 ? filteredSizes : fallbackSizes);
     setProdColors(p.colors || [{ name: 'Default', hex: '#14221C' }]);
     setIsProductModalOpen(true);
   };
@@ -2415,6 +2422,51 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         )}
 
+                        {/* Inline Category Name Editor */}
+                        {editingCategory === cat && !isAll && (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const trimmed = editCategoryInput.trim();
+                              if (!trimmed) {
+                                showToast('ভ্যালিডেশন এরর', 'ক্যাটাগরির নাম খালি রাখা যাবে না।', 'error');
+                                return;
+                              }
+                              updateCategoryName(cat, trimmed);
+                              setEditingCategory(null);
+                            }}
+                            className="p-3 bg-amber-50/95 rounded-xl border border-amber-300 space-y-2"
+                          >
+                            <label className="block text-[11px] font-black text-amber-950 uppercase">
+                              ক্যাটাগরির নতুন নাম লিখুন:
+                            </label>
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editCategoryInput}
+                              onChange={(e) => setEditCategoryInput(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-white border border-amber-400 rounded-lg text-xs font-bold text-[#14221C] focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-inner"
+                              placeholder="যেমন: প্রিমিয়াম প্যান্ট ও কার্গো..."
+                            />
+                            <div className="flex items-center justify-end gap-1.5 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditingCategory(null)}
+                                className="px-2.5 py-1 text-[11px] font-semibold text-stone-600 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
+                              >
+                                বাতিল
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-3 py-1 text-[11px] font-bold text-white bg-[#FF762E] hover:bg-[#e8631c] rounded-md shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>সেভ করুন</span>
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
                         {/* Quick Actions */}
                         <div className="flex items-center justify-between pt-2 border-t border-[#E5E1D5] text-xs">
                           <button
@@ -2430,13 +2482,28 @@ export const AdminDashboard: React.FC = () => {
                             <span>প্রোডাক্ট সাজান</span>
                           </button>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
+                            {!isAll && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCategory(cat);
+                                  setEditCategoryInput(cat);
+                                }}
+                                className="px-2 py-1 text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md transition-colors cursor-pointer flex items-center gap-1 font-bold text-[11px]"
+                                title="ক্যাটাগরির নাম এডিট করুন"
+                              >
+                                <Edit2 className="w-3 h-3 text-amber-700" />
+                                <span>এডিট নাম</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => {
                                 setCurrentPage('shop');
                               }}
-                              className="text-stone-500 hover:text-stone-800 p-1 rounded-md hover:bg-stone-100 transition-colors"
+                              className="text-stone-500 hover:text-stone-800 p-1 rounded-md hover:bg-stone-100 transition-colors cursor-pointer"
                               title="শপে দেখুন"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -4813,33 +4880,90 @@ service cloud.firestore {
                 {/* FIELD 5: SIZES & COLORS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
                   <div>
-                    <label className="block font-bold text-[#14221C] mb-2 uppercase tracking-wider text-[11px]">
-                      সাইজ নির্বাচন করুন ({prodSizes.join(', ')})
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {['M', 'L', 'XL', 'XXL'].map((sz) => {
-                        const isSelected = prodSizes.includes(sz);
-                        return (
-                          <button
-                            key={sz}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setProdSizes(prodSizes.filter((s) => s !== sz));
-                              } else {
-                                setProdSizes([...prodSizes, sz]);
-                              }
-                            }}
-                            className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-[#14221C] text-white border-[#14221C]'
-                                : 'bg-white text-[#202522] border-[#E5E1D5] hover:border-neutral-400'
-                            }`}
-                          >
-                            {sz}
-                          </button>
-                        );
-                      })}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
+                        সাইজ নির্বাচন করুন ({prodSizes.join(', ') || 'কোনোটি নয়'})
+                      </label>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setProdSizes(['28', '30', '32', '34', '36'])}
+                          className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-bold transition-colors cursor-pointer"
+                          title="প্যান্টের স্ট্যান্ডার্ড কোমর সাইজ প্রিসেট"
+                        >
+                          প্যান্ট (২৮-৩৬)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProdSizes(['M', 'L', 'XL', 'XXL'])}
+                          className="px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded font-bold transition-colors cursor-pointer"
+                          title="টি-শার্ট / হুডি সাইজ প্রিসেট"
+                        >
+                          টি-শার্ট/হুডি (M-XXL)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Waist Sizes (28 to 36) */}
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                        প্যান্ট / ট্রাউজার কোমর সাইজ (Waist Sizes):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['28', '29', '30', '31', '32', '34', '36'].map((sz) => {
+                          const isSelected = prodSizes.includes(sz);
+                          return (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setProdSizes(prodSizes.filter((s) => s !== sz));
+                                } else {
+                                  setProdSizes([...prodSizes, sz]);
+                                }
+                              }}
+                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#14221C] text-white border-[#14221C] shadow-xs'
+                                  : 'bg-white text-[#202522] border-[#E5E1D5] hover:border-neutral-400'
+                              }`}
+                            >
+                              {sz}"
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Standard Alpha Sizes */}
+                      <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider pt-1.5">
+                        স্ট্যান্ডার্ড সাইজ (Standard Sizes):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map((sz) => {
+                          const isSelected = prodSizes.includes(sz);
+                          return (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setProdSizes(prodSizes.filter((s) => s !== sz));
+                                } else {
+                                  setProdSizes([...prodSizes, sz]);
+                                }
+                              }}
+                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#14221C] text-white border-[#14221C] shadow-xs'
+                                  : 'bg-white text-[#202522] border-[#E5E1D5] hover:border-neutral-400'
+                              }`}
+                            >
+                              {sz}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -5215,7 +5339,7 @@ service cloud.firestore {
                           Available Sizes
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {['M', 'L', 'XL', 'XXL'].map((sz) => (
+                          {['28', '29', '30', '31', '32', '34', '36', 'S', 'M', 'L', 'XL', 'XXL'].map((sz) => (
                             <button
                               key={sz}
                               type="button"

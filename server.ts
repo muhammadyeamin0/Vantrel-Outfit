@@ -2,6 +2,7 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
+import compression from 'compression';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
@@ -39,6 +40,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
+
+// Enable gzip/brotli compression for all requests (reduces payload by 70%+)
+app.use(compression());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

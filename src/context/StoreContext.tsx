@@ -82,21 +82,35 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export const ALLOWED_SIZES = ['M', 'L', 'XL', 'XXL'] as const;
+export const ALLOWED_SIZES = [
+  '28', '29', '30', '31', '32', '33', '34', '36', '38',
+  'S', 'M', 'L', 'XL', 'XXL', '3XL'
+] as const;
 
 export function sanitizeProductSizes(prod: Product): Product {
   if (!prod) return prod;
-  const allowed = ['M', 'L', 'XL', 'XXL'];
+  const isPantCategory =
+    /pant|trouser|cargo|jogger|bottom|jeans/i.test(prod.category || '') ||
+    /pant|trouser|cargo|jogger|bottom|jeans/i.test(prod.subCategory || '') ||
+    (Array.isArray(prod.tags) && prod.tags.some((t) => /pant|trouser|cargo/i.test(t)));
+
+  const allowedList = ALLOWED_SIZES as readonly string[];
   const rawSizes = Array.isArray(prod.sizes) ? prod.sizes : [];
-  const filteredSizes = rawSizes.filter((s) => allowed.includes(s));
-  const sizes = filteredSizes.length > 0 ? filteredSizes : ['M', 'L', 'XL', 'XXL'];
+  const filteredSizes = rawSizes.filter((s) => allowedList.includes(s));
+  
+  // For pants, standard waist sizes are 28, 30, 32, 34, 36. For tops, standard is M, L, XL, XXL.
+  const defaultSizes = isPantCategory
+    ? ['28', '30', '32', '34', '36']
+    : ['M', 'L', 'XL', 'XXL'];
+
+  const sizes = filteredSizes.length > 0 ? filteredSizes : defaultSizes;
 
   const colors = Array.isArray(prod.colors) && prod.colors.length > 0
     ? prod.colors
     : [{ name: 'Standard', hex: '#14221C' }];
 
   const existingVariants = Array.isArray(prod.variants) ? prod.variants : [];
-  const validVariants = existingVariants.filter((v) => allowed.includes(v.size));
+  const validVariants = existingVariants.filter((v) => allowedList.includes(v.size));
   const finalVariants: ProductVariant[] = [...validVariants];
 
   sizes.forEach((sz) => {
@@ -266,6 +280,7 @@ export interface StoreContextType {
   // Categories & Banners
   categories: ProductCategory[];
   addCategory: (name: ProductCategory) => void;
+  updateCategoryName: (oldName: ProductCategory, newName: ProductCategory) => void;
   deleteCategory: (name: ProductCategory) => void;
   moveCategoryOrder: (category: ProductCategory, direction: 'up' | 'down' | 'first') => void;
   reorderCategories: (newOrder: ProductCategory[]) => void;
@@ -1887,6 +1902,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const updateCategoryName = (oldName: ProductCategory, newName: ProductCategory) => {
+    const trimmedNew = newName.trim();
+    if (!trimmedNew || oldName === 'All' || oldName === trimmedNew) return;
+
+    // 1. Update categories array in state & localStorage
+    setCategories((prev) => {
+      const updated = prev.map((c) => (c.toLowerCase() === oldName.toLowerCase() ? trimmedNew : c));
+      localStorage.setItem('vt_categories_v2', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Cascade update to all products having this category
+    setProducts((prev) => {
+      const updatedProds = prev.map((p) => {
+        if (p.category.toLowerCase() === oldName.toLowerCase()) {
+          return { ...p, category: trimmedNew };
+        }
+        return p;
+      });
+      return updatedProds;
+    });
+
+    // 3. Update active filter if currently selected
+    if (selectedCategory.toLowerCase() === oldName.toLowerCase()) {
+      setSelectedCategory(trimmedNew);
+    }
+
+    addAuditLog('CATEGORY_RENAME', `Renamed category "${oldName}" to "${trimmedNew}" and updated products`);
+    showToast('ক্যাটাগরির নাম আপডেট হয়েছে', `"${oldName}" সফলভাবে পরিবর্তন করে "${trimmedNew}" করা হয়েছে।`, 'success');
+  };
+
   const deleteCategory = (name: ProductCategory) => {
     if (name === 'All') return;
     setCategories((prev) => {
@@ -3252,6 +3298,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         getProductBySlug,
         categories,
         addCategory,
+        updateCategoryName,
         deleteCategory,
         moveCategoryOrder,
         reorderCategories,

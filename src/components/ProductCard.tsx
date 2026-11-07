@@ -19,10 +19,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     isInComparison
   } = useStore();
   const [isHovered, setIsHovered] = useState(false);
+  const defaultCardColor = product.colors?.[0]?.name || 'Standard';
   const [selectedSize, setSelectedSize] = useState<string>(
     product.sizes?.includes('M') ? 'M' : product.sizes?.[0] || 'M'
   );
-  const [selectedColor, setSelectedColor] = useState<string>(product.colors[0]?.name || 'Default');
+  const [selectedColor, setSelectedColor] = useState<string>(defaultCardColor);
 
   const inWishlist = isInWishlist(product.id);
   const price = product.discountPrice ?? product.regularPrice;
@@ -30,12 +31,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addToCart(product, selectedSize, selectedColor, 1);
+    addToCart(product, selectedSize, selectedColor || defaultCardColor, 1);
   };
 
   const handleQuickBuy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    buyNow(product, selectedSize, selectedColor, 1);
+    buyNow(product, selectedSize, selectedColor || defaultCardColor, 1);
   };
 
   const handleCardClick = () => {

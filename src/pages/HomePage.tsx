@@ -52,7 +52,7 @@ export const HomePage: React.FC = () => {
       categoryList: 'T-SHIRT / PANT / HOODIE / PANJABI',
       ctaText: 'SHOP NOW',
       category: 'All',
-      bgImage: '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png'
+      bgImage: '/assets/images/hero_vantrel_slide1.webp'
     },
     {
       id: 'slide-02',
@@ -63,7 +63,7 @@ export const HomePage: React.FC = () => {
       categoryList: 'HEAVYWEIGHT HOODIES & KNITS',
       ctaText: 'DISCOVER DROPS',
       category: 'Hoodies',
-      bgImage: '/assets/images/editorial_cream_hoodie_1793118980188.jpg'
+      bgImage: '/assets/images/hero_vantrel_slide2.webp'
     },
     {
       id: 'slide-03',
@@ -74,7 +74,7 @@ export const HomePage: React.FC = () => {
       categoryList: 'OVERSIZED TEES & HOODIES',
       ctaText: 'EXPLORE DROP',
       category: 'All',
-      bgImage: '/assets/aistudio/0314d58d47918962a62f13129092baf2e608ec2d15252eacec2e182cae74309c_32b14310.png'
+      bgImage: '/assets/images/hero_vantrel_slide3.webp'
     }
   ];
 
@@ -206,6 +206,9 @@ export const HomePage: React.FC = () => {
           <img
             src={activeSlide.bgImage}
             alt={activeSlide.title}
+            fetchPriority={currentSlide === 0 ? "high" : "auto"}
+            loading={currentSlide === 0 ? "eager" : "lazy"}
+            decoding={currentSlide === 0 ? "sync" : "async"}
             className="w-full h-full object-cover object-center transition-all duration-1000 ease-in-out scale-105"
             referrerPolicy="no-referrer"
           />
@@ -290,6 +293,8 @@ export const HomePage: React.FC = () => {
               <img
                 src={cat.image}
                 alt={cat.title}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-75 group-hover:brightness-90"
                 referrerPolicy="no-referrer"
               />
@@ -373,6 +378,8 @@ export const HomePage: React.FC = () => {
                     <img
                       src={item.image}
                       alt={item.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
                     />
@@ -416,26 +423,32 @@ export const HomePage: React.FC = () => {
                     </div>
 
                     {/* Color Swatch Dots */}
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      {item.swatches.map((colorHex, idx) => (
-                        <button
-                          key={colorHex}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSwatches((prev) => ({ ...prev, [item.id]: idx }));
-                          }}
-                          style={{ backgroundColor: colorHex }}
-                          className={`w-3.5 h-3.5 rounded-full border transition-all ${
-                            activeSwatch === idx
-                              ? 'ring-1.5 ring-black ring-offset-1 border-white scale-110'
-                              : 'border-black/20 hover:scale-110'
-                          }`}
-                          title={`Color variant ${idx + 1}`}
-                          aria-label={`Select color ${idx + 1}`}
-                        />
-                      ))}
-                    </div>
+                    {item.swatches.length > 1 ? (
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        {item.swatches.map((colorHex, idx) => (
+                          <button
+                            key={colorHex}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSwatches((prev) => ({ ...prev, [item.id]: idx }));
+                            }}
+                            style={{ backgroundColor: colorHex }}
+                            className={`w-3.5 h-3.5 rounded-full border transition-all ${
+                              activeSwatch === idx
+                                ? 'ring-1.5 ring-black ring-offset-1 border-white scale-110'
+                                : 'border-black/20 hover:scale-110'
+                            }`}
+                            title={`Color variant ${idx + 1}`}
+                            aria-label={`Select color ${idx + 1}`}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-neutral-500 font-medium pt-0.5">
+                        একক কালার (সিলেক্ট করার প্রয়োজন নেই)
+                      </div>
+                    )}
 
                     {/* View Details Link */}
                     <button
@@ -498,6 +511,8 @@ export const HomePage: React.FC = () => {
             <img
               src="/assets/images/editorial_cream_hoodie_1793118980188.jpg"
               alt="Comfort Meets Style"
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
               referrerPolicy="no-referrer"
             />
@@ -532,6 +547,8 @@ export const HomePage: React.FC = () => {
               <img
                 src="/assets/images/editorial_story_backshot_1793118981432.jpg"
                 alt="Vantrel Streetwear Back Detail"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover object-left-top"
                 referrerPolicy="no-referrer"
               />

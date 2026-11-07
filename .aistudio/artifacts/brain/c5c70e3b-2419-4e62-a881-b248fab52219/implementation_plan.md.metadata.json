@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan for single-picture products order flow:\n1. Auto-select default color for products with 1 picture (or 1 color) so customers never get blocked from ordering or adding to cart.\n2. Conditionally hide the interactive color selector for single-image products on ProductDetailPage, displaying a subtle informational badge 'As Shown in Photo'.\n3. Guarantee Add to Cart and Buy Now succeed immediately without requiring any color interaction.",
+  "updatedAt":  "2026-11-07T12:30:07.835033468Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

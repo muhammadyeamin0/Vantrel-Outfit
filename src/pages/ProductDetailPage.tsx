@@ -52,12 +52,14 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const [mediaMode, setMediaMode] = useState<'photos' | 'video'>('photos');
+  const isSingleImageProduct = (product.images?.length || 0) <= 1 || (product.colors?.length || 0) <= 1;
+  const defaultInitialColor = product.colors?.[0]?.name || 'Standard';
+
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string>(
     product.sizes.includes('M') ? 'M' : product.sizes[0] || 'M'
   );
-  const [selectedColor, setSelectedColor] = useState<string>(product.colors[0]?.name || '');
+  const [selectedColor, setSelectedColor] = useState<string>(defaultInitialColor);
   const [quantity, setQuantity] = useState<number>(1);
   const [isZoomed, setIsZoomed] = useState(false);
   const [measurementUnit, setMeasurementUnit] = useState<'in' | 'cm'>('in');
@@ -72,9 +74,12 @@ export const ProductDetailPage: React.FC = () => {
   const [newReviewPhoto, setNewReviewPhoto] = useState('');
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
+  // Effective color: auto-fallback to default so customers can order without choosing color
+  const effectiveColor = selectedColor || defaultInitialColor;
+
   // Variant matching
   const matchedVariant = product.variants.find(
-    (v) => v.size === selectedSize && v.color === selectedColor
+    (v) => v.size === selectedSize && (v.color === effectiveColor || v.color === selectedColor)
   );
   const currentStock = matchedVariant ? matchedVariant.stock : product.totalStock;
 
@@ -83,19 +88,19 @@ export const ProductDetailPage: React.FC = () => {
   const inWishlist = isInWishlist(product.id);
 
   const handleAddToCart = () => {
-    if (!selectedSize || !selectedColor) {
-      showToast('Selection Required', 'Please choose your preferred size and color.', 'error');
+    if (!selectedSize) {
+      showToast('সাইজ নির্বাচন করুন', 'অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
       return;
     }
-    addToCart(product, selectedSize, selectedColor, quantity);
+    addToCart(product, selectedSize, effectiveColor, quantity);
   };
 
   const handleBuyNow = () => {
-    if (!selectedSize || !selectedColor) {
-      showToast('Selection Required', 'Please choose your preferred size and color.', 'error');
+    if (!selectedSize) {
+      showToast('সাইজ নির্বাচন করুন', 'অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
       return;
     }
-    const success = addToCart(product, selectedSize, selectedColor, quantity);
+    const success = addToCart(product, selectedSize, effectiveColor, quantity);
     if (success) {
       setCurrentPage('checkout');
     }
@@ -165,33 +170,11 @@ export const ProductDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           {/* Left: Sticky Image & Video Gallery */}
           <div className="lg:col-span-7 space-y-4 lg:sticky lg:top-24">
-            {/* Media Mode Switcher (Photos vs Video) */}
+            {/* Media Header & GSM Badge */}
             <div className="flex items-center justify-between pb-1">
-              <div className="inline-flex p-1 bg-white rounded-xl border border-[#E5E1D5] shadow-xs text-xs font-bold uppercase tracking-wider">
-                <button
-                  type="button"
-                  onClick={() => setMediaMode('photos')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    mediaMode === 'photos'
-                      ? 'bg-[#14221C] text-white shadow-xs'
-                      : 'text-[#202522]/60 hover:text-[#14221C]'
-                  }`}
-                >
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  <span>High-Res Photos ({product.images.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMediaMode('video')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    mediaMode === 'video'
-                      ? 'bg-[#14221C] text-white shadow-xs'
-                      : 'text-[#202522]/60 hover:text-[#14221C]'
-                  }`}
-                >
-                  <Video className="w-3.5 h-3.5 text-[#FF762E]" />
-                  <span>Runway Video Preview</span>
-                </button>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-[#E5E1D5] shadow-xs text-xs font-bold uppercase tracking-wider text-[#14221C]">
+                <ImageIcon className="w-3.5 h-3.5 text-[#FF762E]" />
+                <span>High-Res Editorial Photography ({product.images.length})</span>
               </div>
 
               {product.gsm && (
@@ -201,73 +184,54 @@ export const ProductDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Main Stage Display (Photo with Zoom or Video Player) */}
-            {mediaMode === 'photos' ? (
-              <div
-                className="relative aspect-[4/5] bg-white rounded-3xl overflow-hidden border border-[#E5E1D5] shadow-sm cursor-crosshair group"
-                onMouseEnter={() => setIsZoomed(true)}
-                onMouseLeave={() => setIsZoomed(false)}
+            {/* Main Stage Display (Photo with Zoom) */}
+            <div
+              className="relative aspect-[4/5] bg-white rounded-3xl overflow-hidden border border-[#E5E1D5] shadow-sm cursor-crosshair group"
+              onMouseEnter={() => setIsZoomed(true)}
+              onMouseLeave={() => setIsZoomed(false)}
+            >
+              <img
+                src={product.images[activeImageIndex] || product.images[0]}
+                alt={product.name}
+                referrerPolicy="no-referrer"
+                className={`w-full h-full object-cover object-center transition-transform duration-300 ${
+                  isZoomed ? 'scale-125' : 'scale-100'
+                }`}
+              />
+
+              {/* Tag / Badge */}
+              <div className="absolute top-4 left-4 flex flex-col gap-1.5 pointer-events-none">
+                {product.isNewArrival && (
+                  <span className="px-3 py-1 bg-[#14221C] text-white text-xs font-bold uppercase tracking-wider rounded-md">
+                    New Arrival
+                  </span>
+                )}
+              </div>
+
+              {/* Wishlist Button */}
+              <button
+                onClick={() => toggleWishlist(product.id)}
+                className={`absolute top-4 right-4 p-3 rounded-full backdrop-blur-md shadow-md transition-all cursor-pointer ${
+                  inWishlist
+                    ? 'bg-rose-50 text-rose-500'
+                    : 'bg-white/80 text-[#202522] hover:bg-white hover:text-rose-500'
+                }`}
+                aria-label="Wishlist"
               >
-                <img
-                  src={product.images[activeImageIndex] || product.images[0]}
-                  alt={product.name}
-                  referrerPolicy="no-referrer"
-                  className={`w-full h-full object-cover object-center transition-transform duration-300 ${
-                    isZoomed ? 'scale-125' : 'scale-100'
-                  }`}
-                />
+                <Heart className={`w-5 h-5 ${inWishlist ? 'fill-rose-500 scale-110' : ''}`} />
+              </button>
+            </div>
 
-                {/* Tag / Badge */}
-                <div className="absolute top-4 left-4 flex flex-col gap-1.5 pointer-events-none">
-                  {product.isNewArrival && (
-                    <span className="px-3 py-1 bg-[#14221C] text-white text-xs font-bold uppercase tracking-wider rounded-md">
-                      New Arrival
-                    </span>
-                  )}
-                </div>
-
-                {/* Wishlist Button */}
-                <button
-                  onClick={() => toggleWishlist(product.id)}
-                  className={`absolute top-4 right-4 p-3 rounded-full backdrop-blur-md shadow-md transition-all cursor-pointer ${
-                    inWishlist
-                      ? 'bg-rose-50 text-rose-500'
-                      : 'bg-white/80 text-[#202522] hover:bg-white hover:text-rose-500'
-                  }`}
-                  aria-label="Wishlist"
-                >
-                  <Heart className={`w-5 h-5 ${inWishlist ? 'fill-rose-500 scale-110' : ''}`} />
-                </button>
-              </div>
-            ) : (
-              <div className="relative aspect-[4/5] bg-[#14221C] rounded-3xl overflow-hidden border border-[#E5E1D5] shadow-lg flex flex-col items-center justify-center">
-                <video
-                  src={product.videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-young-man-wearing-a-hoodie-in-a-studio-41132-large.mp4'}
-                  controls
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-4 left-4 bg-[#14221C]/80 backdrop-blur-md px-3 py-1 rounded-lg text-white text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  <Play className="w-3 h-3 text-[#FF762E]" />
-                  <span>360° Fabric & Drape Preview</span>
-                </div>
-              </div>
-            )}
-
-            {/* Thumbnails + Video Switcher Button */}
+            {/* Photo Thumbnails */}
             <div className="flex gap-3 overflow-x-auto pb-2 items-center">
               {product.images.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => {
-                    setMediaMode('photos');
                     setActiveImageIndex(idx);
                   }}
                   className={`relative w-20 h-24 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
-                    mediaMode === 'photos' && activeImageIndex === idx
+                    activeImageIndex === idx
                       ? 'border-[#14221C] ring-2 ring-[#14221C]/20 scale-102'
                       : 'border-[#E5E1D5] opacity-70 hover:opacity-100'
                   }`}
@@ -275,22 +239,6 @@ export const ProductDetailPage: React.FC = () => {
                   <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
-
-              {/* Video Thumbnail Button */}
-              <button
-                type="button"
-                onClick={() => setMediaMode('video')}
-                className={`relative w-20 h-24 rounded-xl overflow-hidden border-2 transition-all shrink-0 bg-[#14221C] text-white flex flex-col items-center justify-center gap-1 cursor-pointer ${
-                  mediaMode === 'video'
-                    ? 'border-[#FF762E] ring-2 ring-[#FF762E]/30 scale-102'
-                    : 'border-[#E5E1D5] opacity-80 hover:opacity-100'
-                }`}
-              >
-                <div className="w-7 h-7 rounded-full bg-[#FF762E] text-white flex items-center justify-center shadow-xs">
-                  <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider">Video</span>
-              </button>
             </div>
           </div>
 
@@ -367,34 +315,51 @@ export const ProductDetailPage: React.FC = () => {
               </span>
             </div>
 
-            {/* Color Selector */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-neutral-300 uppercase tracking-wider">
-                  Color: <span className="font-normal text-white">{selectedColor}</span>
+            {/* Color Selector / Single-Image Auto Badge */}
+            {isSingleImageProduct ? (
+              <div className="p-3 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
+                    style={{ backgroundColor: product.colors[0]?.hex || '#14221C' }}
+                  />
+                  <span className="text-xs font-bold text-white">
+                    কালার: <span className="font-normal text-neutral-300">{product.colors[0]?.name || 'ছবির অনুরূপ (Standard)'}</span>
+                  </span>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
+                  সিলেক্ট করার প্রয়োজন নেই
                 </span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {product.colors.map((c) => (
-                  <button
-                    key={c.name}
-                    type="button"
-                    onClick={() => setSelectedColor(c.name)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      selectedColor === c.name
-                        ? 'border-[#FF762E] bg-[#FF762E]/20 text-white shadow-xs'
-                        : 'border-white/15 bg-white/5 text-neutral-300 hover:border-white/30'
-                    }`}
-                  >
-                    <span
-                      className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
-                      style={{ backgroundColor: c.hex }}
-                    />
-                    <span>{c.name}</span>
-                  </button>
-                ))}
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-neutral-300 uppercase tracking-wider">
+                    Color: <span className="font-normal text-white">{selectedColor}</span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => setSelectedColor(c.name)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                        selectedColor === c.name
+                          ? 'border-[#FF762E] bg-[#FF762E]/20 text-white shadow-xs'
+                          : 'border-white/15 bg-white/5 text-neutral-300 hover:border-white/30'
+                      }`}
+                    >
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                      <span>{c.name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Size Selector + Size Guide Button */}
             <div className="space-y-2">

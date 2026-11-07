@@ -148,17 +148,18 @@ export const INITIAL_PRODUCTS: Product[] = [
     images: [
       '/assets/images/product_denim_cargo_1792588592254.jpg'
     ],
-    sizes: ['M', 'L', 'XL', 'XXL'],
+    sizes: ['28', '30', '32', '34', '36'],
     colors: [
       { name: 'Black', hex: '#1E1F22' },
       { name: 'Khaki', hex: '#3B4134' },
       { name: 'Grey', hex: '#565759' }
     ],
     variants: [
-      { id: 'v3-30-bk', size: 'M', color: 'Black', colorHex: '#1E1F22', stock: 10, sku: 'VT-PA-103-30-BK' },
-      { id: 'v3-32-bk', size: 'L', color: 'Black', colorHex: '#1E1F22', stock: 25, sku: 'VT-PA-103-32-BK' },
-      { id: 'v3-34-bk', size: 'XL', color: 'Black', colorHex: '#1E1F22', stock: 20, sku: 'VT-PA-103-34-BK' },
-      { id: 'v3-36-bk', size: 'XXL', color: 'Black', colorHex: '#1E1F22', stock: 8, sku: 'VT-PA-103-36-BK' }
+      { id: 'v3-28-bk', size: '28', color: 'Black', colorHex: '#1E1F22', stock: 12, sku: 'VT-PA-103-28-BK' },
+      { id: 'v3-30-bk', size: '30', color: 'Black', colorHex: '#1E1F22', stock: 20, sku: 'VT-PA-103-30-BK' },
+      { id: 'v3-32-bk', size: '32', color: 'Black', colorHex: '#1E1F22', stock: 25, sku: 'VT-PA-103-32-BK' },
+      { id: 'v3-34-bk', size: '34', color: 'Black', colorHex: '#1E1F22', stock: 18, sku: 'VT-PA-103-34-BK' },
+      { id: 'v3-36-bk', size: '36', color: 'Black', colorHex: '#1E1F22', stock: 10, sku: 'VT-PA-103-36-BK' }
     ],
     fabric: '320 GSM 100% Cotton Canvas Ripstop',
     fit: 'Straight Relaxed Leg with Ankle Adjuster',
@@ -383,16 +384,17 @@ export const INITIAL_PRODUCTS: Product[] = [
     images: [
       '/assets/images/product_denim_cargo_1792588592254.jpg'
     ],
-    sizes: ['M', 'L', 'XL', 'XXL'],
+    sizes: ['28', '30', '32', '34', '36'],
     colors: [
       { name: 'Dark Charcoal', hex: '#202522' },
       { name: 'Military Khaki', hex: '#6B6858' }
     ],
     variants: [
-      { id: 'v7-30-dc', size: 'M', color: 'Dark Charcoal', colorHex: '#202522', stock: 10, sku: 'VT-PA-007-30-DC' },
-      { id: 'v7-32-dc', size: 'L', color: 'Dark Charcoal', colorHex: '#202522', stock: 25, sku: 'VT-PA-007-32-DC' },
-      { id: 'v7-34-dc', size: 'XL', color: 'Dark Charcoal', colorHex: '#202522', stock: 20, sku: 'VT-PA-007-34-DC' },
-      { id: 'v7-36-dc', size: 'XXL', color: 'Dark Charcoal', colorHex: '#202522', stock: 7, sku: 'VT-PA-007-36-DC' }
+      { id: 'v7-28-dc', size: '28', color: 'Dark Charcoal', colorHex: '#202522', stock: 12, sku: 'VT-PA-007-28-DC' },
+      { id: 'v7-30-dc', size: '30', color: 'Dark Charcoal', colorHex: '#202522', stock: 20, sku: 'VT-PA-007-30-DC' },
+      { id: 'v7-32-dc', size: '32', color: 'Dark Charcoal', colorHex: '#202522', stock: 25, sku: 'VT-PA-007-32-DC' },
+      { id: 'v7-34-dc', size: '34', color: 'Dark Charcoal', colorHex: '#202522', stock: 20, sku: 'VT-PA-007-34-DC' },
+      { id: 'v7-36-dc', size: '36', color: 'Dark Charcoal', colorHex: '#202522', stock: 8, sku: 'VT-PA-007-36-DC' }
     ],
     fabric: '320 GSM 100% Cotton Canvas Ripstop',
     fit: 'Relaxed Tapered Fit with Ankle Cinch',
@@ -840,16 +842,17 @@ export const INITIAL_PRODUCTS: Product[] = [
     images: [
       'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=1000&q=80'
     ],
-    sizes: ['M', 'L', 'XL', 'XXL'],
+    sizes: ['28', '30', '32', '34', '36'],
     colors: [
       { name: 'Dark Moss Khaki', hex: '#3E4438' },
       { name: 'Charcoal Black', hex: '#202522' }
     ],
     variants: [
-      { id: 'v17-30-dm', size: 'M', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 10, sku: 'VT-PNT-017-30-DM' },
-      { id: 'v17-32-dm', size: 'L', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 18, sku: 'VT-PNT-017-32-DM' },
-      { id: 'v17-34-dm', size: 'XL', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 16, sku: 'VT-PNT-017-34-DM' },
-      { id: 'v17-36-dm', size: 'XXL', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 8, sku: 'VT-PNT-017-36-DM' }
+      { id: 'v17-28-dm', size: '28', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 10, sku: 'VT-PNT-017-28-DM' },
+      { id: 'v17-30-dm', size: '30', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 15, sku: 'VT-PNT-017-30-DM' },
+      { id: 'v17-32-dm', size: '32', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 18, sku: 'VT-PNT-017-32-DM' },
+      { id: 'v17-34-dm', size: '34', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 16, sku: 'VT-PNT-017-34-DM' },
+      { id: 'v17-36-dm', size: '36', color: 'Dark Moss Khaki', colorHex: '#3E4438', stock: 8, sku: 'VT-PNT-017-36-DM' }
     ],
     fabric: '280 GSM 98% Combed Cotton Twill, 2% Elastane Flex',
     gsm: 280,
@@ -880,16 +883,17 @@ export const INITIAL_PRODUCTS: Product[] = [
     images: [
       '/assets/images/product_denim_cargo_1792588592254.jpg'
     ],
-    sizes: ['M', 'L', 'XL', 'XXL'],
+    sizes: ['28', '30', '32', '34', '36'],
     colors: [
       { name: 'Tactical Forest Pine', hex: '#14221C' },
       { name: 'Onyx Black', hex: '#1C1E1D' }
     ],
     variants: [
-      { id: 'v18-m-tf', size: 'M', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 15, sku: 'VT-JOG-018-M-TF' },
-      { id: 'v18-l-tf', size: 'L', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 22, sku: 'VT-JOG-018-L-TF' },
-      { id: 'v18-xl-tf', size: 'XL', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 18, sku: 'VT-JOG-018-XL-TF' },
-      { id: 'v18-xxl-tf', size: 'XXL', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 8, sku: 'VT-JOG-018-XXL-TF' }
+      { id: 'v18-28-tf', size: '28', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 12, sku: 'VT-JOG-018-28-TF' },
+      { id: 'v18-30-tf', size: '30', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 15, sku: 'VT-JOG-018-30-TF' },
+      { id: 'v18-32-tf', size: '32', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 22, sku: 'VT-JOG-018-32-TF' },
+      { id: 'v18-34-tf', size: '34', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 18, sku: 'VT-JOG-018-34-TF' },
+      { id: 'v18-36-tf', size: '36', color: 'Tactical Forest Pine', colorHex: '#14221C', stock: 8, sku: 'VT-JOG-018-36-TF' }
     ],
     fabric: '340 GSM Heavy Cotton Canvas Weave with Soft Pre-wash',
     gsm: 340,

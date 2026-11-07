@@ -247,32 +247,39 @@ export const SizeGuideModal: React.FC = () => {
                 {activeTab === 'bottoms' && (
                   <>
                     <tr className="hover:bg-[#F7F5EF] transition-colors">
-                      <td className="px-4 py-3 font-bold text-[#14221C]">M</td>
+                      <td className="px-4 py-3 font-bold text-[#14221C]">28</td>
+                      <td className="px-4 py-3">{formatVal(28)}</td>
+                      <td className="px-4 py-3">{formatVal(23)}</td>
+                      <td className="px-4 py-3">{formatVal(15.5)}</td>
+                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Slim tailored (28" waist)</td>
+                    </tr>
+                    <tr className="hover:bg-[#F7F5EF] transition-colors">
+                      <td className="px-4 py-3 font-bold text-[#14221C]">30</td>
+                      <td className="px-4 py-3">{formatVal(30)}</td>
+                      <td className="px-4 py-3">{formatVal(24)}</td>
+                      <td className="px-4 py-3">{formatVal(16)}</td>
+                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Relaxed straight (30" waist)</td>
+                    </tr>
+                    <tr className="hover:bg-[#F7F5EF] transition-colors">
+                      <td className="px-4 py-3 font-bold text-[#14221C]">32</td>
                       <td className="px-4 py-3">{formatVal(32)}</td>
                       <td className="px-4 py-3">{formatVal(25)}</td>
                       <td className="px-4 py-3">{formatVal(16.5)}</td>
-                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Relaxed straight</td>
+                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Straight utility (32" waist)</td>
                     </tr>
                     <tr className="hover:bg-[#F7F5EF] transition-colors">
-                      <td className="px-4 py-3 font-bold text-[#14221C]">L</td>
+                      <td className="px-4 py-3 font-bold text-[#14221C]">34</td>
                       <td className="px-4 py-3">{formatVal(34)}</td>
                       <td className="px-4 py-3">{formatVal(26)}</td>
                       <td className="px-4 py-3">{formatVal(17)}</td>
-                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Straight utility</td>
+                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Roomy cut (34" waist)</td>
                     </tr>
                     <tr className="hover:bg-[#F7F5EF] transition-colors">
-                      <td className="px-4 py-3 font-bold text-[#14221C]">XL</td>
+                      <td className="px-4 py-3 font-bold text-[#14221C]">36</td>
                       <td className="px-4 py-3">{formatVal(36)}</td>
                       <td className="px-4 py-3">{formatVal(27)}</td>
-                      <td className="px-4 py-3">{formatVal(17.5)}</td>
-                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Roomy cut</td>
-                    </tr>
-                    <tr className="hover:bg-[#F7F5EF] transition-colors">
-                      <td className="px-4 py-3 font-bold text-[#14221C]">XXL</td>
-                      <td className="px-4 py-3">{formatVal(38)}</td>
-                      <td className="px-4 py-3">{formatVal(28)}</td>
                       <td className="px-4 py-3">{formatVal(18)}</td>
-                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Wide relaxed</td>
+                      <td className="px-4 py-3 text-[#202522]/70 font-sans">Wide relaxed (36" waist)</td>
                     </tr>
                   </>
                 )}

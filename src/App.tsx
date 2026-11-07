@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Header } from './components/Header';
@@ -18,11 +18,16 @@ import { ShopPage } from './pages/ShopPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
-import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
-import { OrderTrackingPage } from './pages/OrderTrackingPage';
-import { CustomerAccountPage } from './pages/CustomerAccountPage';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { AboutPage, ContactPage, FaqPage, PolicyPage } from './pages/StaticPages';
+
+// Lazy-load non-critical & heavy routes to achieve sub-second initial mobile load
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const CustomerAccountPage = lazy(() => import('./pages/CustomerAccountPage').then(m => ({ default: m.CustomerAccountPage })));
+const OrderTrackingPage = lazy(() => import('./pages/OrderTrackingPage').then(m => ({ default: m.OrderTrackingPage })));
+const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage').then(m => ({ default: m.OrderConfirmationPage })));
+const AboutPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.AboutPage })));
+const ContactPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.ContactPage })));
+const FaqPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.FaqPage })));
+const PolicyPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.PolicyPage })));
 
 const MainContent: React.FC = () => {
   const { currentPage } = useStore();
@@ -76,7 +81,13 @@ const MainContent: React.FC = () => {
       <Header />
       {currentPage !== 'home' && <TopCategoryStrip />}
       <main className="flex-1 pb-16 md:pb-20">
-        {renderPage()}
+        <Suspense fallback={
+          <div className="min-h-[40vh] flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-[#FF762E] rounded-full animate-spin" />
+          </div>
+        }>
+          {renderPage()}
+        </Suspense>
       </main>
       <Footer />
       <CartDrawer />
