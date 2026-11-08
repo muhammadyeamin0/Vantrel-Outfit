@@ -1,5 +1,544 @@
 [
   {
+    "id": "ord-1794143804639",
+    "orderNumber": "VT-949350",
+    "createdAt": "2026-11-08T13:16:44.639Z",
+    "customer": {
+      "fullName": "Tamim Iqbal",
+      "phone": "01799887766",
+      "district": "Dhaka",
+      "upazila": "Dhanmondi",
+      "division": "Dhaka",
+      "streetAddress": "House 12, Road 27, Dhanmondi"
+    },
+    "items": [
+      {
+        "productId": "prod-001",
+        "name": "VANTREL Signature Heavyweight Pine Hoodie",
+        "size": "L",
+        "color": "Forest Pine",
+        "price": 2650,
+        "quantity": 1,
+        "image": "/assets/images/product_premium_hoodie_1792588590406.jpg"
+      }
+    ],
+    "subtotal": 2650,
+    "deliveryCharge": 70,
+    "discountAmount": 0,
+    "loyaltyPointsRedeemed": 0,
+    "referralDiscount": 0,
+    "total": 2720,
+    "paymentMethod": "Cash on Delivery",
+    "paymentStatus": "Pending",
+    "orderStatus": "Order Confirmed",
+    "confirmationDeadline": "2026-11-08T13:31:44.639Z",
+    "canCancelUntil": "2026-11-08T13:31:44.639Z",
+    "statusHistory": [
+      {
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T13:16:44.639Z",
+        "note": "Order placed. 15-min edit/confirmation window expires at 1:31:44 PM"
+      },
+      {
+        "status": "Order Confirmed",
+        "timestamp": "2026-11-08T13:16:49.189Z",
+        "note": "15-minute customer window elapsed without cancellation. Order confirmed automatically."
+      }
+    ]
+  },
+  {
+    "userId": "usr-1794055663887",
+    "deliveryZone": "outside_dhaka",
+    "items": [
+      {
+        "price": 300,
+        "id": "prod-3692-M-white",
+        "name": "Abstract Typography Printed Sweatshirt",
+        "sku": "VT-DROP-135-M-WH",
+        "regularPrice": 499,
+        "slug": "abstract-typography-printed-sweatshirt",
+        "color": "white",
+        "image": "https://dropbazarbd.com/storage/products/2026/10/3OgyJ9ij01NRWiI0cM5lHx6Db9s3QaqqUBXv3sUi.webp",
+        "size": "M",
+        "productId": "prod-3692",
+        "quantity": 1,
+        "maxStock": 11
+      }
+    ],
+    "deliveryFee": 120,
+    "customerConfirmationDeadline": "2026-11-07T13:02:43.887Z",
+    "customer": {
+      "phone": "01632576521",
+      "district": "Noakhali",
+      "streetAddress": "Bandarir hapar gora",
+      "division": "Chattogram",
+      "upazila": "Noakhali Sadar",
+      "fullName": "Arafat"
+    },
+    "verificationMethod": "phone_otp",
+    "orderNumber": "VT-55290",
+    "total": 420,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "subtotal": 300,
+    "id": "ord-1794055663887",
+    "contractAgreedAt": "2026-11-07T12:47:43.887Z",
+    "courierName": "Steadfast",
+    "estimatedDeliveryMaxDays": 4,
+    "paymentStatus": "Pending",
+    "verifiedAt": "2026-11-07T12:47:43.887Z",
+    "isVerifiedCustomer": true,
+    "savedToFirestoreAt": "2026-11-07T12:47:43.888Z",
+    "estimatedDeliveryMinDays": 2,
+    "trackingUrl": "/tracking?order=VT-55290",
+    "contractConfirmed": true,
+    "canCancelUntil": "2026-11-07T13:02:43.887Z",
+    "orderStatus": "Awaiting Staff Approval",
+    "statusHistory": [
+      {
+        "actor": "Customer",
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-07T12:47:43.887Z",
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins."
+      },
+      {
+        "status": "Customer Confirmed",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "15-minute cancellation window elapsed. Auto-confirmed by system.",
+        "actor": "System Automation"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "Queued for moderator order verification",
+        "actor": "System Automation"
+      }
+    ],
+    "discount": 0,
+    "createdAt": "2026-11-07T12:47:43.887Z",
+    "verificationCertificateId": "VT-CERT-499928",
+    "trackingNumber": "VT-PKG-323868"
+  },
+  {
+    "userId": "usr-1794073891747",
+    "contractConfirmed": true,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "orderStatus": "Awaiting Staff Approval",
+    "contractAgreedAt": "2026-11-07T17:51:31.747Z",
+    "canCancelUntil": "2026-11-07T18:06:31.747Z",
+    "isVerifiedCustomer": true,
+    "savedToFirestoreAt": "2026-11-07T17:51:31.751Z",
+    "createdAt": "2026-11-07T17:51:31.747Z",
+    "deliveryZone": "inside_dhaka",
+    "trackingNumber": "VT-PKG-892180",
+    "verifiedAt": "2026-11-07T17:51:31.747Z",
+    "trackingUrl": "/tracking?order=VT-96078",
+    "discount": 0,
+    "verificationMethod": "phone_otp",
+    "verificationCertificateId": "VT-CERT-800143",
+    "orderNumber": "VT-96078",
+    "customerConfirmationDeadline": "2026-11-07T18:06:31.747Z",
+    "id": "ord-1794073891747",
+    "total": 670,
+    "statusHistory": [
+      {
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-07T17:51:31.747Z",
+        "actor": "Customer"
+      },
+      {
+        "status": "Customer Confirmed",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "15-minute cancellation window elapsed. Auto-confirmed by system.",
+        "actor": "System Automation"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "Queued for moderator order verification",
+        "actor": "System Automation"
+      }
+    ],
+    "customer": {
+      "streetAddress": "gshsjsnns",
+      "phone": "01855555555",
+      "district": "Dhaka",
+      "division": "Dhaka",
+      "upazila": "hsjsjsb",
+      "fullName": "snksnsvxjx"
+    },
+    "courierName": "Pathao",
+    "paymentStatus": "Pending",
+    "items": [
+      {
+        "image": "https://shopbasebd.com/public/uploads/shop/products/1764960432_L_5.jpg",
+        "color": "Standard",
+        "maxStock": 11,
+        "quantity": 1,
+        "name": "Maroon Cat Graphic Hoodie",
+        "regularPrice": 1000,
+        "sku": "VT-DROP-330-M",
+        "id": "prod-5622-M-Standard",
+        "size": "M",
+        "price": 600,
+        "productId": "prod-5622",
+        "slug": "maroon-cat-graphic-hoodie"
+      }
+    ],
+    "estimatedDeliveryMaxDays": 2,
+    "deliveryFee": 70,
+    "subtotal": 600,
+    "estimatedDeliveryMinDays": 1
+  },
+  {
+    "trackingUrl": "/tracking?order=VT-12777",
+    "verifiedAt": "2026-11-08T10:58:44.747Z",
+    "customer": {
+      "phone": "01855555556",
+      "district": "Kishoreganj",
+      "streetAddress": "tumi samne ney",
+      "division": "Dhaka",
+      "upazila": "Kishoreganj Sadar",
+      "fullName": "fahim"
+    },
+    "statusHistory": [
+      {
+        "status": "Pending Customer Confirmation",
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "actor": "Customer",
+        "timestamp": "2026-11-08T10:58:44.748Z"
+      },
+      {
+        "status": "Customer Confirmed",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "15-minute cancellation window elapsed. Auto-confirmed by system.",
+        "actor": "System Automation"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "Queued for moderator order verification",
+        "actor": "System Automation"
+      }
+    ],
+    "contractAgreedAt": "2026-11-08T10:58:44.748Z",
+    "subtotal": 600,
+    "userId": "usr-admin-yeamin",
+    "verificationMethod": "phone_otp",
+    "contractConfirmed": true,
+    "paymentStatus": "Pending",
+    "orderStatus": "Awaiting Staff Approval",
+    "createdAt": "2026-11-08T10:58:44.747Z",
+    "deliveryZone": "outside_dhaka",
+    "verificationCertificateId": "VT-CERT-849753",
+    "items": [
+      {
+        "slug": "abstract-printed-cuban-collar-half-sleeve-shirt-beige-black",
+        "sku": "VT-DROP-822-M",
+        "color": "Standard",
+        "image": "https://shopbasebd.com/public/uploads/shop/products/1784888188_L_1.jpeg",
+        "size": "M",
+        "name": "Abstract Printed Cuban Collar Half Sleeve Shirt - Beige & Black",
+        "regularPrice": 999,
+        "maxStock": 11,
+        "quantity": 1,
+        "price": 600,
+        "id": "prod-6877-M-Standard",
+        "productId": "prod-6877"
+      }
+    ],
+    "paymentMethod": "Cash on Delivery (COD)",
+    "canCancelUntil": "2026-11-08T11:13:44.747Z",
+    "deliveryFee": 120,
+    "discount": 0,
+    "courierName": "Steadfast",
+    "total": 720,
+    "estimatedDeliveryMinDays": 2,
+    "orderNumber": "VT-12777",
+    "trackingNumber": "VT-PKG-818314",
+    "estimatedDeliveryMaxDays": 4,
+    "customerConfirmationDeadline": "2026-11-08T11:13:44.747Z",
+    "isVerifiedCustomer": true,
+    "id": "ord-1794135524747",
+    "savedToFirestoreAt": "2026-11-08T10:58:44.751Z"
+  },
+  {
+    "subtotal": 600,
+    "courierName": "Steadfast",
+    "estimatedDeliveryMinDays": 2,
+    "verifiedAt": "2026-11-08T10:59:16.132Z",
+    "orderNumber": "VT-63552",
+    "contractAgreedAt": "2026-11-08T10:59:16.132Z",
+    "verificationMethod": "phone_otp",
+    "canCancelUntil": "2026-11-08T11:14:16.131Z",
+    "estimatedDeliveryMaxDays": 4,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "customer": {
+      "fullName": "fahim",
+      "upazila": "Kishoreganj Sadar",
+      "division": "Dhaka",
+      "phone": "01855555556",
+      "district": "Kishoreganj",
+      "streetAddress": "tumi samne ney"
+    },
+    "userId": "usr-1794135556132",
+    "id": "ord-1794135556131",
+    "customerConfirmationDeadline": "2026-11-08T11:14:16.131Z",
+    "trackingNumber": "VT-PKG-584679",
+    "deliveryFee": 120,
+    "verificationCertificateId": "VT-CERT-465652",
+    "savedToFirestoreAt": "2026-11-08T10:59:16.133Z",
+    "isVerifiedCustomer": true,
+    "discount": 0,
+    "paymentStatus": "Pending",
+    "orderStatus": "Awaiting Staff Approval",
+    "deliveryZone": "outside_dhaka",
+    "items": [
+      {
+        "slug": "maroon-cat-graphic-hoodie",
+        "id": "prod-5622-M-Standard",
+        "size": "M",
+        "sku": "VT-DROP-330-M",
+        "color": "Standard",
+        "maxStock": 11,
+        "image": "https://shopbasebd.com/public/uploads/shop/products/1764960432_L_5.jpg",
+        "quantity": 1,
+        "name": "Maroon Cat Graphic Hoodie",
+        "productId": "prod-5622",
+        "price": 600,
+        "regularPrice": 1000
+      }
+    ],
+    "createdAt": "2026-11-08T10:59:16.131Z",
+    "trackingUrl": "/tracking?order=VT-63552",
+    "statusHistory": [
+      {
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T10:59:16.132Z",
+        "actor": "Customer"
+      },
+      {
+        "status": "Customer Confirmed",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "15-minute cancellation window elapsed. Auto-confirmed by system.",
+        "actor": "System Automation"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "Queued for moderator order verification",
+        "actor": "System Automation"
+      }
+    ],
+    "contractConfirmed": true,
+    "total": 720
+  },
+  {
+    "customer": {
+      "upazila": "Noakhali Sadar",
+      "fullName": "Arafat",
+      "division": "Chattogram",
+      "streetAddress": "Bandarir hapar gora",
+      "district": "Noakhali",
+      "phone": "01632576521"
+    },
+    "items": [
+      {
+        "slug": "maroon-cat-graphic-hoodie",
+        "id": "prod-5622-M-Standard",
+        "color": "Standard",
+        "size": "M",
+        "image": "https://shopbasebd.com/public/uploads/shop/products/1764960432_L_5.jpg",
+        "sku": "VT-DROP-330-M",
+        "maxStock": 11,
+        "quantity": 1,
+        "name": "Maroon Cat Graphic Hoodie",
+        "productId": "prod-5622",
+        "regularPrice": 1000,
+        "price": 600
+      }
+    ],
+    "orderNumber": "VT-96580",
+    "courierName": "Steadfast",
+    "statusHistory": [
+      {
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "actor": "Customer",
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T12:14:17.913Z"
+      },
+      {
+        "status": "Customer Confirmed",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "15-minute cancellation window elapsed. Auto-confirmed by system.",
+        "actor": "System Automation"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "Queued for moderator order verification",
+        "actor": "System Automation"
+      }
+    ],
+    "deliveryFee": 120,
+    "verificationCertificateId": "VT-CERT-653260",
+    "estimatedDeliveryMaxDays": 4,
+    "subtotal": 600,
+    "total": 720,
+    "paymentStatus": "Pending",
+    "estimatedDeliveryMinDays": 2,
+    "savedToFirestoreAt": "2026-11-08T12:14:17.914Z",
+    "isVerifiedCustomer": true,
+    "trackingNumber": "VT-PKG-351031",
+    "orderStatus": "Awaiting Staff Approval",
+    "contractAgreedAt": "2026-11-08T12:14:17.913Z",
+    "deliveryZone": "outside_dhaka",
+    "contractConfirmed": true,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "canCancelUntil": "2026-11-08T12:29:17.913Z",
+    "id": "ord-1794140057913",
+    "discount": 0,
+    "verificationMethod": "phone_otp",
+    "customerConfirmationDeadline": "2026-11-08T12:29:17.913Z",
+    "verifiedAt": "2026-11-07T12:47:43.913Z",
+    "userId": "usr-1794055663913",
+    "createdAt": "2026-11-08T12:14:17.913Z",
+    "trackingUrl": "/tracking?order=VT-96580"
+  },
+  {
+    "customerConfirmationDeadline": "2026-11-08T13:12:35.062Z",
+    "verifiedAt": "2026-11-07T12:47:43.913Z",
+    "customer": {
+      "division": "Chattogram",
+      "phone": "01632576521",
+      "streetAddress": "Bandarir hapar gora",
+      "district": "Noakhali",
+      "fullName": "Arafat",
+      "upazila": "Noakhali Sadar"
+    },
+    "contractConfirmed": true,
+    "verificationMethod": "phone_otp",
+    "userId": "usr-1794055663913",
+    "estimatedDeliveryMaxDays": 4,
+    "deliveryZone": "outside_dhaka",
+    "orderStatus": "Awaiting Staff Approval",
+    "estimatedDeliveryMinDays": 2,
+    "savedToFirestoreAt": "2026-11-08T12:57:35.063Z",
+    "isVerifiedCustomer": true,
+    "statusHistory": [
+      {
+        "actor": "Customer",
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T12:57:35.062Z"
+      },
+      {
+        "status": "Customer Confirmed",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "15-minute cancellation window elapsed. Auto-confirmed by system.",
+        "actor": "System Automation"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T15:10:09.421Z",
+        "note": "Queued for moderator order verification",
+        "actor": "System Automation"
+      }
+    ],
+    "paymentStatus": "Pending",
+    "subtotal": 600,
+    "deliveryFee": 120,
+    "id": "ord-1794142655062",
+    "courierName": "Steadfast",
+    "canCancelUntil": "2026-11-08T13:12:35.062Z",
+    "contractAgreedAt": "2026-11-08T12:57:35.062Z",
+    "trackingNumber": "VT-PKG-451736",
+    "verificationCertificateId": "VT-CERT-653260",
+    "items": [
+      {
+        "name": "Maroon Cat Graphic Hoodie",
+        "sku": "VT-DROP-330-M",
+        "id": "prod-5622-M-Standard",
+        "size": "M",
+        "color": "Standard",
+        "slug": "maroon-cat-graphic-hoodie",
+        "quantity": 1,
+        "productId": "prod-5622",
+        "regularPrice": 1000,
+        "maxStock": 11,
+        "price": 600,
+        "image": "https://shopbasebd.com/public/uploads/shop/products/1764960432_L_5.jpg"
+      }
+    ],
+    "discount": 0,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "total": 720,
+    "trackingUrl": "/tracking?order=VT-35878",
+    "createdAt": "2026-11-08T12:57:35.062Z",
+    "orderNumber": "VT-35878"
+  },
+  {
+    "id": "ord-1794150086119",
+    "orderNumber": "VT-97258",
+    "customer": {
+      "fullName": "Muhammad Yeamin",
+      "phone": "01888888888",
+      "email": "muhammadeyamin0@gmail.com",
+      "division": "Dhaka",
+      "district": "Dhaka",
+      "upazila": "Dhaka City",
+      "streetAddress": "novel house"
+    },
+    "items": [
+      {
+        "id": "prod-3692-M-white",
+        "productId": "prod-3692",
+        "name": "Abstract Typography Printed Sweatshirt",
+        "slug": "abstract-typography-printed-sweatshirt",
+        "image": "https://dropbazarbd.com/storage/products/2026/10/3OgyJ9ij01NRWiI0cM5lHx6Db9s3QaqqUBXv3sUi.webp",
+        "size": "M",
+        "color": "white",
+        "price": 300,
+        "regularPrice": 499,
+        "quantity": 1,
+        "maxStock": 11,
+        "sku": "VT-DROP-135-M-WH"
+      }
+    ],
+    "subtotal": 300,
+    "discount": 0,
+    "deliveryZone": "inside_dhaka",
+    "deliveryFee": 70,
+    "total": 370,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "paymentStatus": "Pending",
+    "orderStatus": "Pending Customer Confirmation",
+    "createdAt": "2026-11-08T15:01:26.119Z",
+    "customerConfirmationDeadline": "2026-11-08T15:16:26.119Z",
+    "canCancelUntil": "2026-11-08T15:16:26.119Z",
+    "courierName": "Pathao",
+    "trackingNumber": "VT-PKG-651851",
+    "trackingUrl": "/tracking?order=VT-97258",
+    "estimatedDeliveryMinDays": 1,
+    "estimatedDeliveryMaxDays": 2,
+    "userId": "usr-admin-yeamin",
+    "isVerifiedCustomer": true,
+    "verificationMethod": "phone_otp",
+    "verifiedAt": "2026-11-08T15:01:26.119Z",
+    "verificationCertificateId": "VT-CERT-294025",
+    "contractConfirmed": true,
+    "contractAgreedAt": "2026-11-08T15:01:26.119Z",
+    "statusHistory": [
+      {
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T15:01:26.119Z",
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "actor": "Customer"
+      }
+    ]
+  },
+  {
     "id": "ord-101",
     "orderNumber": "VT-89241",
     "customer": {

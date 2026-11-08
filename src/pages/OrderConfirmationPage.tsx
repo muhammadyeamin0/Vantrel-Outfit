@@ -36,7 +36,7 @@ export const OrderConfirmationPage: React.FC = () => {
 
   const order = lastPlacedOrder;
 
-  // 15-Minute Countdown timer calculation
+  // 15-Minute Countdown timer calculation with auto-confirm trigger on expiry
   useEffect(() => {
     if (!order) return;
 
@@ -46,6 +46,8 @@ export const OrderConfirmationPage: React.FC = () => {
       ? new Date(order.canCancelUntil).getTime()
       : orderTime + 15 * 60 * 1000;
 
+    let hasAutoConfirmed = false;
+
     const updateTimer = () => {
       const now = Date.now();
       const diff = deadline - now;
@@ -53,6 +55,22 @@ export const OrderConfirmationPage: React.FC = () => {
       if (diff <= 0 || order.orderStatus === 'Cancelled') {
         setTimeLeft('00:00');
         setIsWithinWindow(false);
+
+        // If 15 minutes elapsed without cancellation, auto-confirm and send email to muhammadeyamin0@gmail.com
+        if (diff <= 0 && order.orderStatus === 'Pending Customer Confirmation' && !hasAutoConfirmed) {
+          hasAutoConfirmed = true;
+          fetch(`/api/orders/${order.id}/auto-confirm`, { method: 'POST' })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data?.success && data?.data) {
+                // Update local order status
+                order.orderStatus = 'Order Confirmed';
+              }
+            })
+            .catch((err) => {
+              console.warn('Auto-confirm API trigger notice:', err);
+            });
+        }
       } else {
         const mins = Math.floor(diff / 60000);
         const secs = Math.floor((diff % 60000) / 1000);
@@ -114,6 +132,7 @@ export const OrderConfirmationPage: React.FC = () => {
   };
 
   const isCancelled = order.orderStatus === 'Cancelled';
+  const isAutoConfirmed = order.orderStatus === 'Order Confirmed' || (!isWithinWindow && !isCancelled);
   const earnedPoints = Math.floor(order.total / 50);
 
   return (
@@ -134,11 +153,11 @@ export const OrderConfirmationPage: React.FC = () => {
               ধন্যবাদ, {order.customer.fullName}!
             </h1>
             <p className="text-xs text-[#202522]/70 max-w-md mx-auto">
-              আপনার পছন্দের পণ্যগুলো সংরক্ষিত হয়েছে। আমাদের টিম ডেলিভারি প্রস্তুতকরণ শুরু করেছে।
+              আপনার পছন্দের পণ্যগুলো সফলভাবে বুকিং হয়েছে। নিচে আপনার অর্ডারকৃত পণ্যের বিস্তারিত তথ্য দেখুন।
             </p>
           </div>
 
-          {/* Order ID & Points Badge */}
+          {/* Order ID & Status Badge */}
           <div className="flex flex-wrap items-center justify-center gap-3">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#F7F5EF] rounded-xl border border-[#E5E1D5] text-xs">
               <span className="text-[#202522]/60">Order Number:</span>
@@ -147,9 +166,114 @@ export const OrderConfirmationPage: React.FC = () => {
               </strong>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800">
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800">
               <Award className="w-4 h-4 text-[#FF762E]" />
               <span>+{earnedPoints} VANTREL Points Earned</span>
+            </div>
+
+            <div className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold ${
+              isCancelled
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : isAutoConfirmed
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                : 'bg-amber-50 text-amber-800 border border-amber-200'
+            }`}>
+              <Clock className="w-3.5 h-3.5" />
+              <span>
+                {isCancelled
+                  ? 'বাতিলকৃত (Cancelled)'
+                  : isAutoConfirmed
+                  ? 'কনফার্মড (Order Confirmed)'
+                  : 'যাচাইকরণ চলছে (15-Min Grace)'}
+              </span>
+            </div>
+          </div>
+
+          {/* PROMINENT "SHE KI ORDER KORESE" (WHAT YOU ORDERED) SECTION */}
+          <div className="p-5 sm:p-6 bg-[#FAF9F5] rounded-2xl border-2 border-[#E5E1D5] text-left space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between border-b border-[#E5E1D5] pb-3">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#FF762E]" />
+                <h3 className="font-heading font-extrabold text-base text-[#14221C]">
+                  আপনার অর্ডারকৃত পণ্যের বিবরণ (Ordered Items)
+                </h3>
+              </div>
+              <span className="text-xs font-bold text-[#14221C] bg-white px-2.5 py-1 rounded-lg border border-[#E5E1D5]">
+                মোট আইটেম: {order.items.reduce((sum, item) => sum + item.quantity, 0)} টি
+              </span>
+            </div>
+
+            {/* Item List with Image, Size, Color, Qty, Price */}
+            <div className="space-y-3">
+              {order.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3.5 p-3 bg-white rounded-xl border border-[#E5E1D5] shadow-xs hover:border-[#14221C]/30 transition-colors"
+                >
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-16 h-20 sm:w-20 sm:h-24 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <h4 className="font-bold text-xs sm:text-sm text-[#14221C] truncate">
+                      {item.name}
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#202522]/80">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-stone-100 font-semibold text-stone-800 border border-stone-200">
+                        সাইজ: {item.size}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-stone-100 font-semibold text-stone-800 border border-stone-200">
+                        কালার: {item.color}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-stone-100 font-semibold text-stone-800 border border-stone-200">
+                        পরিমাণ: {item.quantity} টি
+                      </span>
+                    </div>
+                    <div className="text-xs text-[#202522]/70 pt-0.5">
+                      প্রতি পিস: ৳{item.price.toLocaleString()} × {item.quantity} = <strong className="text-[#14221C] font-bold">৳{(item.price * item.quantity).toLocaleString()} BDT</strong>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-mono font-black text-sm sm:text-base text-[#14221C]">
+                      ৳{(item.price * item.quantity).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Delivery Destination & Payment Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[#E5E1D5] text-xs">
+              <div className="p-3 bg-white rounded-xl border border-[#E5E1D5] space-y-1">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[#FF762E] block">
+                  ডেলিভারি ঠিকানা
+                </span>
+                <p className="font-bold text-[#14221C]">{order.customer.fullName} ({order.customer.phone})</p>
+                <p className="text-[11px] text-[#202522]/80 flex items-start gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-[#FF762E] shrink-0 mt-0.5" />
+                  <span>
+                    {order.customer.streetAddress}, {order.customer.unionOrWard ? `${order.customer.unionOrWard}, ` : ''}{order.customer.upazila}, {order.customer.district}
+                  </span>
+                </p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-[#E5E1D5] space-y-1.5">
+                <div className="flex justify-between text-[#202522]/80">
+                  <span>পণ্য সাবটোটাল:</span>
+                  <span className="font-semibold text-[#14221C]">৳{order.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-[#202522]/80">
+                  <span>ডেলিভারি চার্জ:</span>
+                  <span className="font-semibold text-[#14221C]">
+                    {order.deliveryFee === 0 ? 'ফ্রি' : `৳${order.deliveryFee}`}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs font-black text-[#14221C] pt-1 border-t border-stone-200">
+                  <span>সর্বমোট প্রদেয় টাকা (ক্যাশ অন ডেলিভারি):</span>
+                  <span className="text-[#FF762E] font-mono text-base">৳{order.total.toLocaleString()} BDT</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -164,20 +288,20 @@ export const OrderConfirmationPage: React.FC = () => {
                 {order.cancellationReason ? `কারণ: ${order.cancellationReason}` : 'গ্রাহকের অনুরোধে অর্ডারটি বাতিল করা হয়েছে।'} পণ্যের স্টক ইনভেন্টরিতে ফিরিয়ে নেওয়া হয়েছে।
               </p>
             </div>
-          ) : (
-            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl max-w-lg mx-auto space-y-3 text-xs text-left shadow-xs">
+          ) : isWithinWindow ? (
+            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl max-w-lg mx-auto space-y-3 text-xs text-left shadow-xs">
               <div className="flex items-center justify-between text-[#14221C]">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-700">
-                    <Clock className="w-3.5 h-3.5 text-[#FF762E]" />
+                  <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-700">
+                    <Clock className="w-4 h-4 text-[#FF762E]" />
                   </div>
                   <div>
-                    <span className="font-bold text-stone-900 block">১৫ মিনিটের মধ্যে অর্ডার বাতিলের সুযোগ</span>
+                    <span className="font-bold text-stone-900 block text-sm">১৫ মিনিটের মধ্যে অর্ডার বাতিলের সুযোগ</span>
                     <span className="text-[10px] text-stone-500">Grace Cancellation Window</span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="font-mono font-black text-base text-[#FF762E] tabular-nums bg-white px-2.5 py-1 rounded-lg border border-amber-200 shadow-xs inline-block">
+                  <span className="font-mono font-black text-lg text-[#FF762E] tabular-nums bg-white px-3 py-1 rounded-xl border border-amber-300 shadow-xs inline-block">
                     {timeLeft || '15:00'}
                   </span>
                   <span className="block text-[9px] text-stone-500 text-right mt-0.5">বাকি আছে</span>
@@ -185,24 +309,30 @@ export const OrderConfirmationPage: React.FC = () => {
               </div>
 
               <p className="text-[11px] text-[#202522]/80 leading-relaxed">
-                {isWithinWindow
-                  ? 'আপনি অর্ডার করার পর ১৫ মিনিটের মধ্যে কোনো ডেলিভারি চার্জ ছাড়াই সরাসরি অর্ডার বাতিল করতে পারবেন।'
-                  : '১৫ মিনিটের নির্ধারিত সময় অতিক্রান্ত হয়েছে। আপনার অর্ডারটি ওয়্যারহাউস থেকে প্যাকিং ও ডেলিভারি লাইনে চলে গেছে।'}
+                অর্ডার নিশ্চিতকরণের জন্য ১৫ মিনিট সময় দেওয়া হয়েছে। আপনি চাইলে এই ১৫ মিনিটের মধ্যে সরাসরি অর্ডার বাতিল করতে পারবেন। ১৫ মিনিট শেষ হলে অর্ডারটি স্বয়ংক্রিয়ভাবে কনফার্ম হয়ে যাবে এবং নোটিফিকেশন <strong>muhammadeyamin0@gmail.com</strong> এ চলে যাবে।
               </p>
 
-              {isWithinWindow && (
-                <div className="pt-1 flex items-center justify-between border-t border-amber-200/60 mt-2">
-                  <span className="text-[10px] text-stone-500">কোনো ভুল হলে এখনই বাতিল করতে পারেন</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowCancelModal(true)}
-                    className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>অর্ডার বাতিল করুন</span>
-                  </button>
-                </div>
-              )}
+              <div className="pt-2 flex items-center justify-between border-t border-amber-200/80">
+                <span className="text-[10px] text-stone-600">কোনো তথ্য ভুল থাকলে এখনই বাতিল করুন:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(true)}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>অর্ডার বাতিল করুন</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 bg-emerald-50 border-2 border-emerald-300 rounded-2xl max-w-lg mx-auto space-y-2 text-xs text-left shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>✓ অর্ডার সফলভাবে কনফার্ম করা হয়েছে (Order Confirmed)</span>
+              </div>
+              <p className="text-[11px] text-emerald-800 leading-relaxed">
+                ১৫ মিনিটের সময় অতিক্রান্ত হওয়ায় আপনার অর্ডারটি স্বয়ংক্রিয়ভাবে নিশ্চিত হয়েছে এবং ওয়্যারহাউসে প্যাকিং শুরু হয়েছে। স্বয়ংক্রিয় কনফার্মেশন ইমেইল <strong>muhammadeyamin0@gmail.com</strong> এ সফলভাবে পাঠানো হয়েছে।
+              </p>
             </div>
           )}
 

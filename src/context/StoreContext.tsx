@@ -1209,37 +1209,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [currentUser, currentStaffRole]
   );
 
-  // Background Order Lifecycle: Automatically Transition Pending Orders past Confirmation Deadline
+  // Background Order Lifecycle: Automatically Transition Pending Orders past 15-minute deadline to 'Order Confirmed'
   useEffect(() => {
     const timer = setInterval(() => {
       const now = Date.now();
       setOrders((prevOrders) => {
         let changed = false;
         const updated = prevOrders.map((order) => {
+          const deadlineTime = new Date(order.canCancelUntil || order.customerConfirmationDeadline || 0).getTime();
           if (
             order.orderStatus === 'Pending Customer Confirmation' &&
-            order.customerConfirmationDeadline &&
-            new Date(order.customerConfirmationDeadline).getTime() <= now
+            deadlineTime > 0 &&
+            deadlineTime <= now
           ) {
             changed = true;
             const newHistory = [
               ...order.statusHistory,
               {
-                status: 'Customer Confirmed' as OrderStatus,
+                status: 'Order Confirmed' as OrderStatus,
                 timestamp: new Date().toISOString(),
-                note: `15-minute cancellation window elapsed. Auto-confirmed by system.`,
-                actor: 'System Automation'
-              },
-              {
-                status: 'Awaiting Staff Approval' as OrderStatus,
-                timestamp: new Date().toISOString(),
-                note: `Queued for moderator order verification`,
+                note: `15-minute cancellation window elapsed without cancellation. Automatically confirmed and sent to warehouse.`,
                 actor: 'System Automation'
               }
             ];
+
+            // Trigger server auto-confirm endpoint to dispatch email to muhammadeyamin0@gmail.com
+            fetch(`/api/orders/${order.id}/auto-confirm`, { method: 'POST' }).catch((err) => {
+              console.warn('Auto-confirm server dispatch warning:', err);
+            });
+
+            // Update lastPlacedOrder if currently viewed
+            setLastPlacedOrder((last) => (last && last.id === order.id ? { ...last, orderStatus: 'Order Confirmed' as OrderStatus } : last));
+
             return {
               ...order,
-              orderStatus: 'Awaiting Staff Approval' as OrderStatus,
+              orderStatus: 'Order Confirmed' as OrderStatus,
               statusHistory: newHistory
             };
           }
@@ -1251,7 +1255,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         return prevOrders;
       });
-    }, 10000); // Check every 10 seconds
+    }, 5000); // Check every 5 seconds
 
     return () => clearInterval(timer);
   }, []);

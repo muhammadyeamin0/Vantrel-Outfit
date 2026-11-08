@@ -63,12 +63,27 @@ export const OrderTrackingPage: React.FC = () => {
       ? new Date(searchedOrder.canCancelUntil).getTime()
       : orderTime + 15 * 60 * 1000;
 
+    let hasAutoConfirmed = false;
+
     const updateTimer = () => {
       const now = Date.now();
       const diff = deadline - now;
       if (diff <= 0 || searchedOrder.orderStatus === 'Cancelled') {
         setTimeLeft('00:00');
         setIsWithinWindow(false);
+
+        // If 15 minutes elapsed without cancellation, trigger auto-confirm API
+        if (diff <= 0 && searchedOrder.orderStatus === 'Pending Customer Confirmation' && !hasAutoConfirmed) {
+          hasAutoConfirmed = true;
+          fetch(`/api/orders/${searchedOrder.id}/auto-confirm`, { method: 'POST' })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data?.success && data?.data) {
+                setSearchedOrder(data.data);
+              }
+            })
+            .catch(() => {});
+        }
       } else {
         const mins = Math.floor(diff / 60000);
         const secs = Math.floor((diff % 60000) / 1000);
@@ -321,6 +336,94 @@ export const OrderTrackingPage: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* PROMINENT "SHE KI ORDER KORESE" (WHAT YOU ORDERED) SECTION */}
+            <div className="p-5 sm:p-6 bg-[#FAF9F5] rounded-2xl border border-[#E5E1D5] text-left space-y-4">
+              <div className="flex items-center justify-between border-b border-[#E5E1D5] pb-3">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-[#FF762E]" />
+                  <h3 className="font-heading font-extrabold text-base text-[#14221C]">
+                    আপনার অর্ডারকৃত পণ্যসমূহ (Ordered Items)
+                  </h3>
+                </div>
+                <span className="text-xs font-bold text-[#14221C] bg-white px-2.5 py-1 rounded-lg border border-[#E5E1D5]">
+                  {searchedOrder.items.reduce((sum, item) => sum + item.quantity, 0)} টি পণ্য
+                </span>
+              </div>
+
+              {/* Garment List */}
+              <div className="space-y-3">
+                {searchedOrder.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3.5 p-3 bg-white rounded-xl border border-[#E5E1D5] shadow-xs"
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-14 h-18 sm:w-16 sm:h-20 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <h4 className="font-bold text-xs sm:text-sm text-[#14221C] truncate">
+                        {item.name}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#202522]/80">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-stone-100 font-semibold text-stone-800 border border-stone-200">
+                          সাইজ: {item.size}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-stone-100 font-semibold text-stone-800 border border-stone-200">
+                          কালার: {item.color}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-stone-100 font-semibold text-stone-800 border border-stone-200">
+                          পরিমাণ: {item.quantity} টি
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#202522]/70 pt-0.5">
+                        ৳{item.price.toLocaleString()} × {item.quantity} = <strong className="text-[#14221C] font-bold">৳{(item.price * item.quantity).toLocaleString()} BDT</strong>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-black text-sm text-[#14221C]">
+                        ৳{(item.price * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Delivery destination & total */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[#E5E1D5] text-xs">
+                <div className="p-3 bg-white rounded-xl border border-[#E5E1D5] space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#FF762E] block">
+                    প্রাপকের ঠিকানা
+                  </span>
+                  <p className="font-bold text-[#14221C]">{searchedOrder.customer.fullName} ({searchedOrder.customer.phone})</p>
+                  <p className="text-[11px] text-[#202522]/80 flex items-start gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-[#FF762E] shrink-0 mt-0.5" />
+                    <span>
+                      {searchedOrder.customer.streetAddress}, {searchedOrder.customer.unionOrWard ? `${searchedOrder.customer.unionOrWard}, ` : ''}{searchedOrder.customer.upazila}, {searchedOrder.customer.district}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-[#E5E1D5] space-y-1.5">
+                  <div className="flex justify-between text-[#202522]/80">
+                    <span>সাবটোটাল:</span>
+                    <span className="font-semibold text-[#14221C]">৳{searchedOrder.subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[#202522]/80">
+                    <span>ডেলিভারি চার্জ:</span>
+                    <span className="font-semibold text-[#14221C]">
+                      {searchedOrder.deliveryFee === 0 ? 'ফ্রি' : `৳${searchedOrder.deliveryFee}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-black text-[#14221C] pt-1 border-t border-stone-200">
+                    <span>সর্বমোট বিল (ক্যাশ অন ডেলিভারি):</span>
+                    <span className="text-[#FF762E] font-mono text-base">৳{searchedOrder.total.toLocaleString()} BDT</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Visual Progress Timeline (16-Stage Mapping) */}

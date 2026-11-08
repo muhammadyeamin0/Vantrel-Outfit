@@ -313,7 +313,191 @@ async function sendGmailOrderNotification(order: any) {
   }
 }
 
+// Helper: Send High-Priority Auto-Confirmation Notification to muhammadeyamin0@gmail.com
+async function sendGmailAutoConfirmNotification(order: any) {
+  const recipient = settings.orderNotificationEmail || process.env.ORDER_NOTIFICATION_EMAIL || 'muhammadeyamin0@gmail.com';
+  const senderUser = settings.gmailNotificationUser || process.env.GMAIL_USER || 'muhammadeyamin0@gmail.com';
+  const appPassword = settings.gmailNotificationAppPassword || process.env.GMAIL_APP_PASSWORD;
+
+  const itemsList = Array.isArray(order.items) ? order.items : [];
+  const itemsHtml = itemsList
+    .map(
+      (item: any) => `
+      <tr style="border-bottom: 1px solid #E5E1D5;">
+        <td style="padding: 12px 8px; font-weight: bold; color: #14221C;">
+          ${item.name || 'Garment Piece'}
+          <div style="font-size: 11px; color: #78716c; font-weight: normal; margin-top: 2px;">
+            Size: <strong>${item.size || 'N/A'}</strong> | Color: <strong>${item.color || 'Standard'}</strong>
+          </div>
+        </td>
+        <td style="padding: 12px 8px; text-align: center; color: #14221C; font-weight: bold;">
+          ${item.quantity || 1}
+        </td>
+        <td style="padding: 12px 8px; text-align: right; color: #14221C;">
+          ৳${Number(item.price || 0).toLocaleString()}
+        </td>
+        <td style="padding: 12px 8px; text-align: right; font-weight: bold; color: #14221C;">
+          ৳${(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}
+        </td>
+      </tr>
+    `
+    )
+    .join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Order Confirmed ${order.orderNumber || ''}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F5EF; margin: 0; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #E5E1D5; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        
+        <!-- Header -->
+        <div style="background-color: #14221C; padding: 28px 24px; text-align: center; color: #ffffff;">
+          <h1 style="margin: 0; font-size: 26px; letter-spacing: 2px; font-weight: 900; color: #FF762E;">VANTREL OUTFIT</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: #22c55e; font-weight: bold;">
+            ✓ ORDER 100% CONFIRMED (15-MIN WINDOW ELAPSED)
+          </p>
+        </div>
+
+        <!-- Banner Info -->
+        <div style="padding: 16px 24px; background: #ECFDF5; border-bottom: 1px solid #A7F3D0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td>
+                <div style="font-size: 11px; text-transform: uppercase; color: #065f46; font-weight: bold;">Order Number</div>
+                <div style="font-size: 20px; font-weight: 900; color: #065f46; font-family: monospace;">${order.orderNumber}</div>
+              </td>
+              <td style="text-align: right;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #065f46; font-weight: bold;">Status</div>
+                <div style="font-size: 14px; color: #047857; font-weight: 800;">ORDER CONFIRMED</div>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #065f46; line-height: 1.4;">
+            গ্রাহক ১৫ মিনিটের মধ্যে অর্ডার বাতিল করেননি। তাই অর্ডারটি স্বয়ংক্রিয়ভাবে কনফার্ম হয়েছে। অবিলম্বে পার্সেল প্যাকিং ও ডেলিভারি প্রস্তুত করুন।
+          </p>
+        </div>
+
+        <div style="padding: 24px;">
+          <!-- Customer Details Card -->
+          <div style="background-color: #F7F5EF; border: 1px solid #E5E1D5; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+            <h3 style="margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #FF762E; font-weight: bold;">
+              Customer & Delivery Details
+            </h3>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #78716c; width: 130px;">Customer Name:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #14221C;">${order.customer?.fullName || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #78716c;">Mobile Phone:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #0284c7;">
+                  <a href="tel:${order.customer?.phone}" style="color: #0284c7; text-decoration: none;">${order.customer?.phone || 'N/A'}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #78716c;">District:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #14221C;">${order.customer?.district || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #78716c;">Upazila / Thana:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #14221C;">${order.customer?.upazila || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #78716c; vertical-align: top;">Street Address:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #14221C; line-height: 1.4;">${order.customer?.streetAddress || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #78716c;">Payment Method:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #14221C;">${order.paymentMethod || 'Cash on Delivery'}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Items Table -->
+          <h3 style="margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #14221C; font-weight: bold;">
+            Ordered Items (${itemsList.length})
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px;">
+            <thead>
+              <tr style="background: #F7F5EF; border-bottom: 2px solid #E5E1D5; text-align: left;">
+                <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #78716c;">Product</th>
+                <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #78716c; text-align: center;">Qty</th>
+                <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #78716c; text-align: right;">Price</th>
+                <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #78716c; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <!-- Financial Summary -->
+          <div style="background: #F7F5EF; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #78716c;">Subtotal:</td>
+                <td style="padding: 4px 0; text-align: right; color: #14221C;">৳${Number(order.subtotal || 0).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #78716c;">Delivery Fee:</td>
+                <td style="padding: 4px 0; text-align: right; color: #14221C;">৳${Number(order.deliveryFee || order.deliveryCharge || 0).toLocaleString()}</td>
+              </tr>
+              <tr style="border-top: 1px solid #E5E1D5; font-size: 16px;">
+                <td style="padding: 10px 0 0; font-weight: bold; color: #14221C;">Total Payable Amount:</td>
+                <td style="padding: 10px 0 0; text-align: right; font-weight: 900; color: #FF762E;">৳${Number(order.total || 0).toLocaleString()} BDT</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  console.log(`\n======================================================`);
+  console.log(` 📧 [GMAIL AUTO-CONFIRMATION DISPATCH]`);
+  console.log(` Recipient: ${recipient}`);
+  console.log(` Order #${order.orderNumber} is now officially CONFIRMED!`);
+  console.log(` Total: ৳${order.total} BDT | Customer: ${order.customer?.fullName} (${order.customer?.phone})`);
+  console.log(`======================================================\n`);
+
+  if (appPassword) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: senderUser,
+          pass: appPassword.replace(/\s+/g, '')
+        }
+      });
+
+      const info = await transporter.sendMail({
+        from: `"VANTREL OUTFIT" <${senderUser}>`,
+        to: recipient,
+        subject: `[অর্ডার কনফার্মড] #${order.orderNumber} - গ্রাহক ১৫ মিনিটে বাতিল না করায় স্বয়ংক্রিয়ভাবে কনফার্ম হয়েছে (৳${Number(order.total || 0).toLocaleString()} BDT)`,
+        html: htmlContent
+      });
+
+      console.log(`✅ Order auto-confirmation email successfully sent to ${recipient}. MessageId: ${info.messageId}`);
+      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_SENT', `Auto-confirmed order #${order.orderNumber} sent to ${recipient}`);
+      return { success: true, messageId: info.messageId, delivered: true, recipient };
+    } catch (err: any) {
+      console.error(`⚠️ Failed to send Gmail via SMTP:`, err.message);
+      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_ERROR', `SMTP error: ${err.message}`);
+      return { success: false, error: err.message, delivered: false, recipient };
+    }
+  } else {
+    recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_PREPARED', `Auto-confirmed order #${order.orderNumber} prepared for ${recipient}`);
+    return { success: true, delivered: false, note: 'Notification prepared for muhammadeyamin0@gmail.com', recipient };
+  }
+}
+
 // Background automated job: Check 15-minute confirmation deadlines
+// If user does not cancel within 15 minutes -> Automatically Confirm Order & Send message/email to muhammadeyamin0@gmail.com
 setInterval(() => {
   const now = Date.now();
   let updatedCount = 0;
@@ -329,33 +513,41 @@ setInterval(() => {
         'Automated System',
         'Cron Processor',
         'Auto-Customer Confirmation Deadline Elapsed',
-        `Order ${ord.orderNumber} reached 15-minute customer edit deadline. Transitioned to 'Awaiting Staff Approval'.`
+        `Order ${ord.orderNumber} reached 15-minute customer edit deadline without cancellation. Transitioned to 'Order Confirmed'.`
       );
       dispatchSms(
         ord.customer.phone,
         'ORDER_CONFIRMED',
-        `VANTREL: Order ${ord.orderNumber} is now confirmed & forwarded to staff approval team for swift dispatch.`
+        `VANTREL: Order ${ord.orderNumber} is now officially confirmed & forwarded to warehouse for packaging & dispatch.`
       );
-      return {
+      const confirmedOrder: Order = {
         ...ord,
-        orderStatus: 'Awaiting Staff Approval' as OrderStatus,
+        orderStatus: 'Order Confirmed' as OrderStatus,
         statusHistory: [
           ...(ord.statusHistory || []),
           {
-            status: 'Awaiting Staff Approval' as OrderStatus,
+            status: 'Order Confirmed' as OrderStatus,
             timestamp: new Date().toISOString(),
-            note: '15-min customer window elapsed. Awaiting staff approval.'
+            note: '15-minute customer cancellation window elapsed. Order automatically confirmed by system and queued for packaging.'
           }
         ]
       };
+
+      // Dispatch auto-confirmation message to muhammadeyamin0@gmail.com
+      sendGmailAutoConfirmNotification(confirmedOrder).catch((err) => {
+        console.warn('Auto-confirmation email dispatch warning:', err);
+      });
+
+      return confirmedOrder;
     }
     return ord;
   });
 
   if (updatedCount > 0) {
-    console.log(`[VANTREL CRON] Automatically transitioned ${updatedCount} orders to Awaiting Staff Approval.`);
+    saveOrdersToDisk();
+    console.log(`[VANTREL CRON] Automatically confirmed ${updatedCount} orders and dispatched email to muhammadeyamin0@gmail.com.`);
   }
-}, 10000);
+}, 5000);
 
 // ==========================================
 // REST API ROUTES
@@ -683,6 +875,49 @@ app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
   }
 
   res.json({ success: true, data: orders[idx] });
+});
+
+// 15-Minute Auto-Confirmation Endpoint (called when 15-min countdown completes)
+app.post('/api/orders/:id/auto-confirm', (req: Request, res: Response) => {
+  const idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, error: 'Order not found' });
+  }
+
+  const order = orders[idx];
+  if (order.orderStatus === 'Pending Customer Confirmation') {
+    order.orderStatus = 'Order Confirmed';
+    order.statusHistory = [
+      ...(order.statusHistory || []),
+      {
+        status: 'Order Confirmed',
+        timestamp: new Date().toISOString(),
+        note: '15-minute customer window elapsed without cancellation. Order confirmed automatically.'
+      }
+    ];
+
+    saveOrdersToDisk();
+
+    recordAudit(
+      'Automated System',
+      'Order Processor',
+      'Auto-Confirmed Order',
+      `Order ${order.orderNumber} auto-confirmed after 15-min window without cancellation.`
+    );
+
+    // Send high-priority email notification to muhammadeyamin0@gmail.com
+    sendGmailAutoConfirmNotification(order).catch((err) => {
+      console.warn('Auto-confirmation email dispatch warning:', err);
+    });
+
+    dispatchSms(
+      order.customer.phone,
+      'ORDER_CONFIRMED',
+      `VANTREL: Order ${order.orderNumber} is now officially confirmed & forwarded to warehouse for packaging & dispatch.`
+    );
+  }
+
+  res.json({ success: true, message: 'Order auto-confirmed successfully', data: order });
 });
 
 // Staff Approval endpoint
