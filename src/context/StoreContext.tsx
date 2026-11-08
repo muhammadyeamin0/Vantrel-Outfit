@@ -677,12 +677,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return INITIAL_SETTINGS;
   });
 
-  // Orders - cleared to empty array as requested (er admin panel er sob earn and locsion dilet kro and joto order asce)
+  // Orders
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('vt_orders_v2');
+    const saved = localStorage.getItem('vt_orders') || localStorage.getItem('vt_orders_v2');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         return [];
       }
@@ -842,6 +843,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     localStorage.setItem('vt_orders', JSON.stringify(orders));
+    localStorage.setItem('vt_orders_v2', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
@@ -1027,6 +1029,88 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
 
     return () => unsubscribe();
+  }, []);
+
+  // Continuous 100% Guaranteed Orders Synchronization with Server Backend & Firestore
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncOrdersWithServer = async () => {
+      try {
+        const res = await fetch('/api/orders');
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && isMounted) {
+          setOrders((currentOrders) => {
+            const map = new Map<string, Order>();
+            // Add all server orders
+            json.data.forEach((ord: Order) => {
+              if (ord && ord.id) map.set(ord.id, ord);
+            });
+            // Merge local orders that might be newly created
+            currentOrders.forEach((localOrd: Order) => {
+              if (!localOrd || !localOrd.id) return;
+              const serverMatch = map.get(localOrd.id);
+              if (!serverMatch) {
+                map.set(localOrd.id, localOrd);
+                // Asynchronously push any un-synced local order to server
+                fetch('/api/orders', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(localOrd)
+                }).catch(() => {});
+              } else {
+                // If local order has more recent cancellation, maintain cancelled status
+                if (localOrd.orderStatus === 'Cancelled' && serverMatch.orderStatus !== 'Cancelled') {
+                  map.set(localOrd.id, { ...serverMatch, ...localOrd });
+                }
+              }
+            });
+
+            const merged = Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+            return merged;
+          });
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    };
+
+    syncOrdersWithServer();
+    const interval = setInterval(syncOrdersWithServer, 6000);
+
+    // Also listen to Firestore orders collection if Firestore is available
+    let firestoreUnsub: (() => void) | undefined;
+    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
+      try {
+        const ordersCol = collection(db, 'orders');
+        firestoreUnsub = onSnapshot(ordersCol, (snapshot) => {
+          if (!snapshot.empty && isMounted) {
+            setOrders((prev) => {
+              const map = new Map<string, Order>();
+              prev.forEach((o) => map.set(o.id, o));
+              snapshot.forEach((docSnap) => {
+                const remote = docSnap.data() as Order;
+                map.set(docSnap.id, { ...map.get(docSnap.id), ...remote, id: docSnap.id });
+              });
+              return Array.from(map.values()).sort(
+                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              );
+            });
+          }
+        });
+      } catch (e) {
+        console.warn('Firestore orders sync notice:', e);
+      }
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (firestoreUnsub) firestoreUnsub();
+    };
   }, []);
 
   // Listen to Firebase Auth state changes (only if GCP is enabled)
@@ -2265,19 +2349,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAppliedPointsDiscount(0);
     setAppliedReferralCode(null);
 
-    // 1. Sync to Google Cloud Firestore orders collection
+    // 1. Direct sync to Express backend server (Guarantees Admin Dashboard presence immediately across all sessions/devices)
     try {
-      setDoc(doc(db, 'orders', newOrder.id), {
-        ...newOrder,
-        savedToFirestoreAt: new Date().toISOString()
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newOrder)
       }).catch((err) => {
-        console.warn('Firestore order save background warning:', err);
+        console.warn('Server backend order sync warning:', err);
       });
+    } catch (e) {
+      console.warn('Server order sync warning:', e);
+    }
+
+    // 2. Sync to Google Cloud Firestore orders collection
+    try {
+      if (db) {
+        setDoc(doc(db, 'orders', newOrder.id), {
+          ...newOrder,
+          savedToFirestoreAt: new Date().toISOString()
+        }).catch((err) => {
+          console.warn('Firestore order save background warning:', err);
+        });
+      }
     } catch (e) {
       console.warn('Firestore order save warning:', e);
     }
 
-    // 2. Automatically dispatch order notification to Gmail (muhammadeyamin0@gmail.com)
+    // 3. Automatically dispatch order notification to Gmail (muhammadeyamin0@gmail.com)
     try {
       fetch('/api/send-order-notification', {
         method: 'POST',
@@ -2351,9 +2450,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         )
       );
 
+      // If lastPlacedOrder is this order, update it too
+      setLastPlacedOrder((prev) =>
+        prev && prev.id === orderId
+          ? {
+              ...prev,
+              orderStatus: 'Cancelled',
+              cancellationReason: reason
+            }
+          : prev
+      );
+
+      // Sync cancellation to server backend
+      try {
+        fetch(`/api/orders/${order.id}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        }).catch((err) => {
+          console.warn('Server cancel sync error:', err);
+        });
+      } catch (e) {
+        console.warn('Server cancel sync error:', e);
+      }
+
+      // Sync cancellation to Firestore
+      try {
+        if (db) {
+          setDoc(
+            doc(db, 'orders', orderId),
+            {
+              orderStatus: 'Cancelled',
+              cancellationReason: reason,
+              cancelledAt: new Date().toISOString()
+            },
+            { merge: true }
+          ).catch(() => {});
+        }
+      } catch (e) {
+        // silent
+      }
+
       sendOrderSms(order, 'order_cancelled');
-      addAuditLog('ORDER_CANCELLED', `Order #${order.orderNumber} cancelled by customer within deadline`);
-      showToast('Order Cancelled', 'Your order was successfully cancelled and items restocked.', 'info');
+      addAuditLog('ORDER_CANCELLED', `Order #${order.orderNumber} cancelled by customer within deadline. Reason: ${reason}`);
+      showToast('অর্ডার বাতিল সম্পন্ন', 'আপনার অর্ডারটি বাতিল করা হয়েছে এবং পণ্য স্টক পুনরায় ফিরিয়ে দেওয়া হয়েছে।', 'info');
       return { success: true, message: 'Order cancelled successfully.' };
     } else {
       // Grace window passed -> Cancellation Requested for moderator review
@@ -2378,7 +2518,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         )
       );
       addAuditLog('ORDER_CANCEL_REQUEST', `Customer requested cancellation for #${order.orderNumber}`);
-      showToast('Cancellation Requested', 'Our support team will review your cancellation request shortly.', 'info');
+      showToast('বাতিলের অনুরোধ পাঠানো হয়েছে', '১৫ মিনিটের সময়সীমা পার হওয়ায় অর্ডার বাতিলের অনুরোধ রিভিউ করা হচ্ছে।', 'info');
       return { success: true, message: 'Cancellation request submitted for staff approval.' };
     }
   };

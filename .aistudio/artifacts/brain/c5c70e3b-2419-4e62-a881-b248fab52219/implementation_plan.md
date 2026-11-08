@@ -1,48 +1,80 @@
-# Seamless Ordering for Single-Picture Products (Auto Color Selection)
+# VANTREL Order Synchronization, 15-Minute Cancellation, Policy Terms, and Search/AI Indexing
 
-This plan enables customers to instantly order or add products to their cart without being required to choose a color when a product has only one picture or a single color option.
+This comprehensive plan resolves order visibility in the admin panel, introduces a 15-minute customer order cancellation window with mandatory reason selection, embeds official delivery/return terms on confirmation and tracking pages, and configures complete crawling access for Google, Meta, Gemini, and AI engines while strictly securing the admin panel.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The recommended approach will be applied:
-> - **Auto-Selected Color**: For any product that has only 1 image (`product.images.length === 1`) or 1 color (`product.colors.length <= 1`), the system automatically assigns the default color (`product.colors[0]?.name || 'Standard'`).
-> - **Streamlined UI**: On `ProductDetailPage.tsx`, if the product has only a single image or color, the redundant multi-choice color buttons are replaced with a clean informational tag: `Color: As Shown in Photo`.
-> - **Zero-Block Checkout**: Both "Add to Cart" and "Buy Now" will execute immediately without prompting for color selection or throwing validation warnings.
+> The following confirmed decisions govern this implementation:
+> - **Order Admin Reliability**: Triple-redundant order persistence (Express API `/api/orders` + Google Cloud Firestore `orders` + local storage backup) with bidirectional auto-reconciliation so that orders placed from any device or connection speed immediately appear in the Admin Dashboard.
+> - **15-Minute Cancellation Flow**: Customers can cancel an order within 15 minutes of placement directly from both the Order Confirmation page and Order Tracking page. A mandatory cancellation reason must be selected from a modal dialog before cancellation is processed, automatically restoring product stock.
+> - **Post-Order Notice**: The exact Bengali delivery and return conditions provided by the user will be highlighted in an authoritative warning card on both `OrderConfirmationPage.tsx` and `OrderTrackingPage.tsx`.
+> - **AI & Search Crawler Access**: Complete `robots.txt` and dynamic `/sitemap.xml` allowing search engines and AI user agents (Googlebot, Google-Extended, Meta-ExternalAgent, FacebookExternalHit, GPTBot, ClaudeBot, PerplexityBot) to crawl all product details, images, and prices while strictly blocking `/admin*`.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Customers browsing single-image products can immediately select their size, adjust quantity, and click "অ্যাড টু কার্ট" or "বাই নাউ" without having to manually click on a color swatch.
-- **Key Value**: Reduces checkout friction for single-piece garments, accessories, or products photographed in a single colorway, increasing conversion rates.
+1. **Guaranteed Order Delivery to Admin**:
+   - Every order submitted via `CheckoutPage.tsx` will be dispatched synchronously to the server API (`/api/orders`), committed to Firestore, and backed up in `localStorage`.
+   - The Admin Dashboard will run an automatic 10-second polling sync against `/api/orders` in addition to Firestore snapshot listeners, ensuring new orders trigger sound/visual alerts and appear in the order table immediately without manual page refreshes.
+
+2. **15-Minute Customer Order Cancellation**:
+   - Both `OrderConfirmationPage.tsx` and `OrderTrackingPage.tsx` will feature a live countdown timer showing remaining minutes and seconds within the 15-minute grace period.
+   - When clicked, a modal prompts the customer to choose a mandatory reason:
+     - ভুল সাইজ নির্বাচন করেছি (Wrong size selected)
+     - ডেলিভারি ঠিকানা বা ফোন নম্বর পরিবর্তন করতে চাই (Need to change address or phone)
+     - অন্য পণ্য অর্ডার করতে চাই (Want to order a different product)
+     - অসাবধানতাবশত অতিরিক্ত অর্ডার হয়েছে (Accidental duplicate order)
+     - অন্যান্য কারণ (Other reason with optional text)
+   - Upon confirmation, order status updates to `'Cancelled'`, inventory stock is restored, and the admin panel is notified.
+
+3. **Mandatory Delivery & Return Terms Display**:
+   - Highlighted prominently on the Order Confirmation and Tracking pages:
+     > **১. ডেলিভারি ম্যান উপস্থিত থাকাকালীন আপনাকে অবশ্যই পণ্যটি পরীক্ষা করতে হবে; কোনো ত্রুটি পাওয়া গেলে, অবিলম্বে ফেরতের জন্য বলুন।**
+     >
+     > **২. ডেলিভারি ম্যান চলে যাওয়ার পর আপনি যদি পণ্যটি ফেরত বা বিনিময় করতে চান, তাহলে আপনাকে অতিরিক্ত ডেলিভারি চার্জ দিতে হবে।**
+     >
+     > **কারণ: এই পণ্যগুলো ফেরত দিলে এর কভার ক্ষতিগ্রস্ত হয় এবং সেগুলো পুনরায় বিক্রয়ের অযোগ্য হয়ে পড়ে। তাই পণ্য ফেরত দেওয়া এড়িয়ে চলুন।**
+
+4. **Search Engine & AI Crawler Support (Google, Meta, Gemini, ChatGPT)**:
+   - Serve a public `/robots.txt` route permitting all web/AI agents (`Googlebot`, `Google-Extended`, `Meta-ExternalAgent`, `facebookexternalhit`, `GPTBot`, `ClaudeBot`, `PerplexityBot`, etc.) with `Allow: /` and `Disallow: /admin`.
+   - Serve a dynamic `/sitemap.xml` route indexing all active products with image attachments, prices, and last modification dates.
+   - Provide Product JSON-LD structured data and OpenGraph tags with BDT pricing and availability on product detail views.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### Single-Image vs Multi-Image Behavior
+### 15-Minute Cancellation & Policy Flow
 
 ```
-[Product with 1 Image / 1 Color]
-  ├── Color Section: Displays "Color: As Shown in Photo" (clean, quiet inline text)
-  ├── Customer selects Size: [28] [30] [32] [34] [36] or [M] [L] [XL]
-  └── Clicks "বাই নাউ" -> Instant checkout with default color attached automatically
-
-[Product with Multiple Images / Colors]
-  ├── Color Section: Full interactive color swatch buttons (e.g., Forest Pine, Charcoal Black)
-  └── Standard color switching & image gallery synchronization
+[Order Placed Successfully]
+  ├── Redirects to Order Confirmation Page
+  │     ├── Live 15-Minute Countdown Badge: "১৫ মিনিট এডিট ও বাতিল সময়সীমা: ১৪:৫২"
+  │     ├── "অর্ডার বাতিল করুন" button
+  │     └── Delivery & Return Policy Notice Card (Highlighted in warning amber/stone)
+  │
+  └── Customer Clicks "অর্ডার বাতিল করুন"
+        ├── Cancellation Modal Opens
+        ├── Requires selecting 1 of 5 predefined reasons
+        ├── Clicks "বাতিল নিশ্চিত করুন"
+        └── Order transitions to "Cancelled", stock restored, status updated in Admin
 ```
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Automatic Color Fallback on Page Load**
-  - *Chosen Approach*: Initialize `selectedColor` state with `product.colors[0]?.name || 'Standard'`. If `product.images.length === 1 || product.colors.length <= 1`, treat color selection as fulfilled by default.
-  - *Why*: Eliminates accidental dead-clicks or disabled button states when there are no alternative colors to choose from.
-- **Decision 2: Seamless Cart and Invoice Compatibility**
-  - *Chosen Approach*: In cart items and order records, single-image products record their actual color name (e.g. "Black") or "Standard (As Shown)", preventing `undefined` or blank fields in Firestore and Gmail order notifications.
+- **Decision 1: Triple-Redundant Order Syncing**
+  - *Chosen Approach*: When an order is placed, `checkout` sends a request to `/api/orders`, syncs to Firestore `orders`, and appends to local cache. In the Admin Dashboard, orders are merged and deduplicated by `orderNumber` across all sources.
+  - *Why*: Solves the root cause of "sometimes orders don't appear in admin panel" caused by intermittent network drops or Firestore offline delays.
+- **Decision 2: Mandatory Cancellation Reason Modal**
+  - *Chosen Approach*: Disable the "Confirm Cancellation" button until a radio reason is selected.
+  - *Why*: Directly satisfies the user's requirement ("Cancel with a mandatory cancellation reason selection") and provides store staff with audit logs explaining why the customer cancelled.
+- **Decision 3: Server-Side Sitemap & Robots Endpoints**
+  - *Chosen Approach*: Mount `/robots.txt` and `/sitemap.xml` directly in `server.ts` so search crawlers and AI bots receive valid XML and plain-text responses without running client-side React.
+  - *Why*: Allows search engines, Meta crawlers, and AI systems (Gemini, ChatGPT) to fetch product catalogs directly via standard HTTP GET.
 
 ---
 
@@ -50,28 +82,39 @@ This plan enables customers to instantly order or add products to their cart wit
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   ProductDetailPage.tsx                     │
-│  - hasSingleColor = images.length <= 1 || colors.length <= 1│
-│  - auto-picks colors[0]                                     │
-│  - hides interactive color swatches for single-image items  │
-│  - allows immediate Add to Cart & Buy Now                   │
+│                          server.ts                          │
+│  - GET /robots.txt (Allows all crawlers, blocks /admin)     │
+│  - GET /sitemap.xml (Dynamic product catalog & image XML)   │
+│  - POST /api/orders (Synchronous order creation & audit)    │
+│  - POST /api/orders/:id/cancel (Restores product stock)     │
 └──────────────────────────────┬──────────────────────────────┘
                                │
             ┌──────────────────┴──────────────────┐
             ▼                                     ▼
 ┌───────────────────────────┐         ┌───────────────────────────┐
-│       HomePage.tsx        │         │      ProductCard.tsx      │
-│ - Quick Add & Buy Now     │         │ - Auto-supplies default   │
-│   auto-pick single color  │         │   color for single image  │
+│     StoreContext.tsx      │         │ OrderConfirmationPage.tsx │
+│ - Dual-sync order fetcher │         │ & OrderTrackingPage.tsx   │
+│ - cancelOrderWithReason() │         │ - 15-min countdown timer  │
+│ - Auto-reconcile orders   │         │ - Cancellation modal      │
+│                           │         │ - Delivery & return notice│
 └───────────────────────────┘         └───────────────────────────┘
 ```
 
-### Affected Files
-1. **`src/pages/ProductDetailPage.tsx`**:
-   - Check `const hasSingleOption = product.images.length <= 1 || product.colors.length <= 1`.
-   - If true, display clean non-clickable note `Color: {product.colors[0]?.name || 'As Shown in Photo'}` instead of multiple selectable buttons.
-   - Ensure `handleAddToCart` and `handleBuyNow` never fail on missing color selection.
-2. **`src/pages/HomePage.tsx`**:
-   - In `handleQuickAddToCart` and `handleQuickBuyNow`, ensure single-image products use `product.colors[0]?.name || 'Standard'` automatically.
-3. **`src/components/ProductCard.tsx`**:
-   - Ensure card quick-buy automatically supplies `product.colors[0]?.name || 'Standard'`.
+### Specific Files to Update:
+1. **`server.ts`**:
+   - Add `/robots.txt` route with `Disallow: /admin`.
+   - Add `/sitemap.xml` route generating clean XML with all product slugs, titles, and images.
+   - Enhance `/api/orders` to ensure resilient persistence.
+2. **`src/context/StoreContext.tsx`**:
+   - Add `cancelOrderWithReason(orderId: string, reason: string)` to handle reason logging and stock restoration.
+   - Add periodic background polling (every 10s) from `/api/orders` so new orders immediately appear in Admin.
+3. **`src/pages/OrderConfirmationPage.tsx`**:
+   - Add live 15-minute countdown timer.
+   - Add Cancellation Modal with mandatory reason selection.
+   - Add the official Bengali delivery and return policy notice box.
+4. **`src/pages/OrderTrackingPage.tsx`**:
+   - Add the same 15-minute countdown timer and cancellation modal if the order was placed less than 15 minutes ago.
+   - Display the official delivery and return policy notice box.
+5. **`src/pages/AdminDashboard.tsx`**:
+   - Display cancellation reasons in order details and audit logs.
+   - Live order counter and audio/visual indicator when a new order arrives.

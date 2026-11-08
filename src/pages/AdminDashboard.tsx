@@ -2980,6 +2980,11 @@ export const AdminDashboard: React.FC = () => {
                           <option value="Refunded">Refunded</option>
                           <option value="Failed Delivery">Failed Delivery</option>
                         </select>
+                        {order.cancellationReason && (
+                          <span className="block text-[10px] text-rose-600 font-semibold mt-1 max-w-[180px] leading-tight bg-rose-50/80 px-1.5 py-0.5 rounded border border-rose-200">
+                            বাতিলের কারণ: {order.cancellationReason}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">

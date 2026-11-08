@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Order, OrderStatus } from '../types';
 import {
@@ -10,6 +10,7 @@ import {
   MapPin,
   Phone,
   ShieldCheck,
+  ShieldAlert,
   AlertCircle,
   RotateCcw,
   XCircle,
@@ -17,6 +18,14 @@ import {
   MessageSquare,
   AlertTriangle
 } from 'lucide-react';
+
+const CANCELLATION_REASONS = [
+  'ভুলবশত অর্ডার করা হয়েছে (Ordered by mistake)',
+  'সাইজ বা কালার পরিবর্তন করতে চাই (Need to change size or color)',
+  'ডেলিভারি ঠিকানা বা মোবাইল নম্বর পরিবর্তন প্রয়োজন (Need to update address/phone)',
+  'অন্য কোনো পণ্য পছন্দ হয়েছে (Found another product)',
+  'ব্যক্তিগত জরুরি কারণ (Personal emergency)'
+];
 
 export const OrderTrackingPage: React.FC = () => {
   const {
@@ -35,11 +44,43 @@ export const OrderTrackingPage: React.FC = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // 15-min countdown timer state
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [isWithinWindow, setIsWithinWindow] = useState<boolean>(true);
+
   // Cancel & Return modals state
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
-  const [cancelReason, setCancelReason] = useState('Change of mind');
+  const [cancelReason, setCancelReason] = useState(CANCELLATION_REASONS[0]);
+  const [cancelCustomNote, setCancelCustomNote] = useState('');
   const [showReturnPrompt, setShowReturnPrompt] = useState(false);
   const [returnReason, setReturnReason] = useState('Fabric/fit adjustment requested');
+
+  // Track 15-minute deadline for searched order
+  useEffect(() => {
+    if (!searchedOrder) return;
+    const orderTime = new Date(searchedOrder.createdAt).getTime();
+    const deadline = searchedOrder.canCancelUntil
+      ? new Date(searchedOrder.canCancelUntil).getTime()
+      : orderTime + 15 * 60 * 1000;
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = deadline - now;
+      if (diff <= 0 || searchedOrder.orderStatus === 'Cancelled') {
+        setTimeLeft('00:00');
+        setIsWithinWindow(false);
+      } else {
+        const mins = Math.floor(diff / 60000);
+        const secs = Math.floor((diff % 60000) / 1000);
+        setTimeLeft(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+        setIsWithinWindow(true);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [searchedOrder]);
 
   const mainStatusPipeline: OrderStatus[] = [
     'Pending Customer Confirmation',
@@ -84,11 +125,23 @@ export const OrderTrackingPage: React.FC = () => {
 
   const handleCancelSubmit = () => {
     if (!searchedOrder) return;
-    const res = cancelOrder(searchedOrder.id, cancelReason);
+    if (!cancelReason) {
+      showToast('কারণ নির্বাচন করুন', 'অনুগ্রহ করে অর্ডার বাতিলের কারণ নির্বাচন করুন।', 'error');
+      return;
+    }
+    const finalReason = cancelCustomNote.trim()
+      ? `${cancelReason} - ${cancelCustomNote.trim()}`
+      : cancelReason;
+    const res = cancelOrder(searchedOrder.id, finalReason);
     setShowCancelPrompt(false);
     if (res.success) {
       const refreshed = trackOrderLookup(searchedOrder.orderNumber, searchedOrder.customer.phone);
-      if (refreshed) setSearchedOrder(refreshed);
+      if (refreshed) {
+        setSearchedOrder(refreshed);
+      } else {
+        setSearchedOrder({ ...searchedOrder, orderStatus: 'Cancelled', cancellationReason: finalReason });
+      }
+      showToast('অর্ডার বাতিল সম্পন্ন', 'অর্ডারটি সফলভাবে বাতিল করা হয়েছে।', 'success');
     }
   };
 
@@ -316,6 +369,52 @@ export const OrderTrackingPage: React.FC = () => {
               </div>
             </div>
 
+            {/* 15-Minute Grace Window or Cancellation Status Banner */}
+            {searchedOrder.orderStatus === 'Cancelled' ? (
+              <div className="p-4 bg-rose-50 border-2 border-rose-200 rounded-2xl text-left space-y-1">
+                <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
+                  <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>এই অর্ডারটি বাতিল করা হয়েছে (Cancelled)</span>
+                </div>
+                <p className="text-[11px] text-rose-700">
+                  {searchedOrder.cancellationReason
+                    ? `কারণ: ${searchedOrder.cancellationReason}`
+                    : 'গ্রাহকের অনুরোধে অর্ডারটি বাতিল করা হয়েছে।'}
+                </p>
+              </div>
+            ) : isWithinWindow ? (
+              <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl space-y-2 text-xs text-left shadow-xs">
+                <div className="flex items-center justify-between text-[#14221C]">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#FF762E]" />
+                    <div>
+                      <span className="font-bold text-stone-900 block">১৫ মিনিটের মধ্যে অর্ডার বাতিলের সুযোগ সক্রিয়</span>
+                      <span className="text-[10px] text-stone-500">Grace Cancellation Window</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-black text-sm text-[#FF762E] tabular-nums bg-white px-2 py-0.5 rounded border border-amber-200 shadow-xs inline-block">
+                      {timeLeft || '15:00'}
+                    </span>
+                    <span className="block text-[9px] text-stone-500 text-right">বাকি আছে</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                  <p className="text-[11px] text-[#202522]/80">
+                    কোনো ভুল তথ্য বা পরিবর্তন প্রয়োজন হলে নির্ধারিত সময়ের মধ্যে বাতিল করুন।
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelPrompt(true)}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>অর্ডার বাতিল করুন</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {/* Estimated Delivery Window */}
             <div className="p-4 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2.5">
@@ -334,7 +433,7 @@ export const OrderTrackingPage: React.FC = () => {
 
               {/* Actions: Cancellation & Return */}
               <div className="flex items-center gap-2">
-                {isEligibleForDirectCancel && (
+                {isEligibleForDirectCancel && !isWithinWindow && (
                   <button
                     onClick={() => setShowCancelPrompt(true)}
                     className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl hover:bg-rose-100 transition-colors"
@@ -355,39 +454,121 @@ export const OrderTrackingPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Cancel Order Modal */}
-            {showCancelPrompt && (
-              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-3 text-xs text-rose-900">
-                <div className="font-bold flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-rose-600" />
-                  <span>Cancel Order #{searchedOrder.orderNumber}</span>
+            {/* EXACT Delivery & Return Policy Notice as requested by User */}
+            <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/40 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3.5 text-left">
+              <div className="flex items-center gap-2.5 text-[#14221C]">
+                <div className="w-8 h-8 rounded-xl bg-[#FF762E] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                  <ShieldAlert className="w-4 h-4" />
                 </div>
-                <p className="text-[11px] text-rose-700">
-                  Please select your cancellation reason. Once cancelled, reserved garments will be restored.
-                </p>
-                <select
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-rose-200 rounded-xl"
-                >
-                  <option value="Ordered by mistake">Ordered by mistake</option>
-                  <option value="Need to change sizing or color">Need to change sizing or color</option>
-                  <option value="Need to update delivery address">Need to update delivery address</option>
-                  <option value="Delivery timing conflict">Delivery timing conflict</option>
-                </select>
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setShowCancelPrompt(false)}
-                    className="px-3 py-1.5 bg-white border border-rose-200 text-xs font-semibold rounded-lg"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    onClick={handleCancelSubmit}
-                    className="px-3 py-1.5 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700"
-                  >
-                    Confirm Cancellation
-                  </button>
+                <div>
+                  <h3 className="font-heading font-extrabold text-sm sm:text-base text-[#14221C]">
+                    ডেলিভারি ও পণ্য পরীক্ষা সংক্রান্ত জরুরি শর্তাবলী
+                  </h3>
+                  <p className="text-[11px] text-[#202522]/70">
+                    পণ্য গ্রহণের সময় অনুগ্রহ করে নিচের নিয়মগুলো সতর্কতার সাথে লক্ষ্য রাখুন
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 text-xs text-[#14221C] leading-relaxed">
+                <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2.5 shadow-xs">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                    ১
+                  </span>
+                  <p className="font-semibold text-stone-900 leading-normal">
+                    ডেলিভারি ম্যান উপস্থিত থাকাকালীন আপনাকে অবশ্যই পণ্যটি পরীক্ষা করতে হবে; কোনো ত্রুটি পাওয়া গেলে, অবিলম্বে ফেরতের জন্য বলুন।
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2.5 shadow-xs">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                    ২
+                  </span>
+                  <p className="font-semibold text-stone-900 leading-normal">
+                    ডেলিভারি ম্যান চলে যাওয়ার পর আপনি যদি পণ্যটি ফেরত বা বিনিময় করতে চান, তাহলে আপনাকে অতিরিক্ত ডেলিভারি চার্জ দিতে হবে।
+                  </p>
+                </div>
+
+                <div className="p-3 bg-amber-100/90 rounded-xl border border-amber-300/80 text-[11px] text-amber-950 font-medium leading-relaxed">
+                  <strong className="font-bold text-amber-900">কারণ:</strong> এই পণ্যগুলো ফেরত দিলে এর কভার ক্ষতিগ্রস্ত হয় এবং সেগুলো পুনরায় বিক্রয়ের অযোগ্য হয়ে পড়ে। তাই পণ্য ফেরত দেওয়া এড়িয়ে চলুন।
+                </div>
+              </div>
+            </div>
+
+            {/* Cancel Order Modal with Mandatory Reason Selection */}
+            {showCancelPrompt && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                    <div className="flex items-center gap-2 text-rose-600 font-bold text-base">
+                      <AlertTriangle className="w-5 h-5 shrink-0" />
+                      <span>অর্ডার বাতিল নিশ্চিতকরণ</span>
+                    </div>
+                    <button
+                      onClick={() => setShowCancelPrompt(false)}
+                      className="text-stone-400 hover:text-stone-700 text-lg leading-none p-1 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    অর্ডার <strong>#{searchedOrder.orderNumber}</strong> বাতিল করার জন্য অনুগ্রহ করে কারণ নির্বাচন করুন:
+                  </p>
+
+                  {/* Mandatory Reason Radio Options */}
+                  <div className="space-y-2">
+                    {CANCELLATION_REASONS.map((reason) => (
+                      <label
+                        key={reason}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                          cancelReason === reason
+                            ? 'bg-rose-50/70 border-rose-300 text-rose-900 font-semibold shadow-2xs'
+                            : 'bg-[#F7F5EF] border-[#E5E1D5] text-[#202522] hover:bg-stone-100'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="tracking_cancel_reason"
+                          checked={cancelReason === reason}
+                          onChange={() => setCancelReason(reason)}
+                          className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span>{reason}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Optional Note */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                      অতিরিক্ত কোনো মন্তব্য থাকলে লিখুন (ঐচ্ছিক):
+                    </label>
+                    <textarea
+                      value={cancelCustomNote}
+                      onChange={(e) => setCancelCustomNote(e.target.value)}
+                      placeholder="অতিরিক্ত বিস্তারিত..."
+                      rows={2}
+                      className="w-full p-2.5 text-xs bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl focus:outline-none focus:border-[#14221C]"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelPrompt(false)}
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-xs rounded-xl cursor-pointer"
+                    >
+                      অর্ডার রাখুন
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelSubmit}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs cursor-pointer"
+                    >
+                      হ্যাঁ, অর্ডার বাতিল করুন
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

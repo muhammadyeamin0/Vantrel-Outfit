@@ -1,0 +1,101 @@
+[
+  {
+    "id": "ord-101",
+    "orderNumber": "VT-89241",
+    "customer": {
+      "fullName": "Muhammad Yeamin",
+      "phone": "01711234567",
+      "division": "Dhaka",
+      "district": "Dhaka",
+      "upazila": "Banani",
+      "streetAddress": "House 42, Road 11, Block D, Banani"
+    },
+    "items": [
+      {
+        "id": "item-1",
+        "productId": "prod-001",
+        "name": "VANTREL Signature Heavyweight Pine Hoodie",
+        "slug": "vantrel-heavyweight-pine-hoodie",
+        "image": "/assets/images/product_premium_hoodie_1792588590406.jpg",
+        "size": "L",
+        "color": "Forest Pine",
+        "price": 2650,
+        "regularPrice": 3200,
+        "quantity": 1,
+        "maxStock": 20,
+        "sku": "VT-HD-001-L-FP"
+      }
+    ],
+    "subtotal": 2650,
+    "deliveryFee": 70,
+    "deliveryCharge": 70,
+    "total": 2720,
+    "paymentMethod": "Cash on Delivery",
+    "paymentStatus": "Pending",
+    "orderStatus": "Cancelled",
+    "createdAt": "2026-11-08T12:30:44.086Z",
+    "customerConfirmationDeadline": "2026-11-08T12:45:44.087Z",
+    "confirmationDeadline": "2026-11-08T12:45:44.087Z",
+    "statusHistory": [
+      {
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T12:30:44.087Z",
+        "note": "Order placed by customer via Cash on Delivery"
+      },
+      {
+        "status": "Awaiting Staff Approval",
+        "timestamp": "2026-11-08T12:45:44.087Z",
+        "note": "15-min customer cancellation window elapsed. Pushed to staff review."
+      },
+      {
+        "status": "Cancelled",
+        "timestamp": "2026-11-08T12:51:01.538Z",
+        "note": "Cancelled: ভুলবশত অর্ডার করা হয়েছে (Ordered by mistake). Product stock restored to inventory."
+      }
+    ],
+    "cancellationReason": "ভুলবশত অর্ডার করা হয়েছে (Ordered by mistake)"
+  },
+  {
+    "id": "ord-102",
+    "orderNumber": "VT-89190",
+    "customer": {
+      "fullName": "Tahmidur Rahman",
+      "phone": "01812345678",
+      "division": "Dhaka",
+      "district": "Dhaka",
+      "upazila": "Uttara",
+      "streetAddress": "Sector 4, Road 12, Uttara, Dhaka"
+    },
+    "items": [
+      {
+        "id": "item-2",
+        "productId": "prod-002",
+        "name": "Minimalist Heavy Cotton Oversized Tee",
+        "slug": "minimalist-heavy-cotton-oversized-tee",
+        "image": "/assets/images/product_minimal_tshirt_1792588591873.jpg",
+        "size": "M",
+        "color": "Off-White Ivory",
+        "price": 1350,
+        "regularPrice": 1600,
+        "quantity": 2,
+        "maxStock": 30,
+        "sku": "VT-TS-002-M-IV"
+      }
+    ],
+    "subtotal": 2700,
+    "deliveryFee": 70,
+    "deliveryCharge": 70,
+    "total": 2770,
+    "paymentMethod": "bKash",
+    "paymentStatus": "Paid",
+    "orderStatus": "Order Confirmed",
+    "createdAt": "2026-11-08T09:50:44.087Z",
+    "statusHistory": [
+      {
+        "status": "Order Confirmed",
+        "timestamp": "2026-11-08T09:50:44.087Z",
+        "note": "Payment verified via bKash Merchant Gateway. Approved by staff."
+      }
+    ]
+  }
+]

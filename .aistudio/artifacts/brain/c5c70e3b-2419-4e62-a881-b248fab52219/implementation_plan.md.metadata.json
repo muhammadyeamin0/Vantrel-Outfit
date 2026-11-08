@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for single-picture products order flow:\n1. Auto-select default color for products with 1 picture (or 1 color) so customers never get blocked from ordering or adding to cart.\n2. Conditionally hide the interactive color selector for single-image products on ProductDetailPage, displaying a subtle informational badge 'As Shown in Photo'.\n3. Guarantee Add to Cart and Buy Now succeed immediately without requiring any color interaction.",
-  "updatedAt":  "2026-11-07T12:30:07.835033468Z",
+  "summary":  "Implementation plan for:\n1. 100% reliable order synchronization so every order immediately appears in Admin Panel (Firestore + Express API + localStorage merge).\n2. 15-minute customer order cancellation window with mandatory cancellation reason selection and stock restoration.\n3. Exact post-order delivery and return policy notice displayed on both Order Confirmation and Tracking pages.\n4. Comprehensive search and AI crawler enablement (Google, Meta, Gemini, Claude, GPTBot) via robots.txt, sitemap.xml, and Product Schema.org structured data, while strictly securing the Admin Panel.",
+  "updatedAt":  "2026-11-08T12:40:16.761793603Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -50,6 +50,32 @@ app.use(express.urlencoded({ extended: true }));
 // In-Memory Persistent Database
 let products: Product[] = [...INITIAL_PRODUCTS];
 let orders: Order[] = [...INITIAL_ORDERS];
+
+const ORDERS_PERSIST_FILE = path.resolve(__dirname, 'data', 'orders_store.json');
+function saveOrdersToDisk() {
+  try {
+    const dir = path.dirname(ORDERS_PERSIST_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(ORDERS_PERSIST_FILE, JSON.stringify(orders, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('Orders disk persistence warning:', e);
+  }
+}
+function loadOrdersFromDisk() {
+  try {
+    if (fs.existsSync(ORDERS_PERSIST_FILE)) {
+      const content = fs.readFileSync(ORDERS_PERSIST_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        orders = parsed;
+        console.log(`[VANTREL ENGINE] Successfully loaded ${orders.length} persistent orders from disk.`);
+      }
+    }
+  } catch (e) {
+    console.warn('Orders disk load warning:', e);
+  }
+}
+loadOrdersFromDisk();
 let coupons = [...INITIAL_COUPONS];
 let customers: User[] = [...INITIAL_CUSTOMERS];
 let smsLogs: SmsLog[] = [...INITIAL_SMS_LOGS];
@@ -490,6 +516,51 @@ app.get('/api/orders/:id', (req: Request, res: Response) => {
 });
 
 app.post('/api/orders', (req: Request, res: Response) => {
+  // If an entire pre-constructed order object is received from frontend client
+  if (req.body.id && req.body.orderNumber && req.body.customer && req.body.items) {
+    const incomingOrder: Order = req.body;
+    const existingIndex = orders.findIndex(
+      (o) => o.id === incomingOrder.id || o.orderNumber === incomingOrder.orderNumber
+    );
+
+    if (existingIndex >= 0) {
+      orders[existingIndex] = { ...orders[existingIndex], ...incomingOrder };
+    } else {
+      orders.unshift(incomingOrder);
+      // Deduct variant and total stocks if new
+      incomingOrder.items.forEach((ordItem: any) => {
+        const prod = products.find((p) => p.id === ordItem.productId);
+        if (prod) {
+          prod.totalStock = Math.max(0, prod.totalStock - ordItem.quantity);
+          const variant = prod.variants?.find((v) => v.size === ordItem.size && v.color === ordItem.color);
+          if (variant) {
+            variant.stock = Math.max(0, variant.stock - ordItem.quantity);
+          }
+        }
+      });
+    }
+
+    saveOrdersToDisk();
+
+    recordAudit(
+      incomingOrder.customer.fullName || 'Customer',
+      'Customer / Store Engine',
+      'Order Synced to Server',
+      `Synchronized order #${incomingOrder.orderNumber} (৳${incomingOrder.total}) to central store database`
+    );
+
+    // Send Gmail notification asynchronously
+    sendGmailOrderNotification(incomingOrder).catch((err) => {
+      console.warn('Gmail order notification dispatch error:', err);
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Order synchronized successfully to store engine',
+      data: incomingOrder
+    });
+  }
+
   const { customer, items, paymentMethod, discountAmount = 0, loyaltyPointsRedeemed = 0, referralDiscount = 0 } = req.body;
 
   if (!customer?.fullName || !customer?.phone || !items?.length) {
@@ -509,7 +580,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
     const prod = products.find((p) => p.id === ordItem.productId);
     if (prod) {
       prod.totalStock = Math.max(0, prod.totalStock - ordItem.quantity);
-      const variant = prod.variants.find((v) => v.size === ordItem.size && v.color === ordItem.color);
+      const variant = prod.variants?.find((v) => v.size === ordItem.size && v.color === ordItem.color);
       if (variant) {
         variant.stock = Math.max(0, variant.stock - ordItem.quantity);
       }
@@ -532,6 +603,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
     paymentStatus: paymentMethod === 'Cash on Delivery' ? 'Pending' : 'Paid',
     orderStatus: 'Pending Customer Confirmation',
     confirmationDeadline: deadline,
+    canCancelUntil: deadline,
     statusHistory: [
       {
         status: 'Pending Customer Confirmation',
@@ -542,6 +614,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
   };
 
   orders.unshift(newOrder);
+  saveOrdersToDisk();
 
   // Send Transactional SMS
   dispatchSms(
@@ -653,7 +726,7 @@ app.post('/api/orders/:id/cancel', (req: Request, res: Response) => {
     const prod = products.find((p) => p.id === item.productId);
     if (prod) {
       prod.totalStock += item.quantity;
-      const variant = prod.variants.find((v) => v.size === item.size && v.color === item.color);
+      const variant = prod.variants?.find((v) => v.size === item.size && v.color === item.color);
       if (variant) {
         variant.stock += item.quantity;
       }
@@ -661,6 +734,7 @@ app.post('/api/orders/:id/cancel', (req: Request, res: Response) => {
   });
 
   order.orderStatus = 'Cancelled';
+  order.cancellationReason = reason;
   order.statusHistory = [
     ...(order.statusHistory || []),
     {
@@ -669,6 +743,8 @@ app.post('/api/orders/:id/cancel', (req: Request, res: Response) => {
       note: `Cancelled: ${reason}. Product stock restored to inventory.`
     }
   ];
+
+  saveOrdersToDisk();
 
   recordAudit(
     'System',
@@ -1113,6 +1189,187 @@ app.get('/src/assets/images/:filename', (req: Request, res: Response) => {
   const fallback = path.join(publicAssetsImages, 'vantrel-logo.png');
   if (fs.existsSync(fallback)) return res.sendFile(fallback);
   res.status(404).type('text/plain').send('Image Not Found');
+});
+
+// ==========================================
+// SEARCH ENGINE & AI ENGINE CRAWLER ROUTES (GOOGLE, META, GEMINI, AI)
+// ==========================================
+app.get('/robots.txt', (req: Request, res: Response) => {
+  const host = req.get('host') || 'www.vantreloutfit.shop';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const robots = `# VANTREL OUTFIT Web Crawling & AI Engine Directive
+# Allow Google, Meta, Gemini, and AI scrapers to access all product details, images, and prices.
+# Disallow admin panel and private administrative endpoints.
+
+User-agent: *
+Allow: /
+Allow: /products
+Allow: /products/*
+Allow: /product/*
+Allow: /track
+Allow: /track/*
+Allow: /assets/
+Allow: /src/assets/
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/admin
+Disallow: /api/admin/*
+Disallow: /api/moderators
+Disallow: /api/finances
+Disallow: /api/audit-logs
+Disallow: /api/sms/logs
+
+# Google Search & Image Crawlers
+User-agent: Googlebot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: Googlebot-Image
+Allow: /
+Allow: /assets/
+Allow: /src/assets/
+
+# Google Gemini & Extended AI Models
+User-agent: Google-Extended
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Meta (Facebook & Instagram) Crawlers & Catalog Scrapers
+User-agent: facebookexternalhit
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: Facebot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: meta-externalagent
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# OpenAI & ChatGPT
+User-agent: GPTBot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Anthropic / Claude
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Perplexity AI
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Apple, Bing, DuckDuckGo
+User-agent: Applebot
+User-agent: Bingbot
+User-agent: DuckDuckBot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+Sitemap: ${protocol}://${host}/sitemap.xml
+`;
+  res.type('text/plain').send(robots);
+});
+
+app.get('/sitemap.xml', (req: Request, res: Response) => {
+  const host = req.get('host') || 'www.vantreloutfit.shop';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const baseUrl = `${protocol}://${host}`;
+  const now = new Date().toISOString();
+
+  const staticUrls = [
+    { loc: `${baseUrl}/`, priority: '1.0', changefreq: 'daily' },
+    { loc: `${baseUrl}/products`, priority: '0.9', changefreq: 'daily' },
+    { loc: `${baseUrl}/track`, priority: '0.7', changefreq: 'monthly' }
+  ];
+
+  const productUrls = products.map((prod) => {
+    const rawImg = prod.images && prod.images[0] ? prod.images[0] : '';
+    const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+    const price = prod.discountPrice || prod.regularPrice;
+    const cleanName = (prod.name || 'Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const cleanDesc = (prod.tagline || prod.description || prod.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `  <url>
+    <loc>${baseUrl}/product/${prod.slug || prod.id}</loc>
+    <lastmod>${prod.createdDate ? new Date(prod.createdDate).toISOString() : now}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    ${rawImg ? `<image:image>
+      <image:loc>${imgUrl}</image:loc>
+      <image:title>${cleanName}</image:title>
+      <image:caption>${cleanDesc} - Price: ৳${price} BDT</image:caption>
+    </image:image>` : ''}
+  </url>`;
+  }).join('\n');
+
+  const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${staticUrls.map((u) => `  <url>
+    <loc>${u.loc}</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>${u.changefreq}</changefreq>
+    <priority>${u.priority}</priority>
+  </url>`).join('\n')}
+${productUrls}
+</urlset>`;
+
+  res.type('application/xml').send(sitemapXml);
+});
+
+app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
+  const host = req.get('host') || 'www.vantreloutfit.shop';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  const feed = products.map((p) => {
+    const rawImg = p.images && p.images[0] ? p.images[0] : '';
+    const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+    return {
+      id: p.id,
+      title: p.name,
+      description: p.description || p.tagline,
+      availability: (p.totalStock > 0) ? 'in stock' : 'out of stock',
+      price: `${p.discountPrice || p.regularPrice} BDT`,
+      regular_price: `${p.regularPrice} BDT`,
+      sale_price: p.discountPrice ? `${p.discountPrice} BDT` : undefined,
+      link: `${baseUrl}/product/${p.slug || p.id}`,
+      image_link: imgUrl,
+      additional_image_links: p.images?.slice(1).map((img) => img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`),
+      brand: 'VANTREL OUTFIT',
+      category: p.category,
+      sizes: p.sizes,
+      colors: p.colors?.map((c) => c.name),
+      condition: 'new'
+    };
+  });
+
+  res.json({
+    store: 'VANTREL OUTFIT',
+    currency: 'BDT',
+    item_count: feed.length,
+    updated_at: new Date().toISOString(),
+    products: feed
+  });
 });
 
 // ==========================================

@@ -1,20 +1,88 @@
+# VANTREL OUTFIT Web Crawling & AI Engine Indexing Directive
+# Allow Google, Meta, Gemini, and AI scrapers to access all product details, images, and prices.
+# Disallow admin panel and private administrative endpoints.
+
 User-agent: *
 Allow: /
+Allow: /products
+Allow: /products/*
+Allow: /product/*
+Allow: /track
+Allow: /track/*
 Allow: /assets/
 Allow: /src/assets/
 Disallow: /admin
-Disallow: /api/
+Disallow: /admin/*
+Disallow: /api/admin
+Disallow: /api/admin/*
+Disallow: /api/moderators
+Disallow: /api/finances
+Disallow: /api/audit-logs
+Disallow: /api/sms/logs
 
+# Google Search & Image Crawlers
 User-agent: Googlebot
 Allow: /
-Allow: /assets/
-Allow: /src/assets/
 Disallow: /admin
-Disallow: /api/
+Disallow: /admin/*
 
 User-agent: Googlebot-Image
 Allow: /
 Allow: /assets/
 Allow: /src/assets/
+
+# Google Gemini & Extended AI Models
+User-agent: Google-Extended
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Meta (Facebook & Instagram) Crawlers & Catalog Scrapers
+User-agent: facebookexternalhit
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: Facebot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: meta-externalagent
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# OpenAI & ChatGPT
+User-agent: GPTBot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Anthropic / Claude
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Perplexity AI
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+
+# Apple, Bing, DuckDuckGo
+User-agent: Applebot
+User-agent: Bingbot
+User-agent: DuckDuckBot
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
 
 Sitemap: https://www.vantreloutfit.shop/sitemap.xml
