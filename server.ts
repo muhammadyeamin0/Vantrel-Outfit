@@ -503,11 +503,11 @@ setInterval(() => {
   let updatedCount = 0;
 
   orders = orders.map((ord) => {
-    if (
-      ord.orderStatus === 'Pending Customer Confirmation' &&
-      ord.confirmationDeadline &&
-      new Date(ord.confirmationDeadline).getTime() <= now
-    ) {
+    const deadline = ord.confirmationDeadline || ord.canCancelUntil || ord.customerConfirmationDeadline;
+    const isPastDeadline = Boolean(deadline && !isNaN(new Date(deadline).getTime()) && new Date(deadline).getTime() <= now);
+    const isPending = ord.orderStatus === 'Pending Customer Confirmation' || ord.orderStatus === 'Customer Confirmed';
+
+    if (isPending && isPastDeadline) {
       updatedCount++;
       recordAudit(
         'Automated System',
@@ -522,6 +522,9 @@ setInterval(() => {
       );
       const confirmedOrder: Order = {
         ...ord,
+        confirmationDeadline: deadline,
+        canCancelUntil: deadline,
+        customerConfirmationDeadline: deadline,
         orderStatus: 'Order Confirmed' as OrderStatus,
         statusHistory: [
           ...(ord.statusHistory || []),
@@ -547,7 +550,7 @@ setInterval(() => {
     saveOrdersToDisk();
     console.log(`[VANTREL CRON] Automatically confirmed ${updatedCount} orders and dispatched email to muhammadeyamin0@gmail.com.`);
   }
-}, 5000);
+}, 3000);
 
 // ==========================================
 // REST API ROUTES
@@ -711,6 +714,15 @@ app.post('/api/orders', (req: Request, res: Response) => {
   // If an entire pre-constructed order object is received from frontend client
   if (req.body.id && req.body.orderNumber && req.body.customer && req.body.items) {
     const incomingOrder: Order = req.body;
+    const deadlineVal =
+      incomingOrder.confirmationDeadline ||
+      incomingOrder.canCancelUntil ||
+      incomingOrder.customerConfirmationDeadline ||
+      new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    incomingOrder.confirmationDeadline = deadlineVal;
+    incomingOrder.canCancelUntil = deadlineVal;
+    incomingOrder.customerConfirmationDeadline = deadlineVal;
+
     const existingIndex = orders.findIndex(
       (o) => o.id === incomingOrder.id || o.orderNumber === incomingOrder.orderNumber
     );
@@ -885,7 +897,12 @@ app.post('/api/orders/:id/auto-confirm', (req: Request, res: Response) => {
   }
 
   const order = orders[idx];
-  if (order.orderStatus === 'Pending Customer Confirmation') {
+  const isPending =
+    order.orderStatus === 'Pending Customer Confirmation' ||
+    order.orderStatus === 'Customer Confirmed' ||
+    order.orderStatus === 'Awaiting Staff Approval';
+
+  if (isPending) {
     order.orderStatus = 'Order Confirmed';
     order.statusHistory = [
       ...(order.statusHistory || []),

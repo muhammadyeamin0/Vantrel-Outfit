@@ -1060,8 +1060,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   body: JSON.stringify(localOrd)
                 }).catch(() => {});
               } else {
-                // If local order has more recent cancellation, maintain cancelled status
-                if (localOrd.orderStatus === 'Cancelled' && serverMatch.orderStatus !== 'Cancelled') {
+                // If local order is confirmed or cancelled, preserve the progressed status over stale pending
+                if (
+                  (localOrd.orderStatus === 'Cancelled' || localOrd.orderStatus === 'Order Confirmed') &&
+                  serverMatch.orderStatus === 'Pending Customer Confirmation'
+                ) {
                   map.set(localOrd.id, { ...serverMatch, ...localOrd });
                 }
               }
@@ -1216,12 +1219,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setOrders((prevOrders) => {
         let changed = false;
         const updated = prevOrders.map((order) => {
-          const deadlineTime = new Date(order.canCancelUntil || order.customerConfirmationDeadline || 0).getTime();
-          if (
-            order.orderStatus === 'Pending Customer Confirmation' &&
-            deadlineTime > 0 &&
-            deadlineTime <= now
-          ) {
+          const deadlineTime = new Date(
+            order.confirmationDeadline || order.canCancelUntil || order.customerConfirmationDeadline || 0
+          ).getTime();
+          const isPending =
+            order.orderStatus === 'Pending Customer Confirmation' ||
+            order.orderStatus === 'Customer Confirmed';
+
+          if (isPending && deadlineTime > 0 && deadlineTime <= now) {
             changed = true;
             const newHistory = [
               ...order.statusHistory,
@@ -1239,7 +1244,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
 
             // Update lastPlacedOrder if currently viewed
-            setLastPlacedOrder((last) => (last && last.id === order.id ? { ...last, orderStatus: 'Order Confirmed' as OrderStatus } : last));
+            setLastPlacedOrder((last) =>
+              last && (last.id === order.id || last.orderNumber === order.orderNumber)
+                ? { ...last, orderStatus: 'Order Confirmed' as OrderStatus, statusHistory: newHistory }
+                : last
+            );
 
             return {
               ...order,
@@ -2218,6 +2227,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       orderStatus: 'Pending Customer Confirmation',
       createdAt: new Date().toISOString(),
       customerConfirmationDeadline: confirmationDeadline,
+      confirmationDeadline: confirmationDeadline,
       canCancelUntil: confirmationDeadline,
       courierName: data.deliveryZone === 'inside_dhaka' ? 'Pathao' : 'Steadfast',
       trackingNumber: `VT-PKG-${Math.floor(100000 + Math.random() * 900000)}`,

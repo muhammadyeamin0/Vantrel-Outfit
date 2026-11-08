@@ -58,10 +58,15 @@ export const OrderTrackingPage: React.FC = () => {
   // Track 15-minute deadline for searched order
   useEffect(() => {
     if (!searchedOrder) return;
-    const orderTime = new Date(searchedOrder.createdAt).getTime();
-    const deadline = searchedOrder.canCancelUntil
-      ? new Date(searchedOrder.canCancelUntil).getTime()
-      : orderTime + 15 * 60 * 1000;
+    const deadlineStr =
+      searchedOrder.confirmationDeadline ||
+      searchedOrder.canCancelUntil ||
+      searchedOrder.customerConfirmationDeadline;
+    const orderTime = new Date(searchedOrder.createdAt || Date.now()).getTime();
+    const deadline =
+      deadlineStr && !isNaN(new Date(deadlineStr).getTime())
+        ? new Date(deadlineStr).getTime()
+        : orderTime + 15 * 60 * 1000;
 
     let hasAutoConfirmed = false;
 
@@ -73,7 +78,10 @@ export const OrderTrackingPage: React.FC = () => {
         setIsWithinWindow(false);
 
         // If 15 minutes elapsed without cancellation, trigger auto-confirm API
-        if (diff <= 0 && searchedOrder.orderStatus === 'Pending Customer Confirmation' && !hasAutoConfirmed) {
+        const isPending =
+          searchedOrder.orderStatus === 'Pending Customer Confirmation' ||
+          searchedOrder.orderStatus === 'Customer Confirmed';
+        if (diff <= 0 && isPending && !hasAutoConfirmed) {
           hasAutoConfirmed = true;
           fetch(`/api/orders/${searchedOrder.id}/auto-confirm`, { method: 'POST' })
             .then((r) => r.json())

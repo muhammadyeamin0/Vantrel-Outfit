@@ -1,5 +1,157 @@
 [
   {
+    "id": "ord-1794151693414",
+    "orderNumber": "VT-466410",
+    "createdAt": "2026-11-08T15:28:13.414Z",
+    "customer": {
+      "fullName": "Live Test Buyer",
+      "phone": "01855667788",
+      "district": "Chattogram",
+      "upazila": "Pahartali",
+      "division": "Chattogram",
+      "streetAddress": "Road 3, Block B"
+    },
+    "items": [
+      {
+        "productId": "prod-002",
+        "name": "VANTREL Artisan Raw Cream Heavyweight Oversized Tee",
+        "size": "L",
+        "color": "Raw Ivory Cream",
+        "price": 1350,
+        "quantity": 2,
+        "image": "/assets/images/product_oversized_tee_1792588591424.jpg"
+      }
+    ],
+    "subtotal": 2700,
+    "deliveryCharge": 130,
+    "discountAmount": 0,
+    "loyaltyPointsRedeemed": 0,
+    "referralDiscount": 0,
+    "total": 2830,
+    "paymentMethod": "Cash on Delivery",
+    "paymentStatus": "Pending",
+    "orderStatus": "Order Confirmed",
+    "confirmationDeadline": "2026-11-08T15:43:13.413Z",
+    "canCancelUntil": "2026-11-08T15:43:13.413Z",
+    "statusHistory": [
+      {
+        "status": "Pending Customer Confirmation",
+        "timestamp": "2026-11-08T15:28:13.414Z",
+        "note": "Order placed. 15-min edit/confirmation window expires at 3:43:13 PM"
+      },
+      {
+        "status": "Order Confirmed",
+        "timestamp": "2026-11-08T15:28:17.142Z",
+        "note": "15-minute customer window elapsed without cancellation. Order confirmed automatically."
+      }
+    ]
+  },
+  {
+    "id": "ord-test-cron-1794151681",
+    "orderNumber": "VT-778899",
+    "customer": {
+      "fullName": "Yeamin Test User",
+      "phone": "01711223344",
+      "district": "Dhaka",
+      "upazila": "Mirpur",
+      "streetAddress": "Mirpur 10, Road 4"
+    },
+    "items": [
+      {
+        "productId": "prod-001",
+        "name": "VANTREL Signature Heavyweight Pine Hoodie",
+        "size": "M",
+        "color": "Forest Pine",
+        "price": 2650,
+        "quantity": 1,
+        "image": "/assets/images/product_premium_hoodie_1792588590406.jpg"
+      }
+    ],
+    "subtotal": 2650,
+    "total": 2720,
+    "deliveryZone": "inside_dhaka",
+    "deliveryFee": 70,
+    "paymentMethod": "Cash on Delivery",
+    "orderStatus": "Order Confirmed",
+    "createdAt": "2026-11-08T15:12:01Z",
+    "confirmationDeadline": "2026-11-08T15:27:01Z",
+    "canCancelUntil": "2026-11-08T15:27:01Z",
+    "customerConfirmationDeadline": "2026-11-08T15:27:01Z",
+    "statusHistory": [
+      {
+        "status": "Order Confirmed",
+        "timestamp": "2026-11-08T15:28:01.694Z",
+        "note": "15-minute customer cancellation window elapsed. Order automatically confirmed by system and queued for packaging."
+      }
+    ]
+  },
+  {
+    "trackingUrl": "/tracking?order=VT-33926",
+    "orderStatus": "Order Confirmed",
+    "discount": 0,
+    "deliveryZone": "outside_dhaka",
+    "courierName": "Steadfast",
+    "isVerifiedCustomer": true,
+    "savedToFirestoreAt": "2026-11-08T14:26:59.702Z",
+    "canCancelUntil": "2026-11-08T14:41:59.688Z",
+    "contractAgreedAt": "2026-11-08T14:26:59.689Z",
+    "items": [
+      {
+        "color": "Standard",
+        "regularPrice": 999,
+        "price": 600,
+        "quantity": 1,
+        "slug": "abstract-printed-cuban-collar-half-sleeve-shirt-beige-black",
+        "maxStock": 11,
+        "id": "prod-6877-M-Standard",
+        "productId": "prod-6877",
+        "sku": "VT-DROP-822-M",
+        "image": "https://shopbasebd.com/public/uploads/shop/products/1784888188_L_1.jpeg",
+        "name": "Abstract Printed Cuban Collar Half Sleeve Shirt - Beige & Black",
+        "size": "M"
+      }
+    ],
+    "verificationCertificateId": "VT-CERT-196286",
+    "orderNumber": "VT-33926",
+    "customer": {
+      "fullName": "example",
+      "phone": "01856325891",
+      "district": "Kishoreganj",
+      "upazila": "Kishoreganj Sadar",
+      "division": "Dhaka",
+      "streetAddress": "tumi samne"
+    },
+    "estimatedDeliveryMinDays": 2,
+    "statusHistory": [
+      {
+        "timestamp": "2026-11-08T14:26:59.689Z",
+        "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
+        "status": "Pending Customer Confirmation",
+        "actor": "Customer"
+      },
+      {
+        "status": "Order Confirmed",
+        "timestamp": "2026-11-08T15:20:02.193Z",
+        "note": "15-minute cancellation window elapsed without cancellation. Automatically confirmed and sent to warehouse.",
+        "actor": "System Automation"
+      }
+    ],
+    "customerConfirmationDeadline": "2026-11-08T14:41:59.688Z",
+    "contractConfirmed": true,
+    "verifiedAt": "2026-11-08T14:26:59.689Z",
+    "trackingNumber": "VT-PKG-566940",
+    "userId": "usr-1794148019689",
+    "deliveryFee": 120,
+    "id": "ord-1794148019689",
+    "createdAt": "2026-11-08T14:26:59.689Z",
+    "total": 720,
+    "paymentStatus": "Pending",
+    "estimatedDeliveryMaxDays": 4,
+    "paymentMethod": "Cash on Delivery (COD)",
+    "verificationMethod": "phone_otp",
+    "subtotal": 600
+  },
+  {
     "id": "ord-1794143804639",
     "orderNumber": "VT-949350",
     "createdAt": "2026-11-08T13:16:44.639Z",
@@ -513,7 +665,7 @@
     "total": 370,
     "paymentMethod": "Cash on Delivery (COD)",
     "paymentStatus": "Pending",
-    "orderStatus": "Pending Customer Confirmation",
+    "orderStatus": "Order Confirmed",
     "createdAt": "2026-11-08T15:01:26.119Z",
     "customerConfirmationDeadline": "2026-11-08T15:16:26.119Z",
     "canCancelUntil": "2026-11-08T15:16:26.119Z",
@@ -535,6 +687,11 @@
         "timestamp": "2026-11-08T15:01:26.119Z",
         "note": "Verified Order placed via Cash on Delivery (COD). Customer Contract Active. Cancellation window open for 15 mins.",
         "actor": "Customer"
+      },
+      {
+        "status": "Order Confirmed",
+        "timestamp": "2026-11-08T15:25:35.947Z",
+        "note": "15-minute customer window elapsed without cancellation. Order confirmed automatically."
       }
     ]
   },

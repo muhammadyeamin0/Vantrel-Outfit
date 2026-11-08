@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
+import { OrderStatus } from '../types';
 import {
   CheckCircle2,
   Printer,
@@ -26,7 +27,7 @@ const CANCELLATION_REASONS = [
 ];
 
 export const OrderConfirmationPage: React.FC = () => {
-  const { lastPlacedOrder, setCurrentPage, cancelOrder, showToast } = useStore();
+  const { lastPlacedOrder, setCurrentPage, cancelOrder, updateOrderStatus, showToast } = useStore();
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isWithinWindow, setIsWithinWindow] = useState<boolean>(true);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
@@ -35,16 +36,31 @@ export const OrderConfirmationPage: React.FC = () => {
   const [isSubmittingCancel, setIsSubmittingCancel] = useState<boolean>(false);
 
   const order = lastPlacedOrder;
+  const [orderStatus, setOrderStatus] = useState<OrderStatus>(
+    order?.orderStatus || 'Pending Customer Confirmation'
+  );
+
+  // Synchronize status if store updates
+  useEffect(() => {
+    if (order?.orderStatus) {
+      setOrderStatus(order.orderStatus);
+    }
+  }, [order?.orderStatus]);
 
   // 15-Minute Countdown timer calculation with auto-confirm trigger on expiry
   useEffect(() => {
     if (!order) return;
 
-    // Use canCancelUntil or 15 minutes from createdAt
-    const orderTime = new Date(order.createdAt).getTime();
-    const deadline = order.canCancelUntil
-      ? new Date(order.canCancelUntil).getTime()
-      : orderTime + 15 * 60 * 1000;
+    // Use confirmationDeadline, canCancelUntil, customerConfirmationDeadline, or 15 mins from createdAt
+    const deadlineStr =
+      order.confirmationDeadline ||
+      order.canCancelUntil ||
+      order.customerConfirmationDeadline;
+    const orderTime = new Date(order.createdAt || Date.now()).getTime();
+    const deadline =
+      deadlineStr && !isNaN(new Date(deadlineStr).getTime())
+        ? new Date(deadlineStr).getTime()
+        : orderTime + 15 * 60 * 1000;
 
     let hasAutoConfirmed = false;
 
@@ -52,19 +68,29 @@ export const OrderConfirmationPage: React.FC = () => {
       const now = Date.now();
       const diff = deadline - now;
 
-      if (diff <= 0 || order.orderStatus === 'Cancelled') {
+      if (diff <= 0 || orderStatus === 'Cancelled') {
         setTimeLeft('00:00');
         setIsWithinWindow(false);
 
         // If 15 minutes elapsed without cancellation, auto-confirm and send email to muhammadeyamin0@gmail.com
-        if (diff <= 0 && order.orderStatus === 'Pending Customer Confirmation' && !hasAutoConfirmed) {
+        if (
+          diff <= 0 &&
+          orderStatus !== 'Cancelled' &&
+          orderStatus !== 'Order Confirmed' &&
+          !hasAutoConfirmed
+        ) {
           hasAutoConfirmed = true;
+          setOrderStatus('Order Confirmed');
+          updateOrderStatus(
+            order.id,
+            'Order Confirmed',
+            '15-minute customer cancellation window elapsed. Order automatically confirmed by system.'
+          );
           fetch(`/api/orders/${order.id}/auto-confirm`, { method: 'POST' })
             .then((r) => r.json())
             .then((data) => {
               if (data?.success && data?.data) {
-                // Update local order status
-                order.orderStatus = 'Order Confirmed';
+                setOrderStatus('Order Confirmed');
               }
             })
             .catch((err) => {
@@ -82,7 +108,7 @@ export const OrderConfirmationPage: React.FC = () => {
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [order]);
+  }, [order, orderStatus, updateOrderStatus]);
 
   if (!order) {
     return (
@@ -123,6 +149,7 @@ export const OrderConfirmationPage: React.FC = () => {
       setIsSubmittingCancel(false);
       setShowCancelModal(false);
       if (res.success) {
+        setOrderStatus('Cancelled');
         showToast('অর্ডার বাতিল সম্পন্ন', 'আপনার অর্ডারটি বাতিল করা হয়েছে এবং স্টক পুনরুদ্ধার করা হয়েছে।', 'success');
       }
     } catch {
@@ -131,8 +158,8 @@ export const OrderConfirmationPage: React.FC = () => {
     }
   };
 
-  const isCancelled = order.orderStatus === 'Cancelled';
-  const isAutoConfirmed = order.orderStatus === 'Order Confirmed' || (!isWithinWindow && !isCancelled);
+  const isCancelled = orderStatus === 'Cancelled';
+  const isAutoConfirmed = orderStatus === 'Order Confirmed' || (!isWithinWindow && !isCancelled);
   const earnedPoints = Math.floor(order.total / 50);
 
   return (
