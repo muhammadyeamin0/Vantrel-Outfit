@@ -22,7 +22,8 @@ import {
   ThemeConfig,
   ThemePreset,
   Banner3DConfig,
-  ProductVariant
+  ProductVariant,
+  WhatsAppLog
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -357,7 +358,7 @@ export interface StoreContextType {
   addUserAddress: (address: Address) => void;
   deleteUserAddress: (index: number) => void;
 
-  // SMS Notification System
+  // SMS & WhatsApp Notification System
   smsLogs: SmsLog[];
   smsTemplates: SmsTemplate[];
   updateSmsTemplate: (templateId: string, template: string) => void;
@@ -367,6 +368,9 @@ export interface StoreContextType {
     event: SmsTemplate['event'],
     customVars?: Record<string, string>
   ) => void;
+  whatsappLogs: WhatsAppLog[];
+  generateWhatsAppOrderUrl: (order: Order) => string;
+  sendWhatsAppNotification: (order: Order) => Promise<{ success: boolean; url: string; log: WhatsAppLog }>;
 
   // Staff & Audit Logs
   auditLogs: AuditLog[];
@@ -744,6 +748,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return INITIAL_SMS_LOGS;
   });
 
+  // WhatsApp Confirmation Logs
+  const [whatsappLogs, setWhatsappLogs] = useState<WhatsAppLog[]>(() => {
+    const saved = localStorage.getItem('vt_whatsapp_logs');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
   const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>(() => {
     const saved = localStorage.getItem('vt_sms_templates');
     if (saved) {
@@ -1042,38 +1059,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && isMounted) {
           setOrders((currentOrders) => {
-            const map = new Map<string, Order>();
-            // Add all server orders
-            json.data.forEach((ord: Order) => {
-              if (ord && ord.id) map.set(ord.id, ord);
-            });
-            // Merge local orders that might be newly created
-            currentOrders.forEach((localOrd: Order) => {
-              if (!localOrd || !localOrd.id) return;
-              const serverMatch = map.get(localOrd.id);
-              if (!serverMatch) {
-                map.set(localOrd.id, localOrd);
-                // Asynchronously push any un-synced local order to server
-                fetch('/api/orders', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(localOrd)
-                }).catch(() => {});
-              } else {
-                // If local order is confirmed or cancelled, preserve the progressed status over stale pending
-                if (
-                  (localOrd.orderStatus === 'Cancelled' || localOrd.orderStatus === 'Order Confirmed') &&
-                  serverMatch.orderStatus === 'Pending Customer Confirmation'
-                ) {
-                  map.set(localOrd.id, { ...serverMatch, ...localOrd });
-                }
-              }
-            });
-
-            const merged = Array.from(map.values()).sort(
-              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            // If server returned valid list, the server is authoritative
+            return json.data.sort(
+              (a: Order, b: Order) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
             );
-            return merged;
           });
         }
       } catch {
@@ -1327,6 +1316,104 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     showToast('SMS Template Updated', 'Transactional copy saved.', 'success');
   }, [showToast]);
+
+  // WhatsApp Notification System
+  const generateWhatsAppOrderUrl = useCallback((order: Order): string => {
+    const rawPhone = order.customer?.phone || '';
+    const cleanPhone = rawPhone.replace(/[^\d]/g, '');
+    let waPhone = cleanPhone;
+    if (cleanPhone.startsWith('0')) waPhone = `88${cleanPhone}`;
+    else if (cleanPhone.length === 10 && cleanPhone.startsWith('1')) waPhone = `880${cleanPhone}`;
+
+    const customerName = order.customer?.fullName || 'সম্মানিত গ্রাহক';
+    const itemsText = (order.items || [])
+      .map(
+        (item, idx) =>
+          `${idx + 1}. *${item.name}* - সাইজ: ${item.size}, কালার: ${item.color}, পরিমাণ: ${item.quantity}টি (৳${(item.price * item.quantity).toLocaleString()} BDT)`
+      )
+      .join('\n');
+
+    const message = `🎉 *VANTREL OUTFIT - অর্ডার নিশ্চিতকরণ নোটিফিকেশন*
+
+প্রিয় *${customerName}*,
+আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে!
+
+📦 *অর্ডার নম্বর:* #${order.orderNumber}
+📅 *তারিখ:* ${new Date(order.createdAt || Date.now()).toLocaleDateString('en-GB')}
+👕 *আপনার অর্ডারকৃত পণ্যসমূহ:*
+${itemsText}
+
+💰 *সর্বমোট বিল:* ৳${order.total.toLocaleString()} BDT (${order.paymentMethod})
+📍 *ডেলিভারি ঠিকানা:* ${order.customer?.streetAddress}, ${order.customer?.district}
+
+⏱️ *১৫ মিনিটের ক্যানসেল সুবিধা:*
+অর্ডারে কোনো ভুল তথ্য থাকলে বা বাতিল করতে চাইলে আগামী ১৫ মিনিটের মধ্যে ওয়েবসাইট থেকে সরাসরি বাতিল করতে পারবেন।
+
+🚚 *জরুরি ডেলিভারি শর্তাবলী:*
+১. ডেলিভারি ম্যান উপস্থিত থাকাকালীন পণ্য পরীক্ষা করে নিন।
+২. ডেলিভারি ম্যান চলে যাওয়ার পর ফেরত/বিনিময়ের জন্য অতিরিক্ত ডেলিভারি চার্জ প্রযোজ্য হবে।
+
+🔗 *লাইভ অর্ডার ট্র্যাকিং লিংক:*
+https://vantrel.store/tracking?order=${order.orderNumber}
+
+💬 *সরাসরি সাপোর্ট ও মেসেজিং:*
+https://wa.me/message/E6PISGJZC63TA1
+
+VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবাদ!`;
+
+    const encoded = encodeURIComponent(message);
+    if (waPhone) {
+      return `https://api.whatsapp.com/send?phone=${waPhone}&text=${encoded}`;
+    }
+    return `https://wa.me/message/E6PISGJZC63TA1?text=${encoded}`;
+  }, []);
+
+  const sendWhatsAppNotification = useCallback(
+    async (order: Order): Promise<{ success: boolean; url: string; log: WhatsAppLog }> => {
+      const url = generateWhatsAppOrderUrl(order);
+      const log: WhatsAppLog = {
+        id: `wa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        recipientPhone: order.customer.phone,
+        message: 'Order confirmation notification prepared for WhatsApp recipient',
+        status: 'Dispatched',
+        dispatchedAt: new Date().toISOString(),
+        directSendUrl: url,
+        merchantOrigin: 'https://wa.me/message/E6PISGJZC63TA1'
+      };
+
+      setWhatsappLogs((prev) => {
+        const updated = [log, ...prev];
+        localStorage.setItem('vt_whatsapp_logs', JSON.stringify(updated.slice(0, 50)));
+        return updated;
+      });
+
+      // Synchronize with backend
+      try {
+        fetch('/api/send-whatsapp-confirmation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            phone: order.customer.phone
+          })
+        }).catch((e) => console.warn('Backend WhatsApp sync notice:', e));
+      } catch (err) {
+        console.warn('Backend WhatsApp trigger notice:', err);
+      }
+
+      showToast(
+        'হোয়াটসঅ্যাপ নোটিফিকেশন প্রস্তুত',
+        `অর্ডার #${order.orderNumber} এর মেসেজ তৈরি হয়েছে।`,
+        'success'
+      );
+
+      return { success: true, url, log };
+    },
+    [generateWhatsAppOrderUrl, showToast]
+  );
 
   // Navigation
   const setCurrentPage = (page: PageRoute) => {
@@ -2405,6 +2492,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Send SMS automatically
     sendOrderSms(newOrder, 'order_placed');
+
+    // Automatically prepare and record WhatsApp notification for customer's phone
+    sendWhatsAppNotification(newOrder).catch((err) => {
+      console.warn('WhatsApp automatic notification dispatch notice:', err);
+    });
+
     addAuditLog('ORDER_PLACED', `New order #${newOrder.orderNumber} placed for ৳${newOrder.total}`);
 
     return { success: true, order: newOrder };
@@ -2757,8 +2850,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.removeItem('yw_orders');
     localStorage.removeItem('vt_last_order');
     localStorage.removeItem('yw_last_order');
+    localStorage.removeItem('vt_whatsapp_logs');
+
+    // 1. Purge from Server backend and disk store
+    try {
+      fetch('/api/orders', { method: 'DELETE' }).catch((err) => {
+        console.warn('Backend orders clear error:', err);
+      });
+    } catch (e) {
+      console.warn('Backend orders clear exception:', e);
+    }
+
+    // 2. Purge from Firebase Firestore if connected
+    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
+      try {
+        getDocs(collection(db, 'orders'))
+          .then((snapshot) => {
+            snapshot.forEach((docSnap) => {
+              deleteDoc(doc(db, 'orders', docSnap.id)).catch(() => {});
+            });
+          })
+          .catch(() => {});
+      } catch (e) {
+        console.warn('Firestore orders clear notice:', e);
+      }
+    }
+
     addAuditLog('ORDERS_PURGED', 'Admin cleared all orders and delivery tracking records.');
-    showToast('Orders Cleared', 'All orders and tracking history deleted.', 'info');
+    showToast('সব অর্ডার মুছে ফেলা হয়েছে', 'সিস্টেমের সমস্ত অর্ডার সফলভাবে পরিষ্কার করা হয়েছে।', 'info');
   };
 
   const deleteOrder = (id: string) => {
@@ -2767,8 +2886,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (lastPlacedOrder && lastPlacedOrder.id === id) {
       setLastPlacedOrder(null);
     }
+
+    // 1. Delete on server backend
+    try {
+      fetch(`/api/orders/${id}`, { method: 'DELETE' }).catch((err) => {
+        console.warn('Backend order delete error:', err);
+      });
+    } catch (e) {
+      console.warn('Backend order delete error:', e);
+    }
+
+    // 2. Delete on Firestore
+    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
+      try {
+        deleteDoc(doc(db, 'orders', id)).catch(() => {});
+      } catch (e) {
+        // silent
+      }
+    }
+
     addAuditLog('ORDER_DELETE', `Deleted order "${target?.orderNumber || id}"`);
-    showToast('Order Deleted', `Order ${target?.orderNumber || id} deleted.`, 'info');
+    showToast('অর্ডার মুছে ফেলা হয়েছে', `অর্ডার ${target?.orderNumber || id} সফলভাবে মুছে ফেলা হয়েছে।`, 'info');
   };
 
   // Auth Operations
@@ -3502,6 +3640,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateSmsTemplate,
         resendSms,
         sendOrderSms,
+        whatsappLogs,
+        generateWhatsAppOrderUrl,
+        sendWhatsAppNotification,
         auditLogs,
         addAuditLog,
         isSizeGuideOpen,

@@ -2830,10 +2830,13 @@ export const AdminDashboard: React.FC = () => {
                   <span>CSV Export</span>
                 </button>
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     clearAllOrders();
                   }}
-                  className="px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3 py-2 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-300 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                   title="Clear all orders and delivery tracking"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-600" />

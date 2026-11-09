@@ -29,7 +29,8 @@ import type {
   FinancialRecord,
   StaffModerator,
   ThemeConfig,
-  Banner3DConfig
+  Banner3DConfig,
+  WhatsAppLog
 } from './src/types/index.ts';
 
 dotenv.config();
@@ -85,9 +86,95 @@ let financialRecords: FinancialRecord[] = [...INITIAL_FINANCIAL_RECORDS];
 let staffModerators: StaffModerator[] = [...INITIAL_MODERATORS];
 let themeConfig: ThemeConfig = { ...INITIAL_THEME };
 let banners3D: Banner3DConfig[] = [...INITIAL_3D_BANNERS];
+let whatsappLogs: WhatsAppLog[] = [];
+
+const MERCHANT_WHATSAPP_LINK = 'https://wa.me/message/E6PISGJZC63TA1';
 
 // Temporary OTP memory cache (phone -> { code, expiresAt })
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
+
+// Helper: Format Bangladesh mobile number for WhatsApp international standard (8801XXXXXXXXX)
+function formatBdPhoneForWhatsApp(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/[^\d]/g, '');
+  if (digits.startsWith('880')) return digits;
+  if (digits.startsWith('0')) return `88${digits}`;
+  if (digits.length === 10 && digits.startsWith('1')) return `880${digits}`;
+  return digits;
+}
+
+// Helper: Format official Bengali WhatsApp Order Confirmation Message
+function formatWhatsAppOrderMessage(order: any): string {
+  const customerName = order.customer?.fullName || 'সম্মানিত গ্রাহক';
+  const orderNum = order.orderNumber || 'N/A';
+  const items = Array.isArray(order.items) ? order.items : [];
+  const itemsText = items
+    .map(
+      (item: any, idx: number) =>
+        `${idx + 1}. *${item.name || 'পোশাক'}* - সাইজ: ${item.size || 'M'}, কালার: ${item.color || 'Standard'}, পরিমাণ: ${item.quantity || 1}টি (৳${(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()} BDT)`
+    )
+    .join('\n');
+
+  const totalBill = Number(order.total || 0).toLocaleString();
+  const address = `${order.customer?.streetAddress || ''}, ${order.customer?.district || ''}`;
+  const paymentMethod = order.paymentMethod || 'Cash on Delivery (COD)';
+
+  return `🎉 *VANTREL OUTFIT - অর্ডার নিশ্চিতকরণ নোটিফিকেশন*
+
+প্রিয় *${customerName}*,
+আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে!
+
+📦 *অর্ডার নম্বর:* #${orderNum}
+📅 *তারিখ:* ${new Date(order.createdAt || Date.now()).toLocaleDateString('en-GB')}
+👕 *আপনার অর্ডারকৃত পণ্যসমূহ:*
+${itemsText}
+
+💰 *সর্বমোট বিল:* ৳${totalBill} BDT (${paymentMethod})
+📍 *ডেলিভারি ঠিকানা:* ${address}
+
+⏱️ *১৫ মিনিটের ক্যানসেল সুবিধা:*
+অর্ডারে কোনো ভুল থাকলে বা বাতিল করতে চাইলে আগামী ১৫ মিনিটের মধ্যে ওয়েবসাইট থেকে বাতিল করতে পারবেন। ১৫ মিনিট পর স্বয়ংক্রিয়ভাবে পার্সেল পাঠানো হবে।
+
+🚚 *জরুরি ডেলিভারি শর্তাবলী:*
+১. ডেলিভারি ম্যান উপস্থিত থাকাকালীন পণ্য পরীক্ষা করুন।
+২. ডেলিভারি ম্যান চলে যাওয়ার পর ফেরত/বিনিময়ের জন্য অতিরিক্ত ডেলিভারি চার্জ প্রযোজ্য হবে।
+
+🔗 *লাইভ অর্ডার ট্র্যাকিং লিংক:*
+https://vantrel.store/tracking?order=${orderNum}
+
+💬 *সরাসরি সাপোর্ট ও মেসেজিং:*
+${MERCHANT_WHATSAPP_LINK}
+
+VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবাদ!`;
+}
+
+// Helper: Dispatch / Prepare WhatsApp Confirmation
+function dispatchWhatsAppConfirmation(order: any): WhatsAppLog {
+  const rawPhone = order.customer?.phone || '';
+  const waPhone = formatBdPhoneForWhatsApp(rawPhone);
+  const message = formatWhatsAppOrderMessage(order);
+  const encodedText = encodeURIComponent(message);
+  const directSendUrl = waPhone
+    ? `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodedText}`
+    : `${MERCHANT_WHATSAPP_LINK}?text=${encodedText}`;
+
+  const log: WhatsAppLog = {
+    id: `wa-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    recipientPhone: rawPhone,
+    message,
+    status: 'Ready',
+    dispatchedAt: new Date().toISOString(),
+    directSendUrl,
+    merchantOrigin: MERCHANT_WHATSAPP_LINK
+  };
+
+  whatsappLogs.unshift(log);
+  if (whatsappLogs.length > 200) whatsappLogs.pop();
+  console.log(`[VANTREL WHATSAPP] Prepared automated WhatsApp confirmation for #${order.orderNumber} to ${rawPhone} (Target: ${waPhone})`);
+  return log;
+}
 
 // Helper: Log audit trail
 function recordAudit(actor: string, role: string, action: string, details: string) {
@@ -753,6 +840,9 @@ app.post('/api/orders', (req: Request, res: Response) => {
       `Synchronized order #${incomingOrder.orderNumber} (৳${incomingOrder.total}) to central store database`
     );
 
+    // Prepare & dispatch automated WhatsApp confirmation
+    const waLog = dispatchWhatsAppConfirmation(incomingOrder);
+
     // Send Gmail notification asynchronously
     sendGmailOrderNotification(incomingOrder).catch((err) => {
       console.warn('Gmail order notification dispatch error:', err);
@@ -761,7 +851,8 @@ app.post('/api/orders', (req: Request, res: Response) => {
     return res.status(201).json({
       success: true,
       message: 'Order synchronized successfully to store engine',
-      data: incomingOrder
+      data: incomingOrder,
+      whatsapp: waLog
     });
   }
 
@@ -839,10 +930,48 @@ app.post('/api/orders', (req: Request, res: Response) => {
     console.warn('Gmail order notification dispatch error:', err);
   });
 
+  // Prepare & dispatch automated WhatsApp confirmation
+  const waLog = dispatchWhatsAppConfirmation(newOrder);
+
   res.status(201).json({
     success: true,
-    message: 'Order created with 15-minute confirmation window',
-    data: newOrder
+    message: 'Order created with 15-minute confirmation window and automated WhatsApp notification',
+    data: newOrder,
+    whatsapp: waLog
+  });
+});
+
+// GET: WhatsApp Confirmation Logs
+app.get('/api/whatsapp-logs', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    total: whatsappLogs.length,
+    merchantOrigin: MERCHANT_WHATSAPP_LINK,
+    data: whatsappLogs
+  });
+});
+
+// POST: Trigger WhatsApp Confirmation for a specific order
+app.post('/api/send-whatsapp-confirmation', (req: Request, res: Response) => {
+  const { orderId, orderNumber, phone } = req.body;
+  const target = orders.find((o) => o.id === orderId || o.orderNumber === orderNumber || (phone && o.customer?.phone === phone));
+
+  if (!target) {
+    return res.status(404).json({ success: false, error: 'Order not found for WhatsApp confirmation' });
+  }
+
+  const log = dispatchWhatsAppConfirmation(target);
+  recordAudit(
+    target.customer?.fullName || 'System',
+    'Store Engine',
+    'WhatsApp Confirmation Sent',
+    `Generated WhatsApp notification for order #${target.orderNumber} to ${target.customer?.phone}`
+  );
+
+  res.json({
+    success: true,
+    message: 'WhatsApp confirmation generated successfully',
+    data: log
   });
 });
 
@@ -1012,6 +1141,47 @@ app.post('/api/orders/:id/cancel', (req: Request, res: Response) => {
   );
 
   res.json({ success: true, message: 'Order cancelled and stock restored', data: order });
+});
+
+// Delete a single order by ID
+app.delete('/api/orders/:id', (req: Request, res: Response) => {
+  const targetId = req.params.id;
+  const initialLen = orders.length;
+  orders = orders.filter((o) => o.id !== targetId && o.orderNumber !== targetId);
+  saveOrdersToDisk();
+
+  recordAudit(
+    'Admin',
+    'Super Admin',
+    'Order Deleted',
+    `Permanently deleted order ID/Number ${targetId}`
+  );
+
+  res.json({
+    success: true,
+    message: 'Order deleted successfully from server storage',
+    deletedCount: initialLen - orders.length
+  });
+});
+
+// Clear ALL Orders from server memory and disk
+app.delete('/api/orders', (_req: Request, res: Response) => {
+  const count = orders.length;
+  orders = [];
+  saveOrdersToDisk();
+
+  recordAudit(
+    'Admin',
+    'Super Admin',
+    'All Orders Cleared',
+    `Permanently purged all ${count} orders from system`
+  );
+
+  res.json({
+    success: true,
+    message: `All ${count} orders cleared successfully from server`,
+    count
+  });
 });
 
 // Assign Courier

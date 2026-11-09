@@ -358,6 +358,18 @@ export interface SmsLog {
   provider: string;
 }
 
+export interface WhatsAppLog {
+  id: string;
+  orderId?: string;
+  orderNumber: string;
+  recipientPhone: string;
+  message: string;
+  status: 'Ready' | 'Dispatched' | 'Delivered';
+  dispatchedAt: string;
+  directSendUrl: string;
+  merchantOrigin: string;
+}
+
 export interface SmsTemplate {
   id: string;
   event: 'order_placed' | 'order_confirmed' | 'order_shipped' | 'out_for_delivery' | 'order_delivered' | 'order_cancelled' | 'otp_verification';

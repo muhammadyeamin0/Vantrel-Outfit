@@ -193,6 +193,7 @@ export const CartPage: React.FC = () => {
           `অর্ডার #${result.order.orderNumber} সফলভাবে গ্রহণ করা হয়েছে।`,
           'success'
         );
+        window.scrollTo({ top: 0, behavior: 'instant' });
         setCurrentPage('confirmation');
       } else {
         setErrors({ submit: result.error || 'অর্ডার সম্পন্ন করা যায়নি।' });

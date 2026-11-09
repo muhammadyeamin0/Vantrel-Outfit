@@ -24,6 +24,7 @@ import {
   Check,
   BookmarkCheck,
   AlertTriangle,
+  ShieldAlert,
   Plus,
   Minus,
   Trash2
@@ -48,10 +49,11 @@ export const CheckoutPage: React.FC = () => {
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<number | null>(null);
   const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+  const orderPlacedRef = React.useRef(false);
 
-  // If cart is empty, redirect to shop
+  // If cart is empty and order wasn't just placed, redirect to shop
   useEffect(() => {
-    if (cart.length === 0) {
+    if (cart.length === 0 && !orderPlacedRef.current) {
       setCurrentPage('shop');
     }
   }, [cart, setCurrentPage]);
@@ -323,6 +325,7 @@ export const CheckoutPage: React.FC = () => {
     // Auto-save address locally so customer has it ready for future orders
     saveAddressLocally(customerAddress);
 
+    orderPlacedRef.current = true;
     setTimeout(() => {
       const result = placeOrder({
         customer: customerAddress,
@@ -339,8 +342,10 @@ export const CheckoutPage: React.FC = () => {
           `অর্ডার #${result.order.orderNumber} সফলভাবে গ্রহণ করা হয়েছে।`,
           'success'
         );
+        window.scrollTo({ top: 0, behavior: 'instant' });
         setCurrentPage('confirmation');
       } else {
+        orderPlacedRef.current = false;
         showToast('অর্ডারে ত্রুটি', result.error || 'অর্ডার সম্পন্ন করা যায়নি।', 'error');
       }
     }, 500);
@@ -814,6 +819,47 @@ export const CheckoutPage: React.FC = () => {
                     <Clock className="w-4 h-4 text-amber-600 shrink-0" />
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* EXACT Delivery & Return Policy Notice as requested by User */}
+            <div className="p-4 sm:p-5 bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/40 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3 text-left">
+              <div className="flex items-center gap-2.5 text-[#14221C]">
+                <div className="w-7 h-7 rounded-xl bg-[#FF762E] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-extrabold text-xs sm:text-sm text-[#14221C]">
+                    ডেলিভারি ও পণ্য পরীক্ষা সংক্রান্ত জরুরি শর্তাবলী
+                  </h3>
+                  <p className="text-[10px] text-[#202522]/70">
+                    অর্ডার নিশ্চিত করার আগে নিয়মগুলো সতর্কতার সাথে পড়ুন
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs text-[#14221C] leading-relaxed">
+                <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2 shadow-xs">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                    ১
+                  </span>
+                  <p className="font-semibold text-stone-900 leading-normal text-[11px]">
+                    ডেলিভারি ম্যান উপস্থিত থাকাকালীন আপনাকে অবশ্যই পণ্যটি পরীক্ষা করতে হবে; কোনো ত্রুটি পাওয়া গেলে, অবিলম্বে ফেরতের জন্য বলুন।
+                  </p>
+                </div>
+
+                <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2 shadow-xs">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                    ২
+                  </span>
+                  <p className="font-semibold text-stone-900 leading-normal text-[11px]">
+                    ডেলিভারি ম্যান চলে যাওয়ার পর আপনি যদি পণ্যটি ফেরত বা বিনিময় করতে চান, তাহলে আপনাকে অতিরিক্ত ডেলিভারি চার্জ দিতে হবে।
+                  </p>
+                </div>
+
+                <div className="p-2.5 bg-amber-100/90 rounded-xl border border-amber-300/80 text-[10px] text-amber-950 font-medium leading-relaxed">
+                  <strong className="font-bold text-amber-900">কারণ:</strong> এই পণ্যগুলো ফেরত দিলে এর কভার ক্ষতিগ্রস্ত হয় এবং সেগুলো পুনরায় বিক্রয়ের অযোগ্য হয়ে পড়ে। তাই পণ্য ফেরত দেওয়া এড়িয়ে চলুন।
+                </div>
               </div>
             </div>
 

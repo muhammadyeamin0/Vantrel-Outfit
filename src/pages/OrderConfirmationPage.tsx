@@ -27,7 +27,14 @@ const CANCELLATION_REASONS = [
 ];
 
 export const OrderConfirmationPage: React.FC = () => {
-  const { lastPlacedOrder, setCurrentPage, cancelOrder, updateOrderStatus, showToast } = useStore();
+  const {
+    lastPlacedOrder,
+    setCurrentPage,
+    cancelOrder,
+    updateOrderStatus,
+    showToast,
+    generateWhatsAppOrderUrl
+  } = useStore();
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isWithinWindow, setIsWithinWindow] = useState<boolean>(true);
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
@@ -39,6 +46,11 @@ export const OrderConfirmationPage: React.FC = () => {
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(
     order?.orderStatus || 'Pending Customer Confirmation'
   );
+
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
 
   // Synchronize status if store updates
   useEffect(() => {
@@ -216,8 +228,108 @@ export const OrderConfirmationPage: React.FC = () => {
             </div>
           </div>
 
+          {/* 15-Minute Cancellation Grace Window - PROMINENTLY AT TOP */}
+          {isCancelled ? (
+            <div className="p-4 bg-rose-50 border-2 border-rose-200 rounded-2xl max-w-2xl mx-auto text-left space-y-1 shadow-xs">
+              <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
+                <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>অর্ডারটি বাতিল করা হয়েছে (Cancelled)</span>
+              </div>
+              <p className="text-[11px] text-rose-700">
+                {order.cancellationReason ? `কারণ: ${order.cancellationReason}` : 'গ্রাহকের অনুরোধে অর্ডারটি বাতিল করা হয়েছে।'} পণ্যের স্টক ইনভেন্টরিতে ফিরিয়ে নেওয়া হয়েছে।
+              </p>
+            </div>
+          ) : isWithinWindow ? (
+            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl max-w-2xl mx-auto space-y-3 text-xs text-left shadow-sm">
+              <div className="flex items-center justify-between text-[#14221C]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-700">
+                    <Clock className="w-4 h-4 text-[#FF762E]" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-stone-900 block text-sm">১৫ মিনিটের মধ্যে অর্ডার বাতিলের সুযোগ</span>
+                    <span className="text-[10px] text-stone-500">Grace Cancellation Window</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono font-black text-lg text-[#FF762E] tabular-nums bg-white px-3 py-1 rounded-xl border border-amber-300 shadow-xs inline-block">
+                    {timeLeft || '15:00'}
+                  </span>
+                  <span className="block text-[9px] text-stone-500 text-right mt-0.5">বাকি আছে</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[#202522]/80 leading-relaxed">
+                অর্ডার নিশ্চিতকরণের জন্য ১৫ মিনিট সময় দেওয়া হয়েছে। আপনি চাইলে এই ১৫ মিনিটের মধ্যে সরাসরি অর্ডার বাতিল করতে পারবেন। ১৫ মিনিট শেষ হলে অর্ডারটি স্বয়ংক্রিয়ভাবে কনফার্ম হয়ে যাবে এবং নোটিফিকেশন <strong>muhammadeyamin0@gmail.com</strong> এ চলে যাবে।
+              </p>
+
+              <div className="pt-2 flex items-center justify-between border-t border-amber-200/80">
+                <span className="text-[10px] text-stone-600">কোনো তথ্য ভুল থাকলে এখনই বাতিল করুন:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(true)}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>অর্ডার বাতিল করুন</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 bg-emerald-50 border-2 border-emerald-300 rounded-2xl max-w-2xl mx-auto space-y-2 text-xs text-left shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>✓ অর্ডার সফলভাবে কনফার্ম করা হয়েছে (Order Confirmed)</span>
+              </div>
+              <p className="text-[11px] text-emerald-800 leading-relaxed">
+                ১৫ মিনিটের সময় অতিক্রান্ত হওয়ায় আপনার অর্ডারটি স্বয়ংক্রিয়ভাবে নিশ্চিত হয়েছে এবং ওয়্যারহাউসে প্যাকিং শুরু হয়েছে। স্বয়ংক্রিয় কনফার্মেশন ইমেইল <strong>muhammadeyamin0@gmail.com</strong> এ সফলভাবে পাঠানো হয়েছে।
+              </p>
+            </div>
+          )}
+
+          {/* EXACT Delivery & Return Policy Notice as requested by User - PROMINENTLY AT TOP */}
+          <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/40 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3.5 text-left max-w-2xl mx-auto">
+            <div className="flex items-center gap-2.5 text-[#14221C]">
+              <div className="w-8 h-8 rounded-xl bg-[#FF762E] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                <ShieldAlert className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-heading font-extrabold text-sm sm:text-base text-[#14221C]">
+                  ডেলিভারি ও পণ্য পরীক্ষা সংক্রান্ত জরুরি শর্তাবলী
+                </h3>
+                <p className="text-[11px] text-[#202522]/70">
+                  পণ্য গ্রহণের সময় অনুগ্রহ করে নিচের নিয়মগুলো সতর্কতার সাথে লক্ষ্য রাখুন
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 text-xs text-[#14221C] leading-relaxed">
+              <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2.5 shadow-xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                  ১
+                </span>
+                <p className="font-semibold text-stone-900 leading-normal">
+                  ডেলিভারি ম্যান উপস্থিত থাকাকালীন আপনাকে অবশ্যই পণ্যটি পরীক্ষা করতে হবে; কোনো ত্রুটি পাওয়া গেলে, অবিলম্বে ফেরতের জন্য বলুন।
+                </p>
+              </div>
+
+              <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2.5 shadow-xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                  ২
+                </span>
+                <p className="font-semibold text-stone-900 leading-normal">
+                  ডেলিভারি ম্যান চলে যাওয়ার পর আপনি যদি পণ্যটি ফেরত বা বিনিময় করতে চান, তাহলে আপনাকে অতিরিক্ত ডেলিভারি চার্জ দিতে হবে।
+                </p>
+              </div>
+
+              <div className="p-3 bg-amber-100/90 rounded-xl border border-amber-300/80 text-[11px] text-amber-950 font-medium leading-relaxed">
+                <strong className="font-bold text-amber-900">কারণ:</strong> এই পণ্যগুলো ফেরত দিলে এর কভার ক্ষতিগ্রস্ত হয় এবং সেগুলো পুনরায় বিক্রয়ের অযোগ্য হয়ে পড়ে। তাই পণ্য ফেরত দেওয়া এড়িয়ে চলুন।
+              </div>
+            </div>
+          </div>
+
           {/* PROMINENT "SHE KI ORDER KORESE" (WHAT YOU ORDERED) SECTION */}
-          <div className="p-5 sm:p-6 bg-[#FAF9F5] rounded-2xl border-2 border-[#E5E1D5] text-left space-y-4 shadow-2xs">
+          <div className="p-5 sm:p-6 bg-[#FAF9F5] rounded-2xl border-2 border-[#E5E1D5] text-left space-y-4 shadow-2xs max-w-2xl mx-auto">
             <div className="flex items-center justify-between border-b border-[#E5E1D5] pb-3">
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5 text-[#FF762E]" />
@@ -304,123 +416,63 @@ export const OrderConfirmationPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 15-Minute Cancellation Grace Window */}
-          {isCancelled ? (
-            <div className="p-4 bg-rose-50 border-2 border-rose-200 rounded-2xl max-w-lg mx-auto text-left space-y-1">
-              <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
-                <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>অর্ডারটি বাতিল করা হয়েছে (Cancelled)</span>
-              </div>
-              <p className="text-[11px] text-rose-700">
-                {order.cancellationReason ? `কারণ: ${order.cancellationReason}` : 'গ্রাহকের অনুরোধে অর্ডারটি বাতিল করা হয়েছে।'} পণ্যের স্টক ইনভেন্টরিতে ফিরিয়ে নেওয়া হয়েছে।
-              </p>
-            </div>
-          ) : isWithinWindow ? (
-            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl max-w-lg mx-auto space-y-3 text-xs text-left shadow-xs">
-              <div className="flex items-center justify-between text-[#14221C]">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-700">
-                    <Clock className="w-4 h-4 text-[#FF762E]" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-stone-900 block text-sm">১৫ মিনিটের মধ্যে অর্ডার বাতিলের সুযোগ</span>
-                    <span className="text-[10px] text-stone-500">Grace Cancellation Window</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono font-black text-lg text-[#FF762E] tabular-nums bg-white px-3 py-1 rounded-xl border border-amber-300 shadow-xs inline-block">
-                    {timeLeft || '15:00'}
+          {/* WhatsApp & SMS Notification Preview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-left">
+            {/* Automated WhatsApp Confirmation Card */}
+            <div className="p-4 bg-emerald-50/90 border-2 border-emerald-400/80 rounded-2xl space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-emerald-900 text-xs font-bold">
+                  <span className="w-5 h-5 rounded-full bg-[#25D366] text-white flex items-center justify-center text-[10px] font-black">
+                    WA
                   </span>
-                  <span className="block text-[9px] text-stone-500 text-right mt-0.5">বাকি আছে</span>
+                  <span>স্বয়ংক্রিয় হোয়াটসঅ্যাপ নোটিফিকেশন</span>
+                </div>
+                <span className="px-2 py-0.5 bg-emerald-200 text-emerald-900 text-[10px] font-mono font-bold rounded">
+                  Active
+                </span>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-emerald-200 text-[11px] font-mono text-[#14221C] leading-relaxed shadow-2xs">
+                📲 <strong>গ্রাহকের হোয়াটসঅ্যাপ নম্বর:</strong> {order.customer.phone}
+                <div className="mt-1 text-[10px] text-stone-600 line-clamp-2">
+                  "🎉 VANTREL OUTFIT - অর্ডার #{order.orderNumber} গ্রহণ করা হয়েছে। মোট বিল: ৳{order.total.toLocaleString()} BDT..."
                 </div>
               </div>
 
-              <p className="text-[11px] text-[#202522]/80 leading-relaxed">
-                অর্ডার নিশ্চিতকরণের জন্য ১৫ মিনিট সময় দেওয়া হয়েছে। আপনি চাইলে এই ১৫ মিনিটের মধ্যে সরাসরি অর্ডার বাতিল করতে পারবেন। ১৫ মিনিট শেষ হলে অর্ডারটি স্বয়ংক্রিয়ভাবে কনফার্ম হয়ে যাবে এবং নোটিফিকেশন <strong>muhammadeyamin0@gmail.com</strong> এ চলে যাবে।
-              </p>
-
-              <div className="pt-2 flex items-center justify-between border-t border-amber-200/80">
-                <span className="text-[10px] text-stone-600">কোনো তথ্য ভুল থাকলে এখনই বাতিল করুন:</span>
-                <button
-                  type="button"
-                  onClick={() => setShowCancelModal(true)}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
+                <span className="text-[10px] text-emerald-800">
+                  আইডি: https://wa.me/message/E6PISGJZC63TA1
+                </span>
+                <a
+                  href={generateWhatsAppOrderUrl(order)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>অর্ডার বাতিল করুন</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-5 bg-emerald-50 border-2 border-emerald-300 rounded-2xl max-w-lg mx-auto space-y-2 text-xs text-left shadow-xs">
-              <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>✓ অর্ডার সফলভাবে কনফার্ম করা হয়েছে (Order Confirmed)</span>
-              </div>
-              <p className="text-[11px] text-emerald-800 leading-relaxed">
-                ১৫ মিনিটের সময় অতিক্রান্ত হওয়ায় আপনার অর্ডারটি স্বয়ংক্রিয়ভাবে নিশ্চিত হয়েছে এবং ওয়্যারহাউসে প্যাকিং শুরু হয়েছে। স্বয়ংক্রিয় কনফার্মেশন ইমেইল <strong>muhammadeyamin0@gmail.com</strong> এ সফলভাবে পাঠানো হয়েছে।
-              </p>
-            </div>
-          )}
-
-          {/* EXACT Delivery & Return Policy Notice as requested by User */}
-          <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/40 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3.5 text-left max-w-2xl mx-auto">
-            <div className="flex items-center gap-2.5 text-[#14221C]">
-              <div className="w-8 h-8 rounded-xl bg-[#FF762E] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                <ShieldAlert className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="font-heading font-extrabold text-sm sm:text-base text-[#14221C]">
-                  ডেলিভারি ও পণ্য পরীক্ষা সংক্রান্ত জরুরি শর্তাবলী
-                </h3>
-                <p className="text-[11px] text-[#202522]/70">
-                  পণ্য গ্রহণের সময় অনুগ্রহ করে নিচের নিয়মগুলো সতর্কতার সাথে লক্ষ্য রাখুন
-                </p>
+                  <span>হোয়াটসঅ্যাপে মেসেজ দেখুন</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
 
-            <div className="space-y-2.5 text-xs text-[#14221C] leading-relaxed">
-              <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2.5 shadow-xs">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                  ১
+            {/* SMS Gateway Transactional Card */}
+            <div className="p-4 bg-stone-50 border border-[#E5E1D5] rounded-2xl space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-stone-800 text-xs font-bold">
+                  <MessageSquare className="w-4 h-4 text-[#FF762E]" />
+                  <span>SMS Gateway Dispatched</span>
+                </div>
+                <span className="px-2 py-0.5 bg-stone-200 text-stone-800 text-[10px] font-mono font-bold rounded">
+                  Delivered
                 </span>
-                <p className="font-semibold text-stone-900 leading-normal">
-                  ডেলিভারি ম্যান উপস্থিত থাকাকালীন আপনাকে অবশ্যই পণ্যটি পরীক্ষা করতে হবে; কোনো ত্রুটি পাওয়া গেলে, অবিলম্বে ফেরতের জন্য বলুন।
-                </p>
               </div>
-
-              <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 flex items-start gap-2.5 shadow-xs">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                  ২
-                </span>
-                <p className="font-semibold text-stone-900 leading-normal">
-                  ডেলিভারি ম্যান চলে যাওয়ার পর আপনি যদি পণ্যটি ফেরত বা বিনিময় করতে চান, তাহলে আপনাকে অতিরিক্ত ডেলিভারি চার্জ দিতে হবে।
-                </p>
+              <div className="p-3 bg-white rounded-xl border border-stone-200 text-[11px] font-mono text-[#14221C] leading-relaxed shadow-2xs">
+                💬 <strong>VANTREL:</strong> Order #{order.orderNumber} received. ৳{order.total.toLocaleString()} (15m window).
               </div>
-
-              <div className="p-3 bg-amber-100/90 rounded-xl border border-amber-300/80 text-[11px] text-amber-950 font-medium leading-relaxed">
-                <strong className="font-bold text-amber-900">কারণ:</strong> এই পণ্যগুলো ফেরত দিলে এর কভার ক্ষতিগ্রস্ত হয় এবং সেগুলো পুনরায় বিক্রয়ের অযোগ্য হয়ে পড়ে। তাই পণ্য ফেরত দেওয়া এড়িয়ে চলুন।
+              <div className="text-[10px] text-stone-600 flex items-center justify-between pt-1">
+                <span>প্রাপক: {order.customer.phone}</span>
+                <span>Steadfast / Greenweb</span>
               </div>
-            </div>
-          </div>
-
-          {/* SMS Notification Preview Card */}
-          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl max-w-lg mx-auto text-left space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-emerald-800 text-xs font-bold">
-                <MessageSquare className="w-4 h-4 text-emerald-600" />
-                <span>SMS Notification Dispatched (+880 Gateway)</span>
-              </div>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-mono font-bold rounded">
-                Delivered
-              </span>
-            </div>
-            <div className="p-3 bg-white rounded-xl border border-emerald-100 text-[11px] font-mono text-[#14221C] leading-relaxed shadow-xs">
-              💬 <strong>VANTREL:</strong> Your order #{order.orderNumber} has been received. Total: ৳{order.total.toLocaleString()}. Confirmation window: 15 mins. Track live at /tracking?order={order.orderNumber}
-            </div>
-            <div className="text-[10px] text-emerald-700/80 flex items-center justify-between">
-              <span>Recipient: {order.customer.phone}</span>
-              <span>Provider: Steadfast / Greenweb Gateway</span>
             </div>
           </div>
 

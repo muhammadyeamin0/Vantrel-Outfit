@@ -35,6 +35,8 @@ export const OrderTrackingPage: React.FC = () => {
     cancelOrder,
     requestOrderReturn,
     smsLogs,
+    whatsappLogs,
+    generateWhatsAppOrderUrl,
     showToast
   } = useStore();
 
@@ -744,6 +746,45 @@ export const OrderTrackingPage: React.FC = () => {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Associated Transactional WhatsApp Notification */}
+            <div className="p-5 bg-emerald-50/80 rounded-2xl border-2 border-emerald-300 space-y-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-[#25D366] text-white flex items-center justify-center text-xs font-bold shrink-0">
+                    WA
+                  </span>
+                  <div>
+                    <h4 className="font-bold text-emerald-950 text-sm">
+                      স্বয়ংক্রিয় হোয়াটসঅ্যাপ অর্ডার কনফার্মেশন
+                    </h4>
+                    <span className="text-[10px] text-emerald-700">
+                      গ্রাহকের নম্বর ({searchedOrder.customer.phone}) এ নোটিফিকেশন প্রস্তুত
+                    </span>
+                  </div>
+                </div>
+
+                <a
+                  href={generateWhatsAppOrderUrl(searchedOrder)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <span>হোয়াটসঅ্যাপে মেসেজ পাঠান</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-emerald-200 text-[11px] font-mono text-[#14221C] leading-relaxed">
+                💬 <strong>অফিসিয়াল হোয়াটসঅ্যাপ মেসেজ প্রিভিউ:</strong><br />
+                "🎉 VANTREL OUTFIT - অর্ডার #{searchedOrder.orderNumber} নিশ্চিত করা হয়েছে। মোট বিল: ৳{searchedOrder.total.toLocaleString()} BDT। ১৫ মিনিটের মধ্যে অর্ডার বাতিলের সুযোগ রয়েছে..."
+              </div>
+
+              <div className="text-[10px] text-emerald-800 flex items-center justify-between">
+                <span>প্রাপক: {searchedOrder.customer.phone}</span>
+                <span>প্রেরক আইডি: https://wa.me/message/E6PISGJZC63TA1</span>
               </div>
             </div>
 
