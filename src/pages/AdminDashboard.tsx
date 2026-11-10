@@ -1757,15 +1757,115 @@ export const AdminDashboard: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="font-bold text-emerald-950">
-                  Firebase Cloud Firestore সক্রিয়:
+                  Firebase Cloud Firestore & Server Storage সক্রিয়:
                 </span>
                 <span className="text-emerald-800 hidden sm:inline">
-                  অ্যাড করা সব প্রোডাক্ট সরাসরি ফায়ারবেসে সেভ থাকে। ডিলিট করা প্রোডাক্ট পাবলিক ওয়েবসাইট থেকে হাইড থাকবে, কিন্তু অ্যাডমিন প্যানেলে সংরক্ষিত থাকবে।
+                  অ্যাড, এডিট বা ডিলিট করা সমস্ত প্রোডাক্ট রিয়েল-টাইমে ক্লাউড ও সার্ভার ডিস্কে সেভ হয় এবং সব ডিভাইসে তাৎক্ষণিক লাইভ আপডেট হয়ে যায়।
                 </span>
               </div>
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full uppercase shrink-0">
-                Cloud Synced
+                Live Synced
               </span>
+            </div>
+
+            {/* Google Merchant Center & Meta Catalog Integration Hub */}
+            <div className="p-5 bg-gradient-to-br from-[#14221C] to-[#1c3028] text-white rounded-3xl border border-white/10 shadow-md space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-[#FF762E] flex items-center justify-center font-black text-white text-base shadow-sm shrink-0">
+                    G&M
+                  </div>
+                  <div>
+                    <h4 className="font-heading font-extrabold text-sm sm:text-base text-white tracking-tight">
+                      Google Merchant Center ও Meta (Facebook/Instagram) লাইভ ক্যাটালগ ফিড
+                    </h4>
+                    <p className="text-xs text-white/70">
+                      আপনার সমস্ত প্রোডাক্টের ফটো, প্রাইস ও বিবরণ অটোমেটিক সিঙ্ক হবে। গুগল শপিং বা ফেসবুক শপে এই লিঙ্কগুলো সরাসরি ব্যবহার করুন।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/api/public/meta-catalog.csv"
+                    download="vantrel_meta_catalog.csv"
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Meta CSV ডাউনলোড</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                {/* Google Shopping XML Feed */}
+                <div className="p-3.5 bg-white/5 border border-white/10 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#FF762E] uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#FF762E]" />
+                      Google Merchant Center XML Feed
+                    </span>
+                    <span className="text-[10px] text-white/60">RSS 2.0 / XML</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : 'https://www.vantreloutfit.shop'}/api/public/google-product-feed.xml`}
+                      className="w-full text-xs font-mono bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white/90 focus:outline-none select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/api/public/google-product-feed.xml`;
+                        navigator.clipboard.writeText(url);
+                        showToast('গুগল ফিড URL কপি হয়েছে', 'Google Merchant Center-এ Primary Feed URL হিসেবে এটি পেস্ট করুন।', 'success');
+                      }}
+                      className="px-3 py-2 bg-[#FF762E] hover:bg-[#e8631c] text-white font-bold text-xs rounded-xl transition-colors shrink-0 cursor-pointer shadow-xs"
+                      title="Copy Google Shopping Feed URL"
+                    >
+                      কপি করুন
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-white/60">
+                    Google Merchant Center &gt; Products &gt; Feeds-এ গিয়ে <strong>Scheduled fetch</strong> অপশনে এই URL দিন।
+                  </p>
+                </div>
+
+                {/* Meta Commerce JSON Feed */}
+                <div className="p-3.5 bg-white/5 border border-white/10 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-sky-400" />
+                      Meta (Facebook/Instagram) Catalog JSON Feed
+                    </span>
+                    <span className="text-[10px] text-white/60">JSON Catalog</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : 'https://www.vantreloutfit.shop'}/api/public/products-feed.json`}
+                      className="w-full text-xs font-mono bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white/90 focus:outline-none select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/api/public/products-feed.json`;
+                        navigator.clipboard.writeText(url);
+                        showToast('Meta ফিড URL কপি হয়েছে', 'Meta Commerce Manager-এ Data Source URL হিসেবে এটি পেস্ট করুন।', 'success');
+                      }}
+                      className="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition-colors shrink-0 cursor-pointer shadow-xs"
+                      title="Copy Meta Catalog Feed URL"
+                    >
+                      কপি করুন
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-white/60">
+                    Meta Commerce Manager &gt; Catalog &gt; Data Sources-এ গিয়ে <strong>Data Feed (URL)</strong> অপশনে এই URL দিন।
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Homepage Top Products Quick Control Banner */}

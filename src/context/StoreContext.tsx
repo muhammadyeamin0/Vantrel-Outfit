@@ -1745,6 +1745,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       handleFirestoreError(e, OperationType.WRITE, `products/${product.id}`);
     }
 
+    // Also synchronize to server backend and disk storage
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(product)
+      }).catch((err) => console.warn('Server product sync error:', err));
+    } catch (e) {
+      console.warn('Server product sync exception:', e);
+    }
+
     addAuditLog('PRODUCT_CREATE', `Added garment "${product.name}" with SKU ${product.sku}`);
     showToast('Product Created & Synced', `${product.name} is saved to Firebase and live on all devices.`, 'success');
   };
@@ -1771,6 +1782,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     } catch (e) {
       console.warn('Firestore updateProduct error:', e);
       handleFirestoreError(e, OperationType.UPDATE, `products/${id}`);
+    }
+
+    // Also synchronize to server backend and disk storage
+    try {
+      fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cleanUpdated)
+      }).catch((err) => console.warn('Server product update error:', err));
+    } catch (e) {
+      console.warn('Server product update exception:', e);
     }
 
     addAuditLog('PRODUCT_UPDATE', `Updated garment ID ${id}`);
@@ -1804,6 +1826,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       handleFirestoreError(e, OperationType.WRITE, `products/${duplicated.id}`);
     }
 
+    // Also synchronize to server backend
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(duplicated)
+      }).catch((err) => console.warn('Server product duplicate error:', err));
+    } catch (e) {
+      console.warn('Server product duplicate exception:', e);
+    }
+
     addAuditLog('PRODUCT_DUPLICATE', `Duplicated garment "${target.name}" to "${duplicated.name}"`);
     showToast('Product Duplicated', `Created copy ${duplicated.name} in Firebase.`, 'success');
   };
@@ -1828,6 +1861,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     } catch (e) {
       console.warn('Firestore soft delete error:', e);
       handleFirestoreError(e, OperationType.UPDATE, `products/${id}`);
+    }
+
+    // Also update server backend
+    try {
+      fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(archivePayload)
+      }).catch((err) => console.warn('Server product archive error:', err));
+    } catch (e) {
+      console.warn('Server product archive exception:', e);
     }
 
     addAuditLog('PRODUCT_DELETE_SOFT', `Archived and hid product "${target?.name || id}" from public store`);
@@ -1856,6 +1900,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       handleFirestoreError(e, OperationType.UPDATE, `products/${id}`);
     }
 
+    // Also update server backend
+    try {
+      fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(restorePayload)
+      }).catch((err) => console.warn('Server product restore error:', err));
+    } catch (e) {
+      console.warn('Server product restore exception:', e);
+    }
+
     addAuditLog('PRODUCT_RESTORE', `Restored product "${target?.name || id}" to live storefront`);
     showToast('প্রোডাক্ট পুনরায় সক্রিয় হয়েছে', `"${target?.name || 'প্রোডাক্ট'}" এখন ওয়েবসাইটে আবার লাইভ হয়েছে।`, 'success');
   };
@@ -1873,6 +1928,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     } catch (e) {
       console.warn('Firestore deleteDoc error:', e);
       handleFirestoreError(e, OperationType.DELETE, `products/${id}`);
+    }
+
+    // Delete from server backend disk and memory
+    try {
+      fetch(`/api/products/${id}`, {
+        method: 'DELETE'
+      }).catch((err) => console.warn('Server product delete error:', err));
+    } catch (e) {
+      console.warn('Server product delete exception:', e);
     }
 
     addAuditLog('PRODUCT_DELETE_PERMANENT', `Permanently deleted garment "${target?.name || id}"`);

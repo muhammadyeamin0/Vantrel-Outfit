@@ -52,6 +52,35 @@ app.use(express.urlencoded({ extended: true }));
 let products: Product[] = [...INITIAL_PRODUCTS];
 let orders: Order[] = [...INITIAL_ORDERS];
 
+const PRODUCTS_PERSIST_FILE = path.resolve(__dirname, 'data', 'products_store.json');
+function saveProductsToDisk() {
+  try {
+    const dir = path.dirname(PRODUCTS_PERSIST_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(PRODUCTS_PERSIST_FILE, JSON.stringify(products, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('Products disk persistence warning:', e);
+  }
+}
+function loadProductsFromDisk() {
+  try {
+    if (fs.existsSync(PRODUCTS_PERSIST_FILE)) {
+      const content = fs.readFileSync(PRODUCTS_PERSIST_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        products = parsed;
+        console.log(`[VANTREL ENGINE] Successfully loaded ${products.length} persistent products from disk.`);
+        return;
+      }
+    }
+    // If no custom disk file exists yet, save INITIAL_PRODUCTS to disk
+    saveProductsToDisk();
+  } catch (e) {
+    console.warn('Products disk load warning:', e);
+  }
+}
+loadProductsFromDisk();
+
 const ORDERS_PERSIST_FILE = path.resolve(__dirname, 'data', 'orders_store.json');
 function saveOrdersToDisk() {
   try {
@@ -706,20 +735,20 @@ app.post('/api/products', (req: Request, res: Response) => {
   }
 
   const newProd: Product = {
-    id: `prod-vt-${Date.now()}`,
-    slug: (body.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    id: body.id || `prod-vt-${Date.now()}`,
+    slug: body.slug || (body.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     name: body.name,
     tagline: body.tagline || 'Modern garment engineered in Bangladesh.',
     description: body.description || '',
     category: body.category || 'Hoodies',
     subCategory: body.subCategory || 'Streetwear',
-    brand: 'VANTREL',
+    brand: body.brand || 'VANTREL OUTFIT',
     sku: body.sku,
     regularPrice: Number(body.regularPrice),
     discountPrice: body.discountPrice ? Number(body.discountPrice) : undefined,
     discountPercent: body.discountPercent ? Number(body.discountPercent) : undefined,
     images: body.images?.length ? body.images : ['/src/assets/images/product_premium_hoodie_1792588590406.jpg'],
-    sizes: body.sizes || ['S', 'M', 'L', 'XL'],
+    sizes: body.sizes || ['M', 'L', 'XL', 'XXL'],
     colors: body.colors || [{ name: 'Forest Pine', hex: '#14221C' }],
     variants: body.variants || [],
     fabric: body.fabric || '420 GSM 100% Cotton',
@@ -729,25 +758,45 @@ app.post('/api/products', (req: Request, res: Response) => {
     isFeatured: body.isFeatured ?? true,
     isNewArrival: body.isNewArrival ?? true,
     isBestSeller: body.isBestSeller ?? false,
-    rating: 5.0,
-    reviewCount: 0,
+    rating: body.rating || 5.0,
+    reviewCount: body.reviewCount || 0,
     totalStock: Number(body.totalStock || 50),
-    createdDate: new Date().toISOString()
+    createdDate: body.createdDate || new Date().toISOString()
   };
 
-  products.unshift(newProd);
-  recordAudit('Admin Staff', 'Product Moderator', 'Product Created', `Added new product: ${newProd.name} (${newProd.sku})`);
+  const existingIdx = products.findIndex((p) => p.id === newProd.id);
+  if (existingIdx >= 0) {
+    products[existingIdx] = { ...products[existingIdx], ...newProd };
+  } else {
+    products.unshift(newProd);
+  }
 
-  res.status(201).json({ success: true, message: 'Product created successfully', data: newProd });
+  saveProductsToDisk();
+  recordAudit('Admin Staff', 'Product Moderator', 'Product Created/Synced', `Saved product: ${newProd.name} (${newProd.sku})`);
+
+  res.status(201).json({ success: true, message: 'Product created and synced to server disk', data: newProd });
 });
 
 app.put('/api/products/:id', (req: Request, res: Response) => {
   const idx = products.findIndex((p) => p.id === req.params.id);
   if (idx === -1) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
+    // If not found, create or upsert
+    const created: Product = {
+      id: req.params.id,
+      name: req.body.name || 'Unnamed Product',
+      sku: req.body.sku || `VT-${Date.now().toString().slice(-4)}`,
+      regularPrice: req.body.regularPrice || 1000,
+      totalStock: req.body.totalStock || 20,
+      ...req.body
+    };
+    products.unshift(created);
+    saveProductsToDisk();
+    recordAudit('Admin Staff', 'Product Moderator', 'Product Upserted', `Upserted product: ${created.name}`);
+    return res.json({ success: true, data: created });
   }
 
   products[idx] = { ...products[idx], ...req.body };
+  saveProductsToDisk();
   recordAudit('Admin Staff', 'Product Moderator', 'Product Updated', `Updated product: ${products[idx].name}`);
   res.json({ success: true, data: products[idx] });
 });
@@ -759,8 +808,9 @@ app.delete('/api/products/:id', (req: Request, res: Response) => {
   }
 
   const deleted = products.splice(idx, 1)[0];
+  saveProductsToDisk();
   recordAudit('Super Admin', 'Super Admin', 'Product Deleted', `Removed product: ${deleted.name} (${deleted.sku})`);
-  res.json({ success: true, message: 'Product deleted', data: deleted });
+  res.json({ success: true, message: 'Product deleted from server memory and disk', data: deleted });
 });
 
 // 3. Orders Endpoints
@@ -1792,6 +1842,117 @@ app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
     updated_at: new Date().toISOString(),
     products: feed
   });
+});
+
+// Official Google Merchant Center Product Feed (RSS 2.0 XML with Google Shopping Extensions)
+app.get('/api/public/google-product-feed.xml', (req: Request, res: Response) => {
+  const host = req.get('host') || 'www.vantreloutfit.shop';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  const itemsXml = products
+    .filter((p) => !p.isArchived)
+    .map((p) => {
+      const rawImg = p.images && p.images[0] ? p.images[0] : '';
+      const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+      const effectivePrice = p.discountPrice || p.regularPrice;
+      const cleanTitle = (p.name || 'VANTREL Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const cleanDesc = (p.description || p.tagline || p.name || 'Premium fashion by VANTREL OUTFIT Bangladesh.').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const availability = p.totalStock > 0 ? 'in_stock' : 'out_of_stock';
+      const sizeStr = Array.isArray(p.sizes) ? p.sizes.join('/') : 'M';
+      const colorStr = Array.isArray(p.colors) && p.colors.length > 0 ? p.colors.map((c) => c.name).join('/') : 'Black';
+
+      return `    <item>
+      <g:id>${p.id}</g:id>
+      <g:title>${cleanTitle}</g:title>
+      <g:description>${cleanDesc}</g:description>
+      <g:link>${baseUrl}/product/${p.slug || p.id}</g:link>
+      <g:image_link>${imgUrl}</g:image_link>
+      <g:condition>new</g:condition>
+      <g:availability>${availability}</g:availability>
+      <g:price>${p.regularPrice} BDT</g:price>
+      ${p.discountPrice ? `<g:sale_price>${p.discountPrice} BDT</g:sale_price>` : ''}
+      <g:brand>VANTREL OUTFIT</g:brand>
+      <g:product_type>${p.category || 'Apparel &amp; Accessories'}</g:product_type>
+      <g:google_product_category>1604</g:google_product_category>
+      <g:size>${sizeStr}</g:size>
+      <g:color>${colorStr}</g:color>
+      <g:shipping>
+        <g:country>BD</g:country>
+        <g:service>Standard Nationwide</g:service>
+        <g:price>70 BDT</g:price>
+      </g:shipping>
+    </item>`;
+    })
+    .join('\n');
+
+  const xmlFeed = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+  <channel>
+    <title>VANTREL OUTFIT - Google Merchant Center Product Catalog</title>
+    <link>${baseUrl}</link>
+    <description>Live product catalog for Google Shopping, Ads, and Performance Max campaigns across Bangladesh.</description>
+${itemsXml}
+  </channel>
+</rss>`;
+
+  res.type('application/xml').send(xmlFeed);
+});
+
+// Meta (Facebook / Instagram) Commerce Manager Standard CSV Catalog
+app.get('/api/public/meta-catalog.csv', (req: Request, res: Response) => {
+  const host = req.get('host') || 'www.vantreloutfit.shop';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  const headers = [
+    'id',
+    'title',
+    'description',
+    'availability',
+    'condition',
+    'price',
+    'link',
+    'image_link',
+    'brand',
+    'google_product_category',
+    'fb_product_category',
+    'sale_price'
+  ];
+
+  const rows = products
+    .filter((p) => !p.isArchived)
+    .map((p) => {
+      const rawImg = p.images && p.images[0] ? p.images[0] : '';
+      const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+      const avail = p.totalStock > 0 ? 'in stock' : 'out of stock';
+      const cleanTitle = `"${(p.name || '').replace(/"/g, '""')}"`;
+      const cleanDesc = `"${(p.description || p.tagline || p.name || '').replace(/"/g, '""')}"`;
+      const priceStr = `"${p.regularPrice} BDT"`;
+      const salePriceStr = p.discountPrice ? `"${p.discountPrice} BDT"` : '""';
+      const link = `"${baseUrl}/product/${p.slug || p.id}"`;
+      const imageLink = `"${imgUrl}"`;
+
+      return [
+        p.id,
+        cleanTitle,
+        cleanDesc,
+        avail,
+        'new',
+        priceStr,
+        link,
+        imageLink,
+        '"VANTREL OUTFIT"',
+        '"1604"',
+        '"Clothing & Accessories"',
+        salePriceStr
+      ].join(',');
+    });
+
+  const csvContent = [headers.join(','), ...rows].join('\r\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="vantrel_meta_catalog.csv"');
+  res.send(csvContent);
 });
 
 // ==========================================
