@@ -315,8 +315,8 @@ export interface StoreContextType {
     trackingNumber: string
   ) => void;
   trackOrderLookup: (orderNumber?: string, phone?: string) => Order | null;
-  clearAllOrders: () => void;
-  deleteOrder: (id: string) => void;
+  clearAllOrders: () => Promise<void>;
+  deleteOrder: (id: string) => Promise<void>;
   addCoupon: (coupon: Coupon) => void;
   deleteCoupon: (code: string) => void;
   toggleCouponActive: (code: string) => void;
@@ -1079,19 +1079,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const ordersCol = collection(db, 'orders');
         firestoreUnsub = onSnapshot(ordersCol, (snapshot) => {
-          if (!snapshot.empty && isMounted) {
-            setOrders((prev) => {
-              const map = new Map<string, Order>();
-              prev.forEach((o) => map.set(o.id, o));
-              snapshot.forEach((docSnap) => {
-                const remote = docSnap.data() as Order;
-                map.set(docSnap.id, { ...map.get(docSnap.id), ...remote, id: docSnap.id });
-              });
-              return Array.from(map.values()).sort(
-                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-              );
-            });
+          if (!isMounted) return;
+          if (snapshot.empty) {
+            setOrders([]);
+            return;
           }
+          const remoteOrders: Order[] = [];
+          snapshot.forEach((docSnap) => {
+            const remote = docSnap.data() as Order;
+            remoteOrders.push({ ...remote, id: docSnap.id });
+          });
+          remoteOrders.sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          setOrders(remoteOrders);
         });
       } catch (e) {
         console.warn('Firestore orders sync notice:', e);
@@ -2906,7 +2907,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     return found || null;
   };
 
-  const clearAllOrders = () => {
+  const clearAllOrders = async () => {
     setOrders([]);
     setLastPlacedOrder(null);
     localStorage.removeItem('vt_orders');
@@ -2918,33 +2919,32 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // 1. Purge from Server backend and disk store
     try {
-      fetch('/api/orders', { method: 'DELETE' }).catch((err) => {
-        console.warn('Backend orders clear error:', err);
-      });
+      await fetch('/api/orders', { method: 'DELETE' });
     } catch (e) {
-      console.warn('Backend orders clear exception:', e);
+      console.warn('Backend orders clear error:', e);
     }
 
     // 2. Purge from Firebase Firestore if connected
     if (IS_GOOGLE_CLOUD_CONNECTED && db) {
       try {
-        getDocs(collection(db, 'orders'))
-          .then((snapshot) => {
-            snapshot.forEach((docSnap) => {
-              deleteDoc(doc(db, 'orders', docSnap.id)).catch(() => {});
-            });
-          })
-          .catch(() => {});
+        const snapshot = await getDocs(collection(db, 'orders'));
+        if (!snapshot.empty) {
+          const batch = writeBatch(db);
+          snapshot.forEach((docSnap) => {
+            batch.delete(doc(db, 'orders', docSnap.id));
+          });
+          await batch.commit();
+        }
       } catch (e) {
         console.warn('Firestore orders clear notice:', e);
       }
     }
 
     addAuditLog('ORDERS_PURGED', 'Admin cleared all orders and delivery tracking records.');
-    showToast('সব অর্ডার মুছে ফেলা হয়েছে', 'সিস্টেমের সমস্ত অর্ডার সফলভাবে পরিষ্কার করা হয়েছে।', 'info');
+    showToast('সব অর্ডার মুছে ফেলা হয়েছে', 'সিস্টেম ও ফায়ারবেসের সমস্ত অর্ডার সফলভাবে পরিষ্কার করা হয়েছে।', 'info');
   };
 
-  const deleteOrder = (id: string) => {
+  const deleteOrder = async (id: string) => {
     const target = orders.find((o) => o.id === id);
     setOrders((prev) => prev.filter((o) => o.id !== id));
     if (lastPlacedOrder && lastPlacedOrder.id === id) {
@@ -2953,9 +2953,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // 1. Delete on server backend
     try {
-      fetch(`/api/orders/${id}`, { method: 'DELETE' }).catch((err) => {
-        console.warn('Backend order delete error:', err);
-      });
+      await fetch(`/api/orders/${id}`, { method: 'DELETE' });
     } catch (e) {
       console.warn('Backend order delete error:', e);
     }
@@ -2963,9 +2961,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     // 2. Delete on Firestore
     if (IS_GOOGLE_CLOUD_CONNECTED && db) {
       try {
-        deleteDoc(doc(db, 'orders', id)).catch(() => {});
+        await deleteDoc(doc(db, 'orders', id));
       } catch (e) {
-        // silent
+        console.warn('Firestore order delete error:', e);
       }
     }
 
