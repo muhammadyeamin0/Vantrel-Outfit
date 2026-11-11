@@ -1,6 +1,0 @@
-{
-  "summary":  "Implementation plan for Real-Time Multi-Device Admin Catalog Synchronization (Firestore + Server In-Memory & Disk Persistence) and Universal Google Merchant Center / Meta Product Feed integration.",
-  "updatedAt":  "2026-11-10T16:55:38.774006699Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}

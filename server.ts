@@ -1956,6 +1956,90 @@ app.get('/api/public/meta-catalog.csv', (req: Request, res: Response) => {
 });
 
 // ==========================================
+// CRAWLER & SOCIAL PREVIEW INTERCEPTOR
+// (Facebook, WhatsApp, Googlebot, Telegram, Twitter, LinkedIn)
+// ==========================================
+app.get('*', (req: Request, res: Response, next) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const isSocialCrawler = /facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|bingbot|DuckDuckBot|Discordbot/i.test(userAgent);
+
+  if (!isSocialCrawler) {
+    return next();
+  }
+
+  const host = req.get('host') || 'www.vantreloutfit.shop';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const baseUrl = `${protocol}://${host}`;
+  const fullUrl = `${baseUrl}${req.originalUrl}`;
+
+  // Check if product request (e.g. /product/:slug or ?product=:id or /?productId=:id)
+  let matchedProduct: Product | undefined;
+  const pathParts = req.path.split('/').filter(Boolean);
+
+  if (pathParts[0] === 'product' && pathParts[1]) {
+    const slugOrId = pathParts[1];
+    matchedProduct = products.find((p) => p.slug === slugOrId || p.id === slugOrId);
+  } else if (req.query.product || req.query.productId) {
+    const pId = String(req.query.product || req.query.productId);
+    matchedProduct = products.find((p) => p.id === pId || p.slug === pId);
+  }
+
+  const siteTitle = matchedProduct
+    ? `${matchedProduct.name} - ৳${(matchedProduct.discountPrice || matchedProduct.regularPrice).toLocaleString()} | VANTREL OUTFIT`
+    : 'VANTREL OUTFIT - Premium Quality & Trendsetting Fashion Bangladesh';
+
+  const siteDesc = matchedProduct
+    ? (matchedProduct.tagline || matchedProduct.description || `Buy ${matchedProduct.name} online in Bangladesh. 100% genuine premium streetwear. Fast Cash on Delivery across 64 districts.`)
+    : 'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। ক্যাশ অন ডেলিভারিতে সারাদেশে দ্রুত ডেলিভারি।';
+
+  let siteImage = `${baseUrl}/assets/images/vantrel-logo.png`;
+  if (matchedProduct && matchedProduct.images && matchedProduct.images[0]) {
+    const rawImg = matchedProduct.images[0];
+    siteImage = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+  }
+
+  const effectivePrice = matchedProduct ? (matchedProduct.discountPrice || matchedProduct.regularPrice) : null;
+
+  const html = `<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <title>${siteTitle}</title>
+  <meta name="description" content="${siteDesc}">
+  
+  <!-- Open Graph / Facebook / WhatsApp -->
+  <meta property="og:type" content="${matchedProduct ? 'product' : 'website'}">
+  <meta property="og:url" content="${fullUrl}">
+  <meta property="og:title" content="${siteTitle}">
+  <meta property="og:description" content="${siteDesc}">
+  <meta property="og:image" content="${siteImage}">
+  <meta property="og:image:secure_url" content="${siteImage}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="VANTREL OUTFIT">
+  <meta property="og:locale" content="bn_BD">
+  ${effectivePrice ? `<meta property="product:price:amount" content="${effectivePrice}">
+  <meta property="product:price:currency" content="BDT">
+  <meta property="product:availability" content="${matchedProduct && matchedProduct.totalStock > 0 ? 'in stock' : 'out of stock'}">` : ''}
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${siteTitle}">
+  <meta name="twitter:description" content="${siteDesc}">
+  <meta name="twitter:image" content="${siteImage}">
+</head>
+<body>
+  <h1>${siteTitle}</h1>
+  <p>${siteDesc}</p>
+  <img src="${siteImage}" alt="${siteTitle}">
+  <a href="${fullUrl}">View on VANTREL OUTFIT</a>
+</body>
+</html>`;
+
+  return res.type('text/html').send(html);
+});
+
+// ==========================================
 // VITE DEV SERVER OR PRODUCTION SERVING
 // ==========================================
 async function startServer() {
