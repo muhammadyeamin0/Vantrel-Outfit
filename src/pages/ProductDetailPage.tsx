@@ -376,10 +376,10 @@ export const ProductDetailPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <span
                     className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
-                    style={{ backgroundColor: product.colors[0]?.hex || '#14221C' }}
+                    style={{ backgroundColor: product.colors?.[0]?.hex || '#14221C' }}
                   />
                   <span className="text-xs font-bold text-white">
-                    কালার: <span className="font-normal text-neutral-300">{product.colors[0]?.name || 'ছবির অনুরূপ (Standard)'}</span>
+                    কালার: <span className="font-normal text-neutral-300">{product.colors?.[0]?.name || 'ছবির অনুরূপ (Standard)'}</span>
                   </span>
                 </div>
                 <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">

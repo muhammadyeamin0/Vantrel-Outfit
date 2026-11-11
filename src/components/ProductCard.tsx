@@ -236,7 +236,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
           {/* Color preview dots */}
           <div className="flex items-center -space-x-1">
-            {product.colors.map((c) => (
+            {(product.colors || []).map((c) => (
               <span
                 key={c.name}
                 className="w-3.5 h-3.5 rounded-full border border-black/50 shadow-xs"

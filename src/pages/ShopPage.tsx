@@ -120,7 +120,7 @@ export const ShopPage: React.FC = () => {
 
         // Color
         if (selectedColor !== 'All') {
-          if (!product.colors.some((c) => c.name.toLowerCase() === selectedColor.toLowerCase())) {
+          if (!(product.colors || []).some((c) => c.name.toLowerCase() === selectedColor.toLowerCase())) {
             return false;
           }
         }

@@ -48,8 +48,8 @@ export type ProductSize = (typeof ALLOWED_SIZES)[number] | string;
 export interface ProductVariant {
   id: string;
   size: string; // 'M' | 'L' | 'XL' | 'XXL'
-  color: string; // e.g. 'Forest Green', 'Ivory Cream', 'Charcoal Black'
-  colorHex: string;
+  color?: string; // e.g. 'Forest Green', 'Ivory Cream', 'Charcoal Black'
+  colorHex?: string;
   stock: number;
   sku: string;
 }

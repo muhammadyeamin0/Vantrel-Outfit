@@ -53,7 +53,6 @@ import {
   Sparkles,
   RotateCcw
 } from 'lucide-react';
-import { extractColorsFromMultipleImages } from '../utils/colorExtractor';
 import { FinancesTab } from '../components/admin/FinancesTab';
 import { ModeratorsTab } from '../components/admin/ModeratorsTab';
 import { ThemesTab } from '../components/admin/ThemesTab';
@@ -196,18 +195,12 @@ export const AdminDashboard: React.FC = () => {
   const [prodFit, setProdFit] = useState('Relaxed Drop-Shoulder Oversized Silhouette');
   const [prodDesc, setProdDesc] = useState('');
   const [prodTagline, setProdTagline] = useState('');
-  const [prodImages, setProdImages] = useState<string[]>([
-    '/assets/images/product_premium_hoodie_1792588590406.jpg'
-  ]);
+  const [prodImages, setProdImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [prodSizes, setProdSizes] = useState<string[]>(['M', 'L', 'XL', 'XXL']);
-  const [prodColors, setProdColors] = useState<{ name: string; hex: string }[]>([
-    { name: 'Forest Pine', hex: '#14221C' },
-    { name: 'Charcoal Black', hex: '#202522' }
-  ]);
+  const [prodColors, setProdColors] = useState<{ name: string; hex: string }[]>([]);
   const [newColorName, setNewColorName] = useState('');
   const [newColorHex, setNewColorHex] = useState('#14221C');
-  const [isDetectingColors, setIsDetectingColors] = useState<boolean>(false);
   const [prodGsm, setProdGsm] = useState<number>(420);
   const [prodVideoUrl, setProdVideoUrl] = useState<string>('');
   const [prodCost, setProdCost] = useState<number>(1200);
@@ -659,12 +652,9 @@ export const AdminDashboard: React.FC = () => {
     setProdFit('Relaxed Drop-Shoulder Oversized Silhouette');
     setProdDesc('Engineered in limited quantities with architectural boxy drape.');
     setProdTagline('Premium heavyweight streetwear essential.');
-    setProdImages(['/assets/images/product_premium_hoodie_1792588590406.jpg']);
+    setProdImages([]);
     setProdSizes(['M', 'L', 'XL', 'XXL']);
-    setProdColors([
-      { name: 'Forest Pine', hex: '#14221C' },
-      { name: 'Pitch Black', hex: '#202522' }
-    ]);
+    setProdColors([]);
     setIsProductModalOpen(true);
   };
 
@@ -699,33 +689,9 @@ export const AdminDashboard: React.FC = () => {
     const filteredSizes = (p.sizes || []).filter((s) => allowed.includes(s));
     const fallbackSizes = isPant ? ['28', '30', '32', '34', '36'] : ['M', 'L', 'XL', 'XXL'];
     setProdSizes(filteredSizes.length > 0 ? filteredSizes : fallbackSizes);
-    setProdColors(p.colors || [{ name: 'Default', hex: '#14221C' }]);
+    setProdImages(p.images || []);
+    setProdColors(p.colors || []);
     setIsProductModalOpen(true);
-  };
-
-  const handleAutoDetectColors = async (imagesToProcess = prodImages) => {
-    if (!imagesToProcess || imagesToProcess.length === 0) {
-      showToast('No Images', 'কালার ডিটেক্ট করতে প্রথমে প্রোডাক্টের ছবি যুক্ত করুন।', 'info');
-      return;
-    }
-    setIsDetectingColors(true);
-    try {
-      const detected = await extractColorsFromMultipleImages(imagesToProcess);
-      if (detected.length > 0) {
-        setProdColors(detected);
-        showToast(
-          'অটো কালার ডিটেক্ট সম্পন্ন',
-          `${detected.length}টি কালার (${detected.map((c) => c.name).join(', ')}) ছবি থেকে স্বয়ংক্রিয়ভাবে যোগ করা হয়েছে।`,
-          'success'
-        );
-      } else {
-        showToast('Info', 'ছবি থেকে কোনো কালার এক্সট্র্যাক্ট করা যায়নি। আপনি ম্যানুয়ালি যোগ করতে পারেন।', 'info');
-      }
-    } catch (err) {
-      console.warn('Color detection error:', err);
-    } finally {
-      setIsDetectingColors(false);
-    }
   };
 
   const handleAddImage = () => {
@@ -733,7 +699,7 @@ export const AdminDashboard: React.FC = () => {
       const updated = [...prodImages, newImageUrl.trim()];
       setProdImages(updated);
       setNewImageUrl('');
-      handleAutoDetectColors(updated);
+      showToast('Image Added', 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।', 'success');
     }
   };
 
@@ -774,12 +740,8 @@ export const AdminDashboard: React.FC = () => {
         }
         readCount++;
         if (readCount === files.length) {
-          setProdImages((prev) => {
-            const combined = [...prev, ...newImages];
-            handleAutoDetectColors(combined);
-            return combined;
-          });
-          showToast('Images Uploaded', `${newImages.length}টি ছবি লোড হয়েছে এবং কালার ডিটেক্ট করা হয়েছে।`, 'info');
+          setProdImages((prev) => [...prev, ...newImages]);
+          showToast('Images Uploaded', `${newImages.length}টি ছবি সফলভাবে আপলোড করা হয়েছে।`, 'success');
         }
       };
       reader.readAsDataURL(file);
@@ -806,16 +768,25 @@ export const AdminDashboard: React.FC = () => {
         ? Math.round(((prodPrice - prodDiscountPrice) / prodPrice) * 100)
         : 0;
 
-    const variants = prodSizes.flatMap((sz) =>
-      prodColors.map((c) => ({
-        id: `v-${Date.now()}-${sz}-${c.name.replace(/\s+/g, '')}`,
-        size: sz,
-        color: c.name,
-        colorHex: c.hex,
-        stock: Math.max(1, Math.floor(prodStock / (prodSizes.length * prodColors.length))),
-        sku: `${prodSku}-${sz}-${c.name.slice(0, 2).toUpperCase()}`
-      }))
-    );
+    const variants = prodColors.length > 0
+      ? prodSizes.flatMap((sz) =>
+          prodColors.map((c) => ({
+            id: `v-${Date.now()}-${sz}-${c.name.replace(/\s+/g, '')}`,
+            size: sz,
+            color: c.name,
+            colorHex: c.hex,
+            stock: Math.max(1, Math.floor(prodStock / Math.max(1, prodSizes.length * prodColors.length))),
+            sku: `${prodSku}-${sz}-${c.name.slice(0, 2).toUpperCase()}`
+          }))
+        )
+      : prodSizes.map((sz) => ({
+          id: `v-${Date.now()}-${sz}`,
+          size: sz,
+          color: 'Standard',
+          colorHex: '#14221C',
+          stock: Math.max(1, Math.floor(prodStock / Math.max(1, prodSizes.length))),
+          sku: `${prodSku}-${sz}`
+        }));
 
     const finalCategory = (isCustomCategory && customCategoryText.trim()
       ? customCategoryText.trim()
@@ -3338,7 +3309,7 @@ export const AdminDashboard: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-2 border-t border-[#E5E1D5] text-xs">
                     {prod.variants.map((v) => (
                       <div key={v.id} className="p-2 bg-white rounded-lg border border-[#E5E1D5] text-center space-y-1">
-                        <div className="font-bold text-[#14221C]">{v.size} ({v.color.slice(0, 8)})</div>
+                        <div className="font-bold text-[#14221C]">{v.size}{v.color ? ` (${v.color.slice(0, 8)})` : ''}</div>
                         <div className={`font-semibold tabular-nums text-xs ${v.stock <= 5 ? 'text-rose-600' : 'text-emerald-700'}`}>
                           {v.stock} in stock
                         </div>
@@ -4982,19 +4953,9 @@ service cloud.firestore {
                           কালার / রঙের ভ্যারিয়েন্ট ({prodColors.length}টি যুক্ত আছে)
                         </label>
                         <p className="text-[10px] text-[#202522]/60">
-                          ছবি আপলোড বা অ্যাড করলেই স্বয়ংক্রিয়ভাবে কালার ডিটেক্ট হয়ে যাবে।
+                          কালার দেওয়া বাধ্যতামূলক নয়। অ্যাডমিন নিজের পছন্দমতো কালার সিলেক্ট করতে পারেন অথবা খালি রাখতে পারেন।
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAutoDetectColors()}
-                        disabled={isDetectingColors || prodImages.length === 0}
-                        className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-neutral-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 border border-amber-600/30"
-                        title="যুক্ত করা সব ছবি থেকে অটোমেটিক কালার ডিটেক্ট করে এখানে বসিয়ে দিবে"
-                      >
-                        <Sparkles className={`w-3.5 h-3.5 ${isDetectingColors ? 'animate-spin text-amber-900' : 'text-amber-950'}`} />
-                        <span>{isDetectingColors ? 'কালার ডিটেক্ট হচ্ছে...' : '⚡ ছবি থেকে অটো কালার ডিটেক্ট'}</span>
-                      </button>
                     </div>
 
                     {prodColors.length > 0 ? (
@@ -5023,27 +4984,57 @@ service cloud.firestore {
                         ))}
                       </div>
                     ) : (
-                      <div className="p-3 bg-amber-50/70 border border-dashed border-amber-300 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2 mb-2.5">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span>নিচে ছবি যুক্ত করুন—ছবি অনুযায়ী স্বয়ংক্রিয়ভাবে কালার ডিটেক্ট হয়ে যুক্ত হবে।</span>
-                        </div>
-                        {prodImages.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleAutoDetectColors()}
-                            className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded-lg text-[11px] shrink-0"
-                          >
-                            এখনই ডিটেক্ট করুন
-                          </button>
-                        )}
+                      <div className="p-3 bg-stone-50 border border-dashed border-[#E5E1D5] rounded-xl text-xs text-[#202522]/70 mb-2.5">
+                        <span>কোনো কালার সিলেক্ট করা হয়নি (কালার দেওয়া বাধ্যতামূলক নয়)। অ্যাডমিন চাইলে নিচের কালার পিকার বা কুইক চয়েস দিয়ে নিজের পছন্দের কালার যোগ করতে পারেন।</span>
                       </div>
                     )}
+
+                    {/* Quick Add Palette Chips (Optional shortcuts for Admin) */}
+                    <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+                      <span className="text-[10px] font-bold text-[#14221C]/70">কুইক কালার যুক্ত করুন:</span>
+                      {[
+                        { name: 'Black', hex: '#000000' },
+                        { name: 'White', hex: '#FFFFFF' },
+                        { name: 'Charcoal', hex: '#222522' },
+                        { name: 'Navy Blue', hex: '#1B2A4A' },
+                        { name: 'Forest Pine', hex: '#14221C' },
+                        { name: 'Maroon', hex: '#5B1E31' },
+                        { name: 'Olive Green', hex: '#3D4A3E' },
+                        { name: 'Beige', hex: '#D4C5B9' }
+                      ].map((chip) => {
+                        const exists = prodColors.some((c) => c.name.toLowerCase() === chip.name.toLowerCase());
+                        return (
+                          <button
+                            key={chip.name}
+                            type="button"
+                            onClick={() => {
+                              if (exists) {
+                                setProdColors(prodColors.filter((c) => c.name.toLowerCase() !== chip.name.toLowerCase()));
+                              } else {
+                                setProdColors([...prodColors, chip]);
+                              }
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                              exists
+                                ? 'bg-[#14221C] text-white border-[#14221C]'
+                                : 'bg-white text-[#14221C] border-[#E5E1D5] hover:border-[#14221C]'
+                            }`}
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0"
+                              style={{ backgroundColor: chip.hex }}
+                            />
+                            <span>{chip.name}</span>
+                            {exists && <span className="text-[9px]">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
 
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="ম্যানুয়ালি নতুন কালার যোগ করতে চাইলে নাম লিখুন (ঐচ্ছিক)..."
+                        placeholder="অন্য কোনো কালারের নাম লিখুন (যেমন: Crimson Red, Emerald Green)..."
                         value={newColorName}
                         onChange={(e) => setNewColorName(e.target.value)}
                         className="flex-1 px-3 py-1.5 bg-white border border-[#E5E1D5] rounded-lg text-xs"
@@ -5053,13 +5044,14 @@ service cloud.firestore {
                         value={newColorHex}
                         onChange={(e) => setNewColorHex(e.target.value)}
                         className="w-9 h-8 p-0.5 bg-white border border-[#E5E1D5] rounded-lg cursor-pointer shrink-0"
+                        title="কালার নির্বাচন করুন"
                       />
                       <button
                         type="button"
                         onClick={handleAddColor}
                         className="px-3 py-1.5 bg-[#14221C] text-white text-xs font-bold rounded-lg hover:bg-[#202522] cursor-pointer shrink-0"
                       >
-                        + Add
+                        + Add Color
                       </button>
                     </div>
                   </div>
@@ -5068,74 +5060,95 @@ service cloud.firestore {
                 {/* ESSENTIAL FIELD 4: MULTIPLE PRODUCT IMAGES */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
-                      4. Product Images ({prodImages.length} uploaded) *
-                    </label>
-                    <span className="text-[11px] text-[#202522]/50">
-                      The 1st image is the primary catalog cover
-                    </span>
+                    <div>
+                      <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
+                        4. Product Images ({prodImages.length}টি যুক্ত আছে)
+                      </label>
+                      <span className="text-[10px] text-[#202522]/60">
+                        বাধ্যতামূলক কোনো ছবি নেই — আপনি যে ছবি আপলোড করবেন বা লিংক দিবেন শুধুমাত্র সেটাই সেট থাকবে।
+                      </span>
+                    </div>
+                    {prodImages.length > 0 && (
+                      <span className="text-[11px] text-[#202522]/50 font-medium">
+                        ১ম ছবিটি স্টোরফ্রন্ট প্রাইমারি থাম্বনেইল
+                      </span>
+                    )}
                   </div>
 
                   {/* Image Thumbnails with Primary Badge & Reorder */}
-                  <div className="flex flex-wrap gap-3 p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
-                    {prodImages.map((img, idx) => (
-                      <div
-                        key={idx}
-                        className={`relative w-24 h-32 rounded-xl overflow-hidden border-2 bg-white flex flex-col justify-between group shadow-2xs ${
-                          idx === 0 ? 'border-[#14221C] ring-2 ring-[#FF762E]/20' : 'border-[#E5E1D5]'
-                        }`}
-                      >
-                        <img src={img} alt="" className="w-full h-full object-cover" />
-
-                        {/* Primary Badge */}
-                        {idx === 0 ? (
-                          <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-[#14221C] text-[#FF762E] text-[9px] font-extrabold uppercase rounded shadow-xs">
-                            Primary
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleSetPrimaryImage(idx)}
-                            className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/75 hover:bg-[#14221C] text-white text-[9px] font-bold uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  <div className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
+                    {prodImages.length > 0 ? (
+                      <div className="flex flex-wrap gap-3">
+                        {prodImages.map((img, idx) => (
+                          <div
+                            key={idx}
+                            className={`relative w-24 h-32 rounded-xl overflow-hidden border-2 bg-white flex flex-col justify-between group shadow-2xs ${
+                              idx === 0 ? 'border-[#14221C] ring-2 ring-[#FF762E]/20' : 'border-[#E5E1D5]'
+                            }`}
                           >
-                            Set Primary
-                          </button>
-                        )}
+                            <img src={img} alt="" className="w-full h-full object-cover" />
 
-                        {/* Remove Image Button */}
-                        <button
-                          type="button"
-                          onClick={() => setProdImages(prodImages.filter((_, i) => i !== idx))}
-                          className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Remove Image"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                            {/* Primary Badge */}
+                            {idx === 0 ? (
+                              <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-[#14221C] text-[#FF762E] text-[9px] font-extrabold uppercase rounded shadow-xs">
+                                Primary
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryImage(idx)}
+                                className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/75 hover:bg-[#14221C] text-white text-[9px] font-bold uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                Set Primary
+                              </button>
+                            )}
 
-                        {/* Move Left / Right Reorder Controls */}
-                        <div className="absolute bottom-1 inset-x-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded px-1 py-0.5 text-white">
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => handleMoveImage(idx, 'left')}
-                            className="disabled:opacity-20 hover:text-[#FF762E]"
-                            title="Move Earlier"
-                          >
-                            <ArrowLeft className="w-3 h-3" />
-                          </button>
-                          <span className="text-[9px] font-mono font-bold">#{idx + 1}</span>
-                          <button
-                            type="button"
-                            disabled={idx === prodImages.length - 1}
-                            onClick={() => handleMoveImage(idx, 'right')}
-                            className="disabled:opacity-20 hover:text-[#FF762E]"
-                            title="Move Later"
-                          >
-                            <ArrowRight className="w-3 h-3" />
-                          </button>
-                        </div>
+                            {/* Remove Image Button */}
+                            <button
+                              type="button"
+                              onClick={() => setProdImages(prodImages.filter((_, i) => i !== idx))}
+                              className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Remove Image"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+
+                            {/* Move Left / Right Reorder Controls */}
+                            <div className="absolute bottom-1 inset-x-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded px-1 py-0.5 text-white">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveImage(idx, 'left')}
+                                className="disabled:opacity-20 hover:text-[#FF762E]"
+                                title="Move Earlier"
+                              >
+                                <ArrowLeft className="w-3 h-3" />
+                              </button>
+                              <span className="text-[9px] font-mono font-bold">#{idx + 1}</span>
+                              <button
+                                type="button"
+                                disabled={idx === prodImages.length - 1}
+                                onClick={() => handleMoveImage(idx, 'right')}
+                                className="disabled:opacity-20 hover:text-[#FF762E]"
+                                title="Move Later"
+                              >
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <div className="py-6 px-4 text-center border-2 border-dashed border-[#E5E1D5] rounded-xl bg-white/60">
+                        <ImageIcon className="w-8 h-8 text-stone-400 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-[#14221C]">
+                          কোনো ডিফল্ট ছবি নেই — আপনি যে ছবি আপলোড বা লিংক দিবেন শুধুমাত্র সেটাই সেট থাকবে।
+                        </p>
+                        <p className="text-[11px] text-[#202522]/60 mt-1">
+                          নিচে ইমেজ URL দিন অথবা কম্পিউটার/মোবাইল থেকে সরাসরি ছবি আপলোড করুন।
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Add Image URL or File Upload */}
@@ -5183,10 +5196,9 @@ service cloud.firestore {
                         onClick={() => {
                           const updated = [...prodImages, preset.url];
                           setProdImages(updated);
-                          handleAutoDetectColors(updated);
                         }}
                         className="px-2 py-1 bg-white border border-[#E5E1D5] hover:border-[#FF762E] text-[10px] font-bold rounded-lg text-[#14221C] transition-colors cursor-pointer"
-                        title="এই স্যাম্পল ছবি যোগ করুন এবং ছবি থেকে অটো কালার ডিটেক্ট করুন"
+                        title="এই স্যাম্পল ছবি যোগ করুন"
                       >
                         + {preset.label}
                       </button>
@@ -5374,15 +5386,6 @@ service cloud.firestore {
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label className="block font-bold text-[#14221C] text-xs">Color Palette ({prodColors.length})</label>
-                          <button
-                            type="button"
-                            onClick={() => handleAutoDetectColors()}
-                            disabled={isDetectingColors || prodImages.length === 0}
-                            className="px-2.5 py-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                          >
-                            <Sparkles className="w-3 h-3" />
-                            <span>অটো কালার ডিটেক্ট</span>
-                          </button>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           {prodColors.map((c, i) => (

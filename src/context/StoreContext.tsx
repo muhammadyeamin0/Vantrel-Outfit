@@ -106,33 +106,48 @@ export function sanitizeProductSizes(prod: Product): Product {
 
   const sizes = filteredSizes.length > 0 ? filteredSizes : defaultSizes;
 
-  const colors = Array.isArray(prod.colors) && prod.colors.length > 0
-    ? prod.colors
-    : [{ name: 'Standard', hex: '#14221C' }];
+  const colors = Array.isArray(prod.colors) ? prod.colors : [];
 
   const existingVariants = Array.isArray(prod.variants) ? prod.variants : [];
   const validVariants = existingVariants.filter((v) => allowedList.includes(v.size));
   const finalVariants: ProductVariant[] = [...validVariants];
 
-  sizes.forEach((sz) => {
-    colors.forEach((col) => {
-      const match = finalVariants.find((v) => v.size === sz && v.color === col.name);
+  if (colors.length > 0) {
+    sizes.forEach((sz) => {
+      colors.forEach((col) => {
+        const match = finalVariants.find((v) => v.size === sz && v.color === col.name);
+        if (!match) {
+          finalVariants.push({
+            id: `${prod.id}-${sz.toLowerCase()}-${col.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+            size: sz,
+            color: col.name,
+            colorHex: col.hex,
+            stock: Math.max(10, Math.floor((prod.totalStock || 50) / Math.max(1, sizes.length * colors.length))),
+            sku: `${prod.sku || 'VT'}-${sz}`
+          });
+        }
+      });
+    });
+  } else {
+    sizes.forEach((sz) => {
+      const match = finalVariants.find((v) => v.size === sz);
       if (!match) {
         finalVariants.push({
-          id: `${prod.id}-${sz.toLowerCase()}-${col.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+          id: `${prod.id}-${sz.toLowerCase()}`,
           size: sz,
-          color: col.name,
-          colorHex: col.hex,
-          stock: Math.max(10, Math.floor((prod.totalStock || 50) / (sizes.length * colors.length))),
+          color: 'Standard',
+          colorHex: '#14221C',
+          stock: Math.max(10, Math.floor((prod.totalStock || 50) / Math.max(1, sizes.length))),
           sku: `${prod.sku || 'VT'}-${sz}`
         });
       }
     });
-  });
+  }
 
   return {
     ...prod,
     sizes,
+    colors,
     variants: finalVariants
   };
 }

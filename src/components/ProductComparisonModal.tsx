@@ -175,7 +175,7 @@ export const ProductComparisonModal: React.FC = () => {
                     {comparedProducts.map((p) => (
                       <td key={p.id} className="p-3">
                         <div className="flex flex-wrap gap-1.5 items-center">
-                          {p.colors.map((c) => (
+                          {(p.colors || []).map((c) => (
                             <span
                               key={c.name}
                               className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded text-[10px] text-[#202522]/80"
