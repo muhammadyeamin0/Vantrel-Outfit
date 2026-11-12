@@ -1643,14 +1643,13 @@ app.post('/api/banners-3d', (req: Request, res: Response) => {
 // STATIC ASSETS & IMAGE ROUTING (PRODUCTION & DEV)
 // ==========================================
 const publicAssetsImages = path.resolve(__dirname, 'public', 'assets', 'images');
+const publicAistudioImages = path.resolve(__dirname, 'public', 'assets', 'aistudio');
 const srcAssetsImages = path.resolve(__dirname, 'src', 'assets', 'images');
 
-// Support /assets/images statically with aggressive browser/crawler caching
+// Support /assets/images & /assets/aistudio statically with aggressive caching
 app.use('/assets/images', express.static(publicAssetsImages, { maxAge: '30d', etag: true }));
-
-// Support /src/assets/images fallback route for Googlebot and legacy indexed links
-app.use('/src/assets/images', express.static(publicAssetsImages, { maxAge: '30d', etag: true }));
-app.use('/src/assets/images', express.static(srcAssetsImages, { maxAge: '30d', etag: true }));
+app.use('/assets/aistudio', express.static(publicAistudioImages, { maxAge: '30d', etag: true }));
+app.use(express.static(path.resolve(__dirname, 'public'), { maxAge: '30d', etag: true }));
 
 app.get('/src/assets/images/:filename', (req: Request, res: Response) => {
   const filename = path.basename(req.params.filename);

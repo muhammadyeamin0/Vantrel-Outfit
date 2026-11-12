@@ -47,12 +47,12 @@ export const HomePage: React.FC = () => {
       id: 'slide-01',
       badge: '01',
       title: 'VANTREL',
-      tagline1: 'WEAR THE DIFFERENCE',
-      tagline2: 'CLOTHING BEYOND TRENDS',
-      categoryList: 'T-SHIRT / PANT / HOODIE / PANJABI',
+      tagline1: 'CHOOSE YOUR STYLE',
+      tagline2: 'WEAR THE DIFFERENCE • CLOTHING BEYOND TRENDS',
+      categoryList: 'T-SHIRT / HOODIE / PANT / SHIRT',
       ctaText: 'SHOP NOW',
       category: 'All',
-      bgImage: '/assets/images/hero_vantrel_slide1.webp'
+      bgImage: '/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.png'
     },
     {
       id: 'slide-02',
@@ -200,7 +200,7 @@ export const HomePage: React.FC = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-screen selection:bg-white selection:text-black">
       {/* 1. HERO SECTION */}
-      <section className="relative w-full h-[75vh] sm:h-[82vh] md:h-[88vh] bg-[#0E0E0E] overflow-hidden flex items-center">
+      <section className="relative w-full min-h-[78vh] sm:min-h-[84vh] md:min-h-[88vh] bg-[#0E0E0E] overflow-hidden flex items-center">
         {/* Background Image with Cinematic Darkness & Subtle Contrast Scrim */}
         <div className="absolute inset-0 z-0">
           <img
@@ -209,11 +209,11 @@ export const HomePage: React.FC = () => {
             fetchPriority={currentSlide === 0 ? "high" : "auto"}
             loading={currentSlide === 0 ? "eager" : "lazy"}
             decoding={currentSlide === 0 ? "sync" : "async"}
-            className="w-full h-full object-cover object-center transition-all duration-1000 ease-in-out scale-105"
+            className="w-full h-full object-cover object-top sm:object-center transition-all duration-1000 ease-in-out scale-105"
             referrerPolicy="no-referrer"
           />
           {/* Subtle gradient overlays for flawless legibility */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-black/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/35" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-black/40" />
         </div>
 
@@ -222,25 +222,74 @@ export const HomePage: React.FC = () => {
           {/* Top Spacing */}
           <div />
 
-          {/* Central Main Headline & CTA */}
-          <div className="max-w-2xl space-y-4 sm:space-y-6">
-            <h1 className="font-heading text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-[0.08em] text-white uppercase drop-shadow-md">
-              {activeSlide.title}
-            </h1>
+          {/* Central Main Headline & CTA with High-Quality Campaign Visual */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 my-auto">
+            <div className="max-w-2xl space-y-4 sm:space-y-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#FF762E]">
+                <span>Official Drop</span>
+                <span>•</span>
+                <span className="text-white">Be Vantrel</span>
+              </div>
 
-            <div className="space-y-1 sm:space-y-1.5 text-white/90 font-medium tracking-[0.22em] text-xs sm:text-sm md:text-base uppercase">
-              <p>{activeSlide.tagline1}</p>
-              <p>{activeSlide.tagline2}</p>
+              <h1 className="font-heading text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-[0.08em] text-white uppercase drop-shadow-md">
+                {activeSlide.title}
+              </h1>
+
+              <div className="space-y-1 sm:space-y-1.5 text-white/90 font-medium tracking-[0.22em] text-xs sm:text-sm md:text-base uppercase">
+                <p>{activeSlide.tagline1}</p>
+                <p>{activeSlide.tagline2}</p>
+              </div>
+
+              {/* Category Quick Badges matching the poster (T-SHIRT / HOODIE / PANT / SHIRT) */}
+              <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] font-bold text-white/75">
+                {['T-SHIRT', 'HOODIE', 'PANT', 'SHIRT'].map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => handleCategoryNav(item)}
+                    className="px-3 py-1 bg-black/50 hover:bg-white hover:text-black border border-white/25 rounded-md transition-all cursor-pointer backdrop-blur-sm"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+
+              <div className="pt-2 sm:pt-4">
+                <button
+                  onClick={() => handleCategoryNav(activeSlide.category)}
+                  className="inline-flex items-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-white text-black hover:bg-neutral-200 text-xs sm:text-sm font-black tracking-[0.2em] uppercase transition-all duration-200 shadow-xl cursor-pointer group"
+                >
+                  <span>{activeSlide.ctaText}</span>
+                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                </button>
+              </div>
             </div>
 
-            <div className="pt-2 sm:pt-4">
-              <button
-                onClick={() => handleCategoryNav(activeSlide.category)}
-                className="inline-flex items-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-white text-black hover:bg-neutral-200 text-xs sm:text-sm font-black tracking-[0.2em] uppercase transition-all duration-200 shadow-xl cursor-pointer group"
+            {/* High-Resolution Campaign Feature Card (Showcases the user's uploaded high-res image with uncompromised clarity) */}
+            <div className="hidden lg:flex items-center justify-end shrink-0 py-2">
+              <div
+                onClick={() => handleCategoryNav('All')}
+                className="relative group cursor-pointer rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl transition-all duration-500 hover:scale-[1.03] hover:border-white/50 h-[50vh] xl:h-[58vh] aspect-[941/1672] bg-neutral-900 ring-1 ring-white/10"
               >
-                <span>{activeSlide.ctaText}</span>
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </button>
+                <img
+                  src="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.png"
+                  alt="VANTREL Choose Your Style - Official High Quality Campaign"
+                  className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                  fetchPriority="high"
+                  loading="eager"
+                  decoding="sync"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                  <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1.5">
+                    <span>Shop Look Now</span>
+                    <span className="text-[#FF762E]">→</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-300">Wear The Difference</span>
+                </div>
+                <div className="absolute top-2.5 right-2.5 px-2 py-0.5 bg-black/75 backdrop-blur-md border border-white/20 rounded text-[9px] font-bold text-white uppercase tracking-wider">
+                  HD Campaign
+                </div>
+              </div>
             </div>
           </div>
 
