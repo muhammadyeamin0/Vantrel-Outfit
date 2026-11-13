@@ -95,11 +95,11 @@ export const ShopPage: React.FC = () => {
         // Search Query
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const matchName = product.name.toLowerCase().includes(q);
-          const matchDesc = product.description.toLowerCase().includes(q);
-          const matchSku = product.sku.toLowerCase().includes(q);
-          const matchCategory = product.category.toLowerCase().includes(q);
-          const matchTags = product.tags.some((t) => t.toLowerCase().includes(q));
+          const matchName = (product.name || '').toLowerCase().includes(q);
+          const matchDesc = (product.description || '').toLowerCase().includes(q);
+          const matchSku = (product.sku || '').toLowerCase().includes(q);
+          const matchCategory = (product.category || '').toLowerCase().includes(q);
+          const matchTags = (product.tags || []).some((t) => t.toLowerCase().includes(q));
           if (!matchName && !matchDesc && !matchSku && !matchCategory && !matchTags) {
             return false;
           }

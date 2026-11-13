@@ -6,8 +6,9 @@ import compression from 'compression';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import {
-  INITIAL_PRODUCTS,
   INITIAL_ORDERS,
   INITIAL_COUPONS,
   INITIAL_SETTINGS,
@@ -45,11 +46,18 @@ const isProduction = process.env.NODE_ENV === 'production';
 // Enable gzip/brotli compression for all requests (reduces payload by 70%+)
 app.use(compression());
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// In-Memory Persistent Database
-let products: Product[] = [...INITIAL_PRODUCTS];
+const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
+  'prod-001', 'prod-002', 'prod-003', 'prod-004', 'prod-005',
+  'prod-006', 'prod-007', 'prod-008', 'prod-009', 'prod-010',
+  'prod-011', 'prod-012', 'prod-013', 'prod-014', 'prod-015',
+  'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
+]);
+
+// In-Memory Persistent Database (strictly Admin-managed / Firestore-synced; NEVER auto-seeded with primary products)
+let products: Product[] = [];
 let orders: Order[] = [...INITIAL_ORDERS];
 
 const PRODUCTS_PERSIST_FILE = path.resolve(__dirname, 'data', 'products_store.json');
@@ -67,19 +75,58 @@ function loadProductsFromDisk() {
     if (fs.existsSync(PRODUCTS_PERSIST_FILE)) {
       const content = fs.readFileSync(PRODUCTS_PERSIST_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        products = parsed;
-        console.log(`[VANTREL ENGINE] Successfully loaded ${products.length} persistent products from disk.`);
+      if (Array.isArray(parsed)) {
+        products = parsed.filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id));
+        console.log(`[VANTREL ENGINE] Loaded ${products.length} persistent products from disk.`);
         return;
       }
     }
-    // If no custom disk file exists yet, save INITIAL_PRODUCTS to disk
+    products = [];
     saveProductsToDisk();
   } catch (e) {
     console.warn('Products disk load warning:', e);
   }
 }
 loadProductsFromDisk();
+
+async function syncProductsFromFirestore() {
+  try {
+    const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
+    if (!fs.existsSync(configPath)) return;
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    const firestoreDb = firebaseConfig.firestoreDatabaseId
+      ? getFirestore(fbApp, firebaseConfig.firestoreDatabaseId)
+      : getFirestore(fbApp);
+
+    const snapshot = await getDocs(collection(firestoreDb, 'products'));
+    const remoteProducts: Product[] = [];
+    snapshot.forEach((docSnap) => {
+      if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+      const data = docSnap.data() as Product;
+      remoteProducts.push({
+        ...data,
+        id: docSnap.id,
+        isArchived: Boolean(data.isArchived || data.status === 'archived')
+      });
+    });
+
+    remoteProducts.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+        return a.sortOrder - b.sortOrder;
+      }
+      return 0;
+    });
+
+    products = remoteProducts;
+    saveProductsToDisk();
+    console.log(`[VANTREL ENGINE] Synced ${products.length} admin products from Firebase Firestore.`);
+  } catch (err) {
+    console.warn('[VANTREL ENGINE] Firestore startup sync notice (keeping disk cache):', err);
+  }
+}
 
 const ORDERS_PERSIST_FILE = path.resolve(__dirname, 'data', 'orders_store.json');
 function saveOrdersToDisk() {
@@ -799,6 +846,14 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
   saveProductsToDisk();
   recordAudit('Admin Staff', 'Product Moderator', 'Product Updated', `Updated product: ${products[idx].name}`);
   res.json({ success: true, data: products[idx] });
+});
+
+app.delete('/api/products', (_req: Request, res: Response) => {
+  const previousCount = products.length;
+  products = [];
+  saveProductsToDisk();
+  recordAudit('Super Admin', 'Super Admin', 'All Products Deleted', `Cleared ${previousCount} products from server memory and disk`);
+  res.json({ success: true, message: 'All products deleted from server memory and disk', deletedCount: previousCount });
 });
 
 app.delete('/api/products/:id', (req: Request, res: Response) => {
@@ -1772,25 +1827,27 @@ app.get('/sitemap.xml', (req: Request, res: Response) => {
     { loc: `${baseUrl}/track`, priority: '0.7', changefreq: 'monthly' }
   ];
 
-  const productUrls = products.map((prod) => {
-    const rawImg = prod.images && prod.images[0] ? prod.images[0] : '';
-    const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
-    const price = prod.discountPrice || prod.regularPrice;
-    const cleanName = (prod.name || 'Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const cleanDesc = (prod.tagline || prod.description || prod.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const productUrls = products
+    .filter((prod) => !prod.isArchived && prod.status !== 'archived')
+    .map((prod) => {
+      const rawImg = prod.images && prod.images[0] ? prod.images[0] : '';
+      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
+      const price = prod.discountPrice || prod.regularPrice;
+      const cleanName = (prod.name || 'Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const cleanDesc = (prod.tagline || prod.description || prod.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    return `  <url>
+      return `  <url>
     <loc>${baseUrl}/product/${prod.slug || prod.id}</loc>
     <lastmod>${prod.createdDate ? new Date(prod.createdDate).toISOString() : now}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
-    ${rawImg ? `<image:image>
+    ${imgUrl ? `<image:image>
       <image:loc>${imgUrl}</image:loc>
       <image:title>${cleanName}</image:title>
       <image:caption>${cleanDesc} - Price: ৳${price} BDT</image:caption>
     </image:image>` : ''}
   </url>`;
-  }).join('\n');
+    }).join('\n');
 
   const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
@@ -1812,27 +1869,29 @@ app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
   const baseUrl = `${protocol}://${host}`;
 
-  const feed = products.map((p) => {
-    const rawImg = p.images && p.images[0] ? p.images[0] : '';
-    const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
-    return {
-      id: p.id,
-      title: p.name,
-      description: p.description || p.tagline,
-      availability: (p.totalStock > 0) ? 'in stock' : 'out of stock',
-      price: `${p.discountPrice || p.regularPrice} BDT`,
-      regular_price: `${p.regularPrice} BDT`,
-      sale_price: p.discountPrice ? `${p.discountPrice} BDT` : undefined,
-      link: `${baseUrl}/product/${p.slug || p.id}`,
-      image_link: imgUrl,
-      additional_image_links: p.images?.slice(1).map((img) => img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`),
-      brand: 'VANTREL OUTFIT',
-      category: p.category,
-      sizes: p.sizes,
-      colors: p.colors?.map((c) => c.name),
-      condition: 'new'
-    };
-  });
+  const feed = products
+    .filter((p) => !p.isArchived && p.status !== 'archived')
+    .map((p) => {
+      const rawImg = p.images && p.images[0] ? p.images[0] : '';
+      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
+      return {
+        id: p.id,
+        title: p.name,
+        description: p.description || p.tagline,
+        availability: (p.totalStock > 0) ? 'in stock' : 'out of stock',
+        price: `${p.discountPrice || p.regularPrice} BDT`,
+        regular_price: `${p.regularPrice} BDT`,
+        sale_price: p.discountPrice ? `${p.discountPrice} BDT` : undefined,
+        link: `${baseUrl}/product/${p.slug || p.id}`,
+        image_link: imgUrl,
+        additional_image_links: p.images?.slice(1).map((img) => img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`),
+        brand: 'VANTREL OUTFIT',
+        category: p.category,
+        sizes: p.sizes,
+        colors: p.colors?.map((c) => c.name),
+        condition: 'new'
+      };
+    });
 
   res.json({
     store: 'VANTREL OUTFIT',
@@ -1850,32 +1909,31 @@ app.get('/api/public/google-product-feed.xml', (req: Request, res: Response) => 
   const baseUrl = `${protocol}://${host}`;
 
   const itemsXml = products
-    .filter((p) => !p.isArchived)
+    .filter((p) => !p.isArchived && p.status !== 'archived')
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
-      const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
-      const effectivePrice = p.discountPrice || p.regularPrice;
+      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
       const cleanTitle = (p.name || 'VANTREL Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const cleanDesc = (p.description || p.tagline || p.name || 'Premium fashion by VANTREL OUTFIT Bangladesh.').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const availability = p.totalStock > 0 ? 'in_stock' : 'out_of_stock';
       const sizeStr = Array.isArray(p.sizes) ? p.sizes.join('/') : 'M';
-      const colorStr = Array.isArray(p.colors) && p.colors.length > 0 ? p.colors.map((c) => c.name).join('/') : 'Black';
+      const colorStr = Array.isArray(p.colors) && p.colors.length > 0 ? p.colors.map((c) => c.name).join('/') : '';
 
       return `    <item>
       <g:id>${p.id}</g:id>
       <g:title>${cleanTitle}</g:title>
       <g:description>${cleanDesc}</g:description>
       <g:link>${baseUrl}/product/${p.slug || p.id}</g:link>
-      <g:image_link>${imgUrl}</g:image_link>
+      ${imgUrl ? `<g:image_link>${imgUrl}</g:image_link>` : ''}
       <g:condition>new</g:condition>
       <g:availability>${availability}</g:availability>
       <g:price>${p.regularPrice} BDT</g:price>
       ${p.discountPrice ? `<g:sale_price>${p.discountPrice} BDT</g:sale_price>` : ''}
       <g:brand>VANTREL OUTFIT</g:brand>
-      <g:product_type>${p.category || 'Apparel &amp; Accessories'}</g:product_type>
+      <g:product_type>${(p.category || 'Apparel & Accessories').replace(/&/g, '&amp;')}</g:product_type>
       <g:google_product_category>1604</g:google_product_category>
       <g:size>${sizeStr}</g:size>
-      <g:color>${colorStr}</g:color>
+      ${colorStr ? `<g:color>${colorStr}</g:color>` : ''}
       <g:shipping>
         <g:country>BD</g:country>
         <g:service>Standard Nationwide</g:service>
@@ -1920,10 +1978,10 @@ app.get('/api/public/meta-catalog.csv', (req: Request, res: Response) => {
   ];
 
   const rows = products
-    .filter((p) => !p.isArchived)
+    .filter((p) => !p.isArchived && p.status !== 'archived')
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
-      const imgUrl = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
       const avail = p.totalStock > 0 ? 'in stock' : 'out of stock';
       const cleanTitle = `"${(p.name || '').replace(/"/g, '""')}"`;
       const cleanDesc = `"${(p.description || p.tagline || p.name || '').replace(/"/g, '""')}"`;
@@ -2042,6 +2100,12 @@ app.get('*', (req: Request, res: Response, next) => {
 // VITE DEV SERVER OR PRODUCTION SERVING
 // ==========================================
 async function startServer() {
+  // Always hydrate latest Admin products from Firebase Firestore on server startup
+  await syncProductsFromFirestore();
+  setInterval(() => {
+    syncProductsFromFirestore().catch(() => {});
+  }, 5 * 60 * 1000);
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

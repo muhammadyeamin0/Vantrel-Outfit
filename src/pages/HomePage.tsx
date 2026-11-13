@@ -173,8 +173,9 @@ export const HomePage: React.FC = () => {
   const handleQuickBuyNow = (e: React.MouseEvent, item: (typeof popularItems)[0]) => {
     e.stopPropagation();
     const realProduct = item.rawProduct || products.find((p) => p.id === item.id) || products[0];
+    if (!realProduct) return;
     const swatchIdx = selectedSwatches[item.id] || 0;
-    const selectedColorName = realProduct.colors[swatchIdx]?.name || realProduct.colors[0]?.name || 'Standard';
+    const selectedColorName = realProduct.colors?.[swatchIdx]?.name || realProduct.colors?.[0]?.name || 'Standard';
     const defaultSize = realProduct.sizes?.includes('M') ? 'M' : realProduct.sizes?.[0] || 'M';
 
     buyNow(realProduct, defaultSize, selectedColorName, 1);
@@ -182,10 +183,11 @@ export const HomePage: React.FC = () => {
 
   const handleQuickAddToCart = (e: React.MouseEvent, item: (typeof popularItems)[0]) => {
     e.stopPropagation();
-    setAddingId(item.id);
     const realProduct = item.rawProduct || products.find((p) => p.id === item.id) || products[0];
+    if (!realProduct) return;
+    setAddingId(item.id);
     const swatchIdx = selectedSwatches[item.id] || 0;
-    const selectedColorName = realProduct.colors[swatchIdx]?.name || realProduct.colors[0]?.name || 'Standard';
+    const selectedColorName = realProduct.colors?.[swatchIdx]?.name || realProduct.colors?.[0]?.name || 'Standard';
     const defaultSize = realProduct.sizes?.includes('M') ? 'M' : realProduct.sizes?.[0] || 'M';
 
     addToCart(realProduct, defaultSize, selectedColorName, 1, false);

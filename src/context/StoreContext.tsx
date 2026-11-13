@@ -26,7 +26,6 @@ import {
   WhatsAppLog
 } from '../types';
 import {
-  INITIAL_PRODUCTS,
   INITIAL_COUPONS,
   INITIAL_SETTINGS,
   INITIAL_CUSTOMERS,
@@ -87,6 +86,13 @@ export const ALLOWED_SIZES = [
   '28', '29', '30', '31', '32', '33', '34', '36', '38',
   'S', 'M', 'L', 'XL', 'XXL', '3XL'
 ] as const;
+
+const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
+  'prod-001', 'prod-002', 'prod-003', 'prod-004', 'prod-005',
+  'prod-006', 'prod-007', 'prod-008', 'prod-009', 'prod-010',
+  'prod-011', 'prod-012', 'prod-013', 'prod-014', 'prod-015',
+  'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
+]);
 
 export function sanitizeProductSizes(prod: Product): Product {
   if (!prod) return prod;
@@ -283,7 +289,6 @@ export interface StoreContextType {
   restoreProduct: (id: string) => void;
   permanentlyDeleteProduct: (id: string) => void;
   deleteAllProducts: () => void;
-  resetDefaultProducts: () => void;
   duplicateProduct: (id: string) => void;
   moveProductUp: (id: string) => void;
   moveProductDown: (id: string) => void;
@@ -558,20 +563,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register' | 'otp' | 'forgot'>('login');
 
-  // Products
+  // Products (strictly from Admin Panel / Firestore — never auto-seeded with primary products)
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('vt_products_v4');
     if (saved) {
       try {
         const parsed: Product[] = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map(sanitizeProductSizes);
+          return parsed
+            .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+            .map(sanitizeProductSizes);
         }
       } catch {
-        return INITIAL_PRODUCTS.map(sanitizeProductSizes);
+        return [];
       }
     }
-    return INITIAL_PRODUCTS.map(sanitizeProductSizes);
+    return [];
   });
 
   // Categories
@@ -641,7 +648,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return [];
       }
     }
-    return ['prod-001'];
+    return [];
   });
 
   // Product Comparison (max 4)
@@ -858,7 +865,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Persist State to LocalStorage
   useEffect(() => {
-    localStorage.setItem('vt_products_v4', JSON.stringify(products));
+    try {
+      localStorage.setItem('vt_products_v4', JSON.stringify(products));
+    } catch (err) {
+      console.warn('Products localStorage cache warning:', err);
+    }
   }, [products]);
 
   useEffect(() => {
@@ -968,7 +979,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Real-time Firestore Products Sync for Shop Page & Admin Dashboard across Mobile & Laptop
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !db) return;
+    let isMounted = true;
+    let hasFirestoreSnapshot = false;
+
+    const mergeDynamicCategories = (loadedProducts: Product[]) => {
+      if (loadedProducts.length === 0) return;
+      setCategories((prevCats) => {
+        const existingLower = new Set(prevCats.map((c) => c.toLowerCase()));
+        const additions: ProductCategory[] = [];
+        loadedProducts.forEach((p) => {
+          const cat = (p.category || '').trim();
+          if (cat && !existingLower.has(cat.toLowerCase())) {
+            existingLower.add(cat.toLowerCase());
+            additions.push(cat);
+          }
+        });
+        return additions.length > 0 ? [...prevCats, ...additions] : prevCats;
+      });
+    };
+
+    const hydrateFromServerFallback = async () => {
+      try {
+        const res = await fetch('/api/products');
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && isMounted && !hasFirestoreSnapshot) {
+          const serverProducts = (json.data as Product[])
+            .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+            .map((p) =>
+              sanitizeProductSizes({
+                ...p,
+                isArchived: Boolean(p.isArchived || p.status === 'archived')
+              })
+            );
+          setProducts(serverProducts);
+          mergeDynamicCategories(serverProducts);
+        }
+      } catch (err) {
+        console.warn('Server products fallback load notice:', err);
+      }
+    };
+
+    if (!IS_GOOGLE_CLOUD_CONNECTED || !db) {
+      hydrateFromServerFallback();
+      return () => {
+        isMounted = false;
+      };
+    }
 
     // Detect bots/crawlers (Googlebot, Lighthouse, Google-InspectionTool, bingbot, etc.)
     const isBot =
@@ -983,56 +1040,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (isBot) {
       getDocs(productsCol)
         .then((snapshot) => {
-          if (!snapshot.empty) {
-            const remoteProducts: Product[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as Product;
-              remoteProducts.push(
-                sanitizeProductSizes({
-                  ...data,
-                  id: docSnap.id,
-                  isArchived: Boolean(data.isArchived || data.status === 'archived')
-                })
-              );
-            });
-            if (remoteProducts.length > 0) {
-              setProducts(remoteProducts);
-            }
-          }
+          if (!isMounted) return;
+          const remoteProducts: Product[] = [];
+          snapshot.forEach((docSnap) => {
+            if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+            const data = docSnap.data() as Product;
+            remoteProducts.push(
+              sanitizeProductSizes({
+                ...data,
+                id: docSnap.id,
+                isArchived: Boolean(data.isArchived || data.status === 'archived')
+              })
+            );
+          });
+          setProducts(remoteProducts);
+          mergeDynamicCategories(remoteProducts);
         })
         .catch((err) => {
           console.warn('Bot products load notice:', err);
+          hydrateFromServerFallback();
         });
-      return;
+      return () => {
+        isMounted = false;
+      };
     }
+
+    // Fast initial hydration from server disk while Firestore listener connects
+    hydrateFromServerFallback();
 
     const unsubscribe = onSnapshot(
       productsCol,
-      async (snapshot) => {
+      (snapshot) => {
+        if (!isMounted) return;
+        hasFirestoreSnapshot = true;
+
         if (snapshot.empty) {
-          // If Firestore is empty, seed initial catalog to cloud so all devices share the same live catalog
-          console.info('Firestore products collection empty. Seeding catalog to cloud...');
-          try {
-            const batch = writeBatch(db);
-            INITIAL_PRODUCTS.forEach((p, idx) => {
-              const pRef = doc(db, 'products', p.id);
-              batch.set(pRef, sanitizeFirestoreData({
-                ...p,
-                isArchived: false,
-                sortOrder: idx,
-                updatedAt: new Date().toISOString()
-              }));
-            });
-            await batch.commit();
-          } catch (seedErr) {
-            console.warn('Initial cloud catalog seed notice:', seedErr);
-          }
+          // Never auto-seed primary or default products — only Admin-added products belong in the store
+          setProducts([]);
           return;
         }
 
-        // Live real-time documents from Firestore
+        // Live real-time documents from Firestore (filtering out any legacy primary IDs if ever present)
         const remoteProducts: Product[] = [];
         snapshot.forEach((docSnap) => {
+          if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
           const data = docSnap.data() as Product;
           const cleanProd = sanitizeProductSizes({
             ...data,
@@ -1052,15 +1103,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return 0;
         });
 
-        // Instant update: Automatically propagates to ShopPage, AdminDashboard, and all components without refresh!
         setProducts(remoteProducts);
+        mergeDynamicCategories(remoteProducts);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'products');
+        console.error('Firestore products onSnapshot error:', error);
+        if (!hasFirestoreSnapshot) {
+          hydrateFromServerFallback();
+        }
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   // Continuous 100% Guaranteed Orders Synchronization with Server Backend & Firestore
@@ -1738,7 +1795,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
   // Product Actions (Direct Real-time Sync to Firebase Firestore)
   const addProduct = async (newProd: Omit<Product, 'id' | 'createdDate'>) => {
-    const id = `prod-${Date.now().toString().slice(-4)}`;
+    const id = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const product: Product = sanitizeProductSizes({
       ...newProd,
       id,
@@ -1749,6 +1806,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     });
     // Optimistic local update
     setProducts((prev) => [product, ...prev]);
+    if (product.category?.trim()) {
+      setCategories((prev) =>
+        prev.some((c) => c.toLowerCase() === product.category.trim().toLowerCase())
+          ? prev
+          : [...prev, product.category.trim()]
+      );
+    }
 
     // Save directly to Firebase Firestore
     try {
@@ -1779,9 +1843,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   const updateProduct = async (id: string, updated: Partial<Product>) => {
     const cleanUpdated = { ...updated };
     if (Array.isArray(cleanUpdated.sizes)) {
-      const allowed = ['M', 'L', 'XL', 'XXL'];
+      const allowed = ALLOWED_SIZES as readonly string[];
       const filtered = cleanUpdated.sizes.filter((s) => allowed.includes(s));
-      cleanUpdated.sizes = filtered.length > 0 ? filtered : ['M', 'L', 'XL', 'XXL'];
+      if (filtered.length > 0) {
+        cleanUpdated.sizes = filtered;
+      } else {
+        delete cleanUpdated.sizes;
+      }
     }
 
     // Optimistic local update
@@ -1820,7 +1888,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     if (!target) return;
     const duplicated: Product = {
       ...target,
-      id: `prod-${Date.now().toString().slice(-4)}`,
+      id: `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: `${target.name} (Copy)`,
       sku: `${target.sku}-CPY`,
       slug: `${target.slug}-copy-${Date.now().toString().slice(-3)}`,
@@ -1965,44 +2033,27 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     if (db && idsToDelete.length > 0) {
       try {
-        const batch = writeBatch(db);
-        idsToDelete.forEach((id) => {
-          batch.delete(doc(db, 'products', id));
-        });
-        await batch.commit();
+        for (let i = 0; i < idsToDelete.length; i += 450) {
+          const chunk = idsToDelete.slice(i, i + 450);
+          const batch = writeBatch(db);
+          chunk.forEach((id) => {
+            batch.delete(doc(db, 'products', id));
+          });
+          await batch.commit();
+        }
       } catch (e) {
         console.warn('Firestore delete all warning:', e);
       }
     }
 
-    addAuditLog('PRODUCT_DELETE_ALL', 'Deleted all products from catalog');
-    showToast('All Products Deleted', 'Catalog is now empty. You can add new products anytime.', 'info');
-  };
-
-  const resetDefaultProducts = async () => {
-    setProducts(INITIAL_PRODUCTS);
-
-    // Sync INITIAL_PRODUCTS to Firebase Firestore
     try {
-      if (db) {
-        const batch = writeBatch(db);
-        INITIAL_PRODUCTS.forEach((prod, idx) => {
-          const payload = sanitizeFirestoreData({
-            ...prod,
-            isArchived: false,
-            sortOrder: idx,
-            updatedAt: new Date().toISOString()
-          });
-          batch.set(doc(db, 'products', prod.id), payload);
-        });
-        await batch.commit();
-      }
+      await fetch('/api/products', { method: 'DELETE' });
     } catch (e) {
-      console.warn('Firestore reset products warning:', e);
+      console.warn('Server delete all products warning:', e);
     }
 
-    addAuditLog('PRODUCT_RESET', 'Reset catalog to default products');
-    showToast('Products Reset', 'Sample products restored successfully in Firebase.', 'success');
+    addAuditLog('PRODUCT_DELETE_ALL', 'Deleted all products from catalog');
+    showToast('All Products Deleted', 'Catalog is now empty. You can add new products anytime.', 'info');
   };
 
   const moveProductUp = async (id: string) => {
@@ -2144,13 +2195,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const getProductById = (id: string) => {
-    if (!id) return products[0] || INITIAL_PRODUCTS[0];
+    if (!id) return products[0];
     return (
       products.find((p) => p.id === id) ||
-      INITIAL_PRODUCTS.find((p) => p.id === id) ||
       products.find((p) => p.slug === id) ||
-      products[0] ||
-      INITIAL_PRODUCTS[0]
+      products[0]
     );
   };
   const getProductBySlug = (slug: string) => products.find((p) => p.slug === slug);
@@ -3656,7 +3705,6 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         restoreProduct,
         permanentlyDeleteProduct,
         deleteAllProducts,
-        resetDefaultProducts,
         duplicateProduct,
         moveProductUp,
         moveProductDown,

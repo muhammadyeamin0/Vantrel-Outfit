@@ -68,7 +68,6 @@ export const AdminDashboard: React.FC = () => {
     restoreProduct,
     permanentlyDeleteProduct,
     deleteAllProducts,
-    resetDefaultProducts,
     duplicateProduct,
     moveProductUp,
     moveProductDown,
@@ -216,6 +215,7 @@ export const AdminDashboard: React.FC = () => {
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('All');
   const [productStatusFilter, setProductStatusFilter] = useState<string>('All');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [confirmDeleteAllProducts, setConfirmDeleteAllProducts] = useState<boolean>(false);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
 
   // Order Detail Inspection Modal
@@ -1683,26 +1683,36 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {products.length > 0 ? (
-                  <button
-                    onClick={() => {
-                      deleteAllProducts();
-                    }}
-                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                    title="Delete All Products from catalog"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                    <span>সব প্রোডাক্ট ডিলিট করুন</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={resetDefaultProducts}
-                    className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                    title="Restore sample products"
-                  >
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>স্যাম্পল প্রোডাক্ট রিস্টোর করুন</span>
-                  </button>
+                {products.length > 0 && (
+                  confirmDeleteAllProducts ? (
+                    <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 px-2.5 py-1.5 rounded-xl">
+                      <span className="text-[11px] font-bold text-rose-800">সব {products.length}টি ডিলিট করবেন?</span>
+                      <button
+                        onClick={() => {
+                          deleteAllProducts();
+                          setConfirmDeleteAllProducts(false);
+                        }}
+                        className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        হ্যাঁ, ডিলিট করুন
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteAllProducts(false)}
+                        className="px-2 py-1 bg-white hover:bg-stone-100 border border-stone-300 text-[#14221C] text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                      >
+                        না
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteAllProducts(true)}
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Delete All Products from catalog"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>সব প্রোডাক্ট ডিলিট করুন</span>
+                    </button>
+                  )
                 )}
 
                 <button

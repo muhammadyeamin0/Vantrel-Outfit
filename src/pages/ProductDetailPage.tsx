@@ -35,7 +35,8 @@ export const ProductDetailPage: React.FC = () => {
     showToast
   } = useStore();
 
-  const product = getProductById(selectedProductId || 'prod-001');
+  const targetProductId = selectedProductId || products[0]?.id || '';
+  const product = targetProductId ? getProductById(targetProductId) : undefined;
 
   // Fallback if product not found
   if (!product) {
