@@ -202,7 +202,7 @@ export const HomePage: React.FC = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-screen selection:bg-white selection:text-black">
       {/* 1. HERO SECTION */}
-      <section className="relative w-full min-h-[78vh] sm:min-h-[84vh] md:min-h-[88vh] bg-[#0E0E0E] overflow-hidden flex items-center">
+      <section className="relative w-full min-h-[78vh] sm:min-h-[84vh] md:min-h-[88vh] bg-[#0E0E0E] overflow-hidden flex items-end">
         {/* Background Image with Cinematic Darkness & Subtle Contrast Scrim */}
         <div className="absolute inset-0 z-0">
           <img
@@ -220,13 +220,13 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Content Overlay */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 w-full flex flex-col justify-between h-full pt-16 pb-12">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 w-full flex flex-col justify-end pt-32 sm:pt-44 md:pt-52 pb-10 sm:pb-12">
           {/* Top Spacing */}
           <div />
 
           {/* Central Main Headline & CTA with High-Quality Campaign Visual */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 my-auto">
-            <div className="max-w-2xl space-y-4 sm:space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mt-auto">
+            <div className="max-w-2xl space-y-4 sm:space-y-6 pt-10 sm:pt-14 md:pt-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#FF762E]">
                 <span>Official Drop</span>
                 <span>•</span>
