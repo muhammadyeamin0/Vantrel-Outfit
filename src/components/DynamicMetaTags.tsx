@@ -10,12 +10,14 @@ import { PageRoute } from '../context/StoreContext';
 export const DynamicMetaTags: React.FC = () => {
   const { currentPage, setCurrentPage, selectedProductId, openProductDetail, products } = useStore();
 
-  // On first mount, parse incoming URL parameters (?product= or ?page=) for shared link resolution
+  // On first mount, parse incoming URL parameters (/product/:slug or ?product= or ?page=) for shared link resolution
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const params = new URLSearchParams(window.location.search);
-      const prodParam = params.get('product');
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      const pathProdParam = pathParts[0] === 'product' && pathParts[1] ? decodeURIComponent(pathParts[1]) : null;
+      const prodParam = params.get('product') || params.get('productId') || pathProdParam;
       const pageParam = params.get('page') as PageRoute | null;
 
       if (prodParam) {
@@ -94,19 +96,23 @@ export const DynamicMetaTags: React.FC = () => {
     let productInStock = true;
 
     if (currentPage === 'product-detail' && activeProduct) {
-      title = `${activeProduct.name} | VANTREL Bangladesh`;
-      const priceText = `৳${(activeProduct.discountPrice ?? activeProduct.regularPrice).toLocaleString()}`;
+      const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
+      const priceText = `৳${effectivePrice.toLocaleString()}`;
       const fabricSnippet = activeProduct.fabric ? ` | ${activeProduct.fabric}` : '';
-      description = `Buy ${activeProduct.name} at ${priceText}${fabricSnippet}. Fast nationwide delivery with Cash on Delivery across Bangladesh.`;
+      title = `${activeProduct.name} - ${priceText} | VANTREL OUTFIT`;
+      description =
+        activeProduct.description ||
+        activeProduct.tagline ||
+        `Buy ${activeProduct.name} at ${priceText}${fabricSnippet}. Official VANTREL OUTFIT apparel with Cash on Delivery across Bangladesh.`;
 
       if (activeProduct.images && activeProduct.images.length > 0) {
         const rawImg = activeProduct.images[0];
         imageUrl = rawImg.startsWith('http') ? rawImg : `${origin}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
       }
-      imageAlt = `${activeProduct.name} - VANTREL Premium Streetwear`;
+      imageAlt = `${activeProduct.name} - VANTREL OUTFIT`;
       ogType = 'product';
-      canonicalUrl = `${origin}/?product=${encodeURIComponent(activeProduct.id)}`;
-      productPrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
+      canonicalUrl = `${origin}/product/${encodeURIComponent(activeProduct.slug || activeProduct.id)}`;
+      productPrice = effectivePrice;
       productInStock = (activeProduct.totalStock ?? 1) > 0;
     } else {
       switch (currentPage) {
@@ -265,15 +271,21 @@ export const DynamicMetaTags: React.FC = () => {
     }
 
     if (ogType === 'product' && activeProduct) {
-      const productSchema = {
-        '@context': 'https://schema.org',
+      const resolvedImages = (activeProduct.images || [])
+        .filter((img) => Boolean(img && typeof img === 'string'))
+        .map((img) => (img.startsWith('http') ? img : `${origin}${img.startsWith('/') ? '' : '/'}${img}`));
+
+      const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
+      const productSchema: Record<string, unknown> = {
+        '@context': 'https://schema.org/',
         '@type': 'Product',
+        '@id': `${canonicalUrl}#product`,
         name: activeProduct.name,
-        image: activeProduct.images.map((img) =>
-          img.startsWith('http') ? img : `${origin}${img.startsWith('/') ? '' : '/'}${img}`
-        ),
-        description: activeProduct.description || activeProduct.tagline,
-        sku: activeProduct.sku,
+        url: canonicalUrl,
+        image: resolvedImages.length > 0 ? resolvedImages : [imageUrl],
+        description: (activeProduct.description || activeProduct.tagline || activeProduct.name || '').trim(),
+        sku: activeProduct.sku || activeProduct.id,
+        mpn: activeProduct.sku || activeProduct.id,
         category: activeProduct.category,
         brand: {
           '@type': 'Brand',
@@ -283,7 +295,8 @@ export const DynamicMetaTags: React.FC = () => {
           '@type': 'Offer',
           url: canonicalUrl,
           priceCurrency: 'BDT',
-          price: activeProduct.discountPrice ?? activeProduct.regularPrice,
+          price: String(effectivePrice),
+          priceValidUntil: '2027-12-31',
           itemCondition: 'https://schema.org/NewCondition',
           availability: productInStock
             ? 'https://schema.org/InStock'
@@ -294,6 +307,15 @@ export const DynamicMetaTags: React.FC = () => {
           }
         }
       };
+
+      if (activeProduct.reviewCount > 0 && activeProduct.rating > 0) {
+        productSchema.aggregateRating = {
+          '@type': 'AggregateRating',
+          ratingValue: String(activeProduct.rating),
+          reviewCount: String(activeProduct.reviewCount)
+        };
+      }
+
       schemaScript.textContent = JSON.stringify(productSchema);
     } else {
       const storeSchema = {

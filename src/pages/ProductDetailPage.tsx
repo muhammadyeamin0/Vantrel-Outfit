@@ -88,60 +88,12 @@ export const ProductDetailPage: React.FC = () => {
   const hasDiscount = product.discountPrice && product.discountPrice < product.regularPrice;
   const inWishlist = isInWishlist(product.id);
 
-  // Dynamic Schema.org & OpenGraph structured data for Google, Meta, Gemini, and AI scrapers
+  // Structured Data (JSON-LD Product Schema), title, and OpenGraph tags are managed centrally by DynamicMetaTags.tsx
   useEffect(() => {
-    if (!product) return;
-
-    const host = typeof window !== 'undefined' ? window.location.origin : 'https://www.vantreloutfit.shop';
-    const currentUrl = `${host}/product/${product.slug || product.id}`;
-    const firstImg = product.images?.[0] || '/assets/images/vantrel-logo.png';
-    const absImg = firstImg.startsWith('http') ? firstImg : `${host}${firstImg.startsWith('/') ? '' : '/'}${firstImg}`;
-
-    const productSchema = {
-      '@context': 'https://schema.org/',
-      '@type': 'Product',
-      name: product.name,
-      image: product.images?.map((img) => (img.startsWith('http') ? img : `${host}${img.startsWith('/') ? '' : '/'}${img}`)),
-      description: product.description || product.tagline || product.name,
-      sku: product.sku,
-      brand: {
-        '@type': 'Brand',
-        name: 'VANTREL OUTFIT'
-      },
-      category: product.category,
-      offers: {
-        '@type': 'Offer',
-        url: currentUrl,
-        priceCurrency: 'BDT',
-        price: product.discountPrice || product.regularPrice,
-        priceValidUntil: '2027-12-31',
-        itemCondition: 'https://schema.org/NewCondition',
-        availability: (product.totalStock > 0) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-        seller: {
-          '@type': 'Organization',
-          name: 'VANTREL OUTFIT'
-        }
-      }
-    };
-
-    let scriptEl = document.getElementById('product-jsonld') as HTMLScriptElement | null;
-    if (!scriptEl) {
-      scriptEl = document.createElement('script');
-      scriptEl.id = 'product-jsonld';
-      scriptEl.type = 'application/ld+json';
-      document.head.appendChild(scriptEl);
-    }
-    scriptEl.textContent = JSON.stringify(productSchema);
-
-    document.title = `${product.name} - ৳${(product.discountPrice || product.regularPrice).toLocaleString()} | VANTREL OUTFIT`;
-
-    return () => {
-      const el = document.getElementById('product-jsonld');
-      if (el && el.parentNode) {
-        el.parentNode.removeChild(el);
-      }
-    };
-  }, [product]);
+    setActiveImageIndex(0);
+    setSelectedSize(product.sizes.includes('M') ? 'M' : product.sizes[0] || 'M');
+    setSelectedColor(product.colors?.[0]?.name || 'Standard');
+  }, [product?.id]);
 
   const handleAddToCart = () => {
     if (!selectedSize) {

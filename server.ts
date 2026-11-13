@@ -2014,11 +2014,80 @@ app.get('/api/public/meta-catalog.csv', (req: Request, res: Response) => {
 
 // ==========================================
 // CRAWLER & SOCIAL PREVIEW INTERCEPTOR
-// (Facebook, WhatsApp, Googlebot, Telegram, Twitter, LinkedIn)
+// (Googlebot, Googlebot-Image, Google-InspectionTool, Facebook, WhatsApp, AI)
 // ==========================================
+function escapeHtmlAttr(val: string): string {
+  return String(val || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function resolveProductMatchedFromReq(req: Request): Product | undefined {
+  const pathParts = req.path.split('/').filter(Boolean);
+  if (pathParts[0] === 'product' && pathParts[1]) {
+    const slugOrId = decodeURIComponent(pathParts[1]);
+    return products.find((p) => p.slug === slugOrId || p.id === slugOrId);
+  }
+  if (req.query.product || req.query.productId) {
+    const pId = String(req.query.product || req.query.productId);
+    return products.find((p) => p.id === pId || p.slug === pId);
+  }
+  return undefined;
+}
+
+function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unknown> {
+  const productUrl = `${baseUrl}/product/${encodeURIComponent(prod.slug || prod.id)}`;
+  const resolvedImages = (prod.images || [])
+    .filter((img) => Boolean(img && typeof img === 'string'))
+    .map((img) => (img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`));
+  const effectivePrice = prod.discountPrice || prod.regularPrice;
+
+  const schema: Record<string, unknown> = {
+    '@context': 'https://schema.org/',
+    '@type': 'Product',
+    '@id': `${productUrl}#product`,
+    name: prod.name,
+    url: productUrl,
+    image: resolvedImages.length > 0 ? resolvedImages : [`${baseUrl}/assets/images/vantrel-logo.png`],
+    description: (prod.description || prod.tagline || `Buy ${prod.name} from VANTREL OUTFIT Bangladesh.`).trim(),
+    sku: prod.sku || prod.id,
+    mpn: prod.sku || prod.id,
+    category: prod.category,
+    brand: {
+      '@type': 'Brand',
+      name: 'VANTREL OUTFIT'
+    },
+    offers: {
+      '@type': 'Offer',
+      url: productUrl,
+      priceCurrency: 'BDT',
+      price: String(effectivePrice),
+      priceValidUntil: '2027-12-31',
+      itemCondition: 'https://schema.org/NewCondition',
+      availability: prod.totalStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      seller: {
+        '@type': 'Organization',
+        name: 'VANTREL OUTFIT'
+      }
+    }
+  };
+
+  if (prod.reviewCount > 0 && prod.rating > 0) {
+    schema.aggregateRating = {
+      '@type': 'AggregateRating',
+      ratingValue: String(prod.rating),
+      reviewCount: String(prod.reviewCount)
+    };
+  }
+
+  return schema;
+}
+
 app.get('*', (req: Request, res: Response, next) => {
   const userAgent = req.headers['user-agent'] || '';
-  const isSocialCrawler = /facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|bingbot|DuckDuckBot|Discordbot/i.test(userAgent);
+  const isSocialCrawler = /facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot/i.test(userAgent);
 
   if (!isSocialCrawler) {
     return next();
@@ -2029,48 +2098,86 @@ app.get('*', (req: Request, res: Response, next) => {
   const baseUrl = `${protocol}://${host}`;
   const fullUrl = `${baseUrl}${req.originalUrl}`;
 
-  // Check if product request (e.g. /product/:slug or ?product=:id or /?productId=:id)
-  let matchedProduct: Product | undefined;
-  const pathParts = req.path.split('/').filter(Boolean);
-
-  if (pathParts[0] === 'product' && pathParts[1]) {
-    const slugOrId = pathParts[1];
-    matchedProduct = products.find((p) => p.slug === slugOrId || p.id === slugOrId);
-  } else if (req.query.product || req.query.productId) {
-    const pId = String(req.query.product || req.query.productId);
-    matchedProduct = products.find((p) => p.id === pId || p.slug === pId);
-  }
+  const matchedProduct = resolveProductMatchedFromReq(req);
 
   const siteTitle = matchedProduct
     ? `${matchedProduct.name} - ৳${(matchedProduct.discountPrice || matchedProduct.regularPrice).toLocaleString()} | VANTREL OUTFIT`
     : 'VANTREL OUTFIT - Premium Quality & Trendsetting Fashion Bangladesh';
 
   const siteDesc = matchedProduct
-    ? (matchedProduct.tagline || matchedProduct.description || `Buy ${matchedProduct.name} online in Bangladesh. 100% genuine premium streetwear. Fast Cash on Delivery across 64 districts.`)
+    ? (matchedProduct.description || matchedProduct.tagline || `Buy ${matchedProduct.name} online in Bangladesh. 100% genuine premium streetwear by VANTREL OUTFIT. Fast Cash on Delivery across 64 districts.`)
     : 'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। ক্যাশ অন ডেলিভারিতে সারাদেশে দ্রুত ডেলিভারি।';
 
-  let siteImage = `${baseUrl}/assets/images/vantrel-logo.png`;
-  if (matchedProduct && matchedProduct.images && matchedProduct.images[0]) {
-    const rawImg = matchedProduct.images[0];
-    siteImage = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
-  }
+  const productImages = matchedProduct
+    ? (matchedProduct.images || [])
+        .filter((img) => Boolean(img && typeof img === 'string'))
+        .map((img) => (img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`))
+    : [];
 
+  const siteImage = productImages[0] || `${baseUrl}/assets/images/vantrel-logo.png`;
   const effectivePrice = matchedProduct ? (matchedProduct.discountPrice || matchedProduct.regularPrice) : null;
+  const canonicalUrl = matchedProduct
+    ? `${baseUrl}/product/${encodeURIComponent(matchedProduct.slug || matchedProduct.id)}`
+    : fullUrl;
+
+  const publishedProducts = products.filter((p) => !p.isArchived && p.status !== 'archived');
+  const jsonLdPayload = matchedProduct
+    ? buildProductJsonLd(matchedProduct, baseUrl)
+    : {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name: 'VANTREL OUTFIT Product Catalog',
+        numberOfItems: publishedProducts.length,
+        itemListElement: publishedProducts.slice(0, 100).map((p, idx) => ({
+          '@type': 'ListItem',
+          position: idx + 1,
+          item: buildProductJsonLd(p, baseUrl)
+        }))
+      };
+
+  const safeJsonLd = JSON.stringify(jsonLdPayload).replace(/</g, '\\u003c');
+
+  const bodyContent = matchedProduct
+    ? `<h1>${escapeHtmlAttr(matchedProduct.name)}</h1>
+  <p>Brand: VANTREL OUTFIT | Price: ৳${effectivePrice} BDT</p>
+  <p>${escapeHtmlAttr(siteDesc)}</p>
+  ${(productImages.length > 0 ? productImages : [siteImage])
+    .map((imgUrl, idx) => `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(matchedProduct.name)} - VANTREL OUTFIT (${idx + 1})" />`)
+    .join('\n  ')}
+  <a href="${escapeHtmlAttr(canonicalUrl)}">View ${escapeHtmlAttr(matchedProduct.name)} on VANTREL OUTFIT</a>`
+    : `<h1>${escapeHtmlAttr(siteTitle)}</h1>
+  <p>${escapeHtmlAttr(siteDesc)}</p>
+  ${publishedProducts
+    .map((p) => {
+      const rawImg = p.images?.[0] || '/assets/images/vantrel-logo.png';
+      const absImg = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+      const pUrl = `${baseUrl}/product/${encodeURIComponent(p.slug || p.id)}`;
+      const pPrice = p.discountPrice || p.regularPrice;
+      return `<article>
+    <a href="${escapeHtmlAttr(pUrl)}">
+      <img src="${escapeHtmlAttr(absImg)}" alt="${escapeHtmlAttr(p.name)} - VANTREL OUTFIT" />
+      <h2>${escapeHtmlAttr(p.name)}</h2>
+    </a>
+    <p>Brand: VANTREL OUTFIT | Price: ${pPrice} BDT</p>
+  </article>`;
+    })
+    .join('\n  ')}`;
 
   const html = `<!DOCTYPE html>
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <title>${siteTitle}</title>
-  <meta name="description" content="${siteDesc}">
-  
+  <title>${escapeHtmlAttr(siteTitle)}</title>
+  <meta name="description" content="${escapeHtmlAttr(siteDesc)}">
+  <link rel="canonical" href="${escapeHtmlAttr(canonicalUrl)}">
+
   <!-- Open Graph / Facebook / WhatsApp -->
   <meta property="og:type" content="${matchedProduct ? 'product' : 'website'}">
-  <meta property="og:url" content="${fullUrl}">
-  <meta property="og:title" content="${siteTitle}">
-  <meta property="og:description" content="${siteDesc}">
-  <meta property="og:image" content="${siteImage}">
-  <meta property="og:image:secure_url" content="${siteImage}">
+  <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">
+  <meta property="og:title" content="${escapeHtmlAttr(siteTitle)}">
+  <meta property="og:description" content="${escapeHtmlAttr(siteDesc)}">
+  <meta property="og:image" content="${escapeHtmlAttr(siteImage)}">
+  <meta property="og:image:secure_url" content="${escapeHtmlAttr(siteImage)}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="VANTREL OUTFIT">
@@ -2081,15 +2188,15 @@ app.get('*', (req: Request, res: Response, next) => {
 
   <!-- Twitter / X -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${siteTitle}">
-  <meta name="twitter:description" content="${siteDesc}">
-  <meta name="twitter:image" content="${siteImage}">
+  <meta name="twitter:title" content="${escapeHtmlAttr(siteTitle)}">
+  <meta name="twitter:description" content="${escapeHtmlAttr(siteDesc)}">
+  <meta name="twitter:image" content="${escapeHtmlAttr(siteImage)}">
+
+  <!-- Schema.org JSON-LD Product Markup for Google Search & Google Images -->
+  <script type="application/ld+json">${safeJsonLd}</script>
 </head>
 <body>
-  <h1>${siteTitle}</h1>
-  <p>${siteDesc}</p>
-  <img src="${siteImage}" alt="${siteTitle}">
-  <a href="${fullUrl}">View on VANTREL OUTFIT</a>
+  ${bodyContent}
 </body>
 </html>`;
 
@@ -2114,9 +2221,39 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+    const distDir = path.resolve(__dirname, 'dist');
+    const distIndexPath = path.join(distDir, 'index.html');
+    app.use(express.static(distDir));
+    app.get('*', (req: Request, res: Response) => {
+      const matchedProduct = resolveProductMatchedFromReq(req);
+      if (matchedProduct && fs.existsSync(distIndexPath)) {
+        try {
+          const host = req.get('host') || 'www.vantreloutfit.shop';
+          const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+          const baseUrl = `${protocol}://${host}`;
+          const productSchema = buildProductJsonLd(matchedProduct, baseUrl);
+          const safeJsonLd = JSON.stringify(productSchema).replace(/</g, '\\u003c');
+          const effectivePrice = matchedProduct.discountPrice || matchedProduct.regularPrice;
+          const productTitle = escapeHtmlAttr(`${matchedProduct.name} - ৳${effectivePrice.toLocaleString()} | VANTREL OUTFIT`);
+          const productDesc = escapeHtmlAttr((matchedProduct.description || matchedProduct.tagline || matchedProduct.name).trim());
+          const rawImg = matchedProduct.images?.[0] || '/assets/images/vantrel-logo.png';
+          const absImg = escapeHtmlAttr(rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`);
+
+          let html = fs.readFileSync(distIndexPath, 'utf-8');
+          html = html
+            .replace(/<title>[\s\S]*?<\/title>/i, `<title>${productTitle}</title>`)
+            .replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${productDesc}" />`)
+            .replace(/<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:image" content="${absImg}" />`)
+            .replace(
+              '</head>',
+              `  <script type="application/ld+json" id="vantrel-product-jsonld">${safeJsonLd}</script>\n  </head>`
+            );
+          return res.type('text/html').send(html);
+        } catch (err) {
+          console.warn('Production product HTML injection warning:', err);
+        }
+      }
+      res.sendFile(distIndexPath);
     });
   }
 
