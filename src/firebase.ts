@@ -6,12 +6,24 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with ignoreUndefinedProperties: true so undefined fields never reject writes
+// Initialize Firestore with ignoreUndefinedProperties and force long-polling in browser
+// to avoid WebChannel streaming hangs/10s timeouts behind proxies, mobile ISPs, or iframes.
+const firestoreSettings =
+  typeof window !== 'undefined'
+    ? {
+        ignoreUndefinedProperties: true,
+        experimentalForceLongPolling: true,
+        experimentalLongPollingOptions: { timeoutSeconds: 20 }
+      }
+    : {
+        ignoreUndefinedProperties: true
+      };
+
 let dbInstance;
 try {
   dbInstance = firebaseConfig.firestoreDatabaseId
-    ? initializeFirestore(app, { ignoreUndefinedProperties: true }, firebaseConfig.firestoreDatabaseId)
-    : initializeFirestore(app, { ignoreUndefinedProperties: true });
+    ? initializeFirestore(app, firestoreSettings, firebaseConfig.firestoreDatabaseId)
+    : initializeFirestore(app, firestoreSettings);
 } catch {
   dbInstance = firebaseConfig.firestoreDatabaseId
     ? getFirestore(app, firebaseConfig.firestoreDatabaseId)

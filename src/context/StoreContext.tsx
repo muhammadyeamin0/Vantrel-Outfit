@@ -961,8 +961,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [lastPlacedOrder]);
 
-  // Google Cloud Project connection is turned OFF as requested by user.
-  // All auth, orders, products, and wishlist are managed 100% locally with high performance.
+  // Validate initial Firestore server connectivity on boot
   useEffect(() => {
     if (!IS_GOOGLE_CLOUD_CONNECTED || !db) return;
     async function testConnection() {
@@ -1072,13 +1071,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       productsCol,
       (snapshot) => {
         if (!isMounted) return;
-        hasFirestoreSnapshot = true;
 
         if (snapshot.empty) {
+          // Do not overwrite server-hydrated products with an empty offline cache snapshot
+          if (snapshot.metadata.fromCache) {
+            return;
+          }
+          hasFirestoreSnapshot = true;
           // Never auto-seed primary or default products — only Admin-added products belong in the store
           setProducts([]);
           return;
         }
+
+        hasFirestoreSnapshot = true;
 
         // Live real-time documents from Firestore (filtering out any legacy primary IDs if ever present)
         const remoteProducts: Product[] = [];
@@ -1150,22 +1155,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (IS_GOOGLE_CLOUD_CONNECTED && db) {
       try {
         const ordersCol = collection(db, 'orders');
-        firestoreUnsub = onSnapshot(ordersCol, (snapshot) => {
-          if (!isMounted) return;
-          if (snapshot.empty) {
-            setOrders([]);
-            return;
+        firestoreUnsub = onSnapshot(
+          ordersCol,
+          (snapshot) => {
+            if (!isMounted) return;
+            if (snapshot.empty) {
+              return;
+            }
+            const remoteOrders: Order[] = [];
+            snapshot.forEach((docSnap) => {
+              const remote = docSnap.data() as Order;
+              remoteOrders.push({ ...remote, id: docSnap.id });
+            });
+            remoteOrders.sort(
+              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
+            setOrders(remoteOrders);
+          },
+          (error) => {
+            console.warn('Firestore orders onSnapshot notice:', error.message);
           }
-          const remoteOrders: Order[] = [];
-          snapshot.forEach((docSnap) => {
-            const remote = docSnap.data() as Order;
-            remoteOrders.push({ ...remote, id: docSnap.id });
-          });
-          remoteOrders.sort(
-            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-          );
-          setOrders(remoteOrders);
-        });
+        );
       } catch (e) {
         console.warn('Firestore orders sync notice:', e);
       }
@@ -1222,10 +1232,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       );
     if (isBot) return;
 
-    const effectiveUserId = auth?.currentUser?.uid || (currentUser?.id ? currentUser.id : null);
-    if (!effectiveUserId) return;
+    const firebaseUid = auth?.currentUser?.uid;
+    if (!firebaseUid) return;
 
-    const wishlistCol = collection(db, 'users', effectiveUserId, 'wishlist');
+    const wishlistCol = collection(db, 'users', firebaseUid, 'wishlist');
     const unsubscribe = onSnapshot(
       wishlistCol,
       (snapshot) => {
@@ -1604,15 +1614,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     );
 
     if (IS_GOOGLE_CLOUD_CONNECTED && db) {
-      const effectiveUserId = auth?.currentUser?.uid || (currentUser?.id ? currentUser.id : null);
-      if (effectiveUserId) {
-        const docPath = `users/${effectiveUserId}/wishlist/${productId}`;
+      const firebaseUid = auth?.currentUser?.uid;
+      if (firebaseUid) {
+        const docPath = `users/${firebaseUid}/wishlist/${productId}`;
         try {
           if (exists) {
-            await deleteDoc(doc(db, 'users', effectiveUserId, 'wishlist', productId));
+            await deleteDoc(doc(db, 'users', firebaseUid, 'wishlist', productId));
           } else {
             const prod = products.find((p) => p.id === productId);
-            await setDoc(doc(db, 'users', effectiveUserId, 'wishlist', productId), {
+            await setDoc(doc(db, 'users', firebaseUid, 'wishlist', productId), {
               productId,
               addedAt: new Date().toISOString(),
               name: prod?.name || 'VANTREL Garment',
