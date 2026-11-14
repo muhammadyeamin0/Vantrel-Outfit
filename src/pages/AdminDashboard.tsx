@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   useStore,
   computePricesFromCost,
@@ -193,8 +193,8 @@ export const AdminDashboard: React.FC = () => {
   const [prodName, setProdName] = useState('');
   const [prodCategory, setProdCategory] = useState<ProductCategory>('Hoodies');
   const [prodSubCategory, setProdSubCategory] = useState('Heavyweight Streetwear');
-  const [prodPrice, setProdPrice] = useState<number>(1480);
-  const [prodDiscountPrice, setProdDiscountPrice] = useState<number>(1280);
+  const [prodPrice, setProdPrice] = useState<number>(0);
+  const [prodDiscountPrice, setProdDiscountPrice] = useState<number>(0);
   const [prodSku, setProdSku] = useState('VT-NEW-01');
   const [prodStock, setProdStock] = useState<number>(30);
   const [prodFabric, setProdFabric] = useState('420 GSM 100% Combed Ringspun Cotton');
@@ -203,13 +203,15 @@ export const AdminDashboard: React.FC = () => {
   const [prodTagline, setProdTagline] = useState('');
   const [prodImages, setProdImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const productImageInputRef = useRef<HTMLInputElement | null>(null);
   const [prodSizes, setProdSizes] = useState<string[]>(['M', 'L', 'XL', 'XXL']);
   const [prodColors, setProdColors] = useState<{ name: string; hex: string }[]>([]);
   const [newColorName, setNewColorName] = useState('');
   const [newColorHex, setNewColorHex] = useState('#14221C');
   const [prodGsm, setProdGsm] = useState<number>(420);
   const [prodVideoUrl, setProdVideoUrl] = useState<string>('');
-  const [prodCost, setProdCost] = useState<number>(1100);
+  const [prodCost, setProdCost] = useState<number>(0);
   const [prodStatus, setProdStatus] = useState<'published' | 'draft' | 'archived'>('published');
   const [prodIsFeatured, setProdIsFeatured] = useState<boolean>(true);
   const [prodIsNewArrival, setProdIsNewArrival] = useState<boolean>(true);
@@ -639,14 +641,13 @@ export const AdminDashboard: React.FC = () => {
 
   // Product Modal Open for Create
   const handleOpenCreateProduct = () => {
-    const defaultPrices = computePricesFromCost(1100);
     setEditingProductId(null);
     setProdName('');
     setProdCategory('Hoodies');
     setProdSubCategory('Heavyweight Streetwear');
-    setProdCost(defaultPrices.costPrice);
-    setProdDiscountPrice(defaultPrices.sellingPrice);
-    setProdPrice(defaultPrices.regularPrice);
+    setProdCost(0);
+    setProdDiscountPrice(0);
+    setProdPrice(0);
     setProdSku(`VT-DROP-${Math.floor(100 + Math.random() * 900)}`);
     setProdStock(35);
     setProdFabric('420 GSM 100% Combed Ringspun Cotton French Terry');
@@ -680,7 +681,7 @@ export const AdminDashboard: React.FC = () => {
     setProdFabric(p.fabric);
     setProdGsm(p.gsm || 300);
     setProdVideoUrl(p.videoUrl || '');
-    setProdCost(p.costPrice || Math.round(p.regularPrice * 0.45));
+    setProdCost(p.costPrice ?? 0);
     setProdStatus(p.isArchived ? 'archived' : (p.status || 'published'));
     setProdIsFeatured(p.isFeatured ?? true);
     setProdIsNewArrival(p.isNewArrival ?? false);
@@ -703,13 +704,52 @@ export const AdminDashboard: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
-  const handleAddImage = () => {
-    if (newImageUrl.trim()) {
-      const updated = [...prodImages, newImageUrl.trim()];
-      setProdImages(updated);
-      setNewImageUrl('');
-      showToast('Image Added', 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।', 'success');
+  const normalizeImageUrl = (rawInput: string): string => {
+    const trimmed = rawInput.trim();
+    if (!trimmed) return '';
+    // Auto-convert Google Drive share links into direct image URLs
+    const driveFileMatch = trimmed.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
+    if (driveFileMatch?.[1]) {
+      return `https://lh3.googleusercontent.com/d/${driveFileMatch[1]}`;
     }
+    const driveOpenMatch = trimmed.match(/drive\.google\.com\/open\?id=([^&]+)/i);
+    if (driveOpenMatch?.[1]) {
+      return `https://lh3.googleusercontent.com/d/${driveOpenMatch[1]}`;
+    }
+    if (
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('/') ||
+      trimmed.startsWith('data:image/')
+    ) {
+      return trimmed;
+    }
+    if (/^[a-z0-9.-]+\.[a-z]{2,}\//i.test(trimmed)) {
+      return `https://${trimmed}`;
+    }
+    return trimmed;
+  };
+
+  const handleAddImage = () => {
+    const raw = newImageUrl.trim();
+    if (!raw) {
+      // If user clicks Add Image without typing a URL, immediately open the file picker
+      productImageInputRef.current?.click();
+      return;
+    }
+    const normalized = normalizeImageUrl(raw);
+    const isValid =
+      normalized.startsWith('https://') ||
+      normalized.startsWith('http://') ||
+      normalized.startsWith('/') ||
+      normalized.startsWith('data:image/');
+    if (!isValid) {
+      showToast('অকার্যকর লিংক', 'সঠিক ইমেজ URL (https://...) দিন অথবা Upload বাটনে ক্লিক করে ছবি আপলোড করুন।', 'error');
+      return;
+    }
+    setProdImages((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+    setNewImageUrl('');
+    showToast('Image Added', 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।', 'success');
   };
 
   const handleSetPrimaryImage = (index: number) => {
@@ -734,28 +774,105 @@ export const AdminDashboard: React.FC = () => {
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const compressAndReadImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const isImageMime = file.type.startsWith('image/');
+      const isImageExt = /\.(jpe?g|png|webp|gif|bmp|avif|svg)$/i.test(file.name);
+      if (!isImageMime && !isImageExt) {
+        reject(new Error(`Unsupported file type: ${file.name}`));
+        return;
+      }
 
-    const newImages: string[] = [];
-    let readCount = 0;
-
-    Array.from(files).forEach((file) => {
       const reader = new FileReader();
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
       reader.onload = (event) => {
-        if (event.target?.result) {
-          newImages.push(event.target.result as string);
+        const rawDataUrl = event.target?.result;
+        if (typeof rawDataUrl !== 'string' || !rawDataUrl) {
+          reject(new Error(`Empty image data: ${file.name}`));
+          return;
         }
-        readCount++;
-        if (readCount === files.length) {
-          setProdImages((prev) => [...prev, ...newImages]);
-          showToast('Images Uploaded', `${newImages.length}টি ছবি সফলভাবে আপলোড করা হয়েছে।`, 'success');
+
+        // Preserve animated GIFs / vector SVGs as-is if reasonably sized
+        if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+          resolve(rawDataUrl);
+          return;
         }
+
+        const img = new Image();
+        img.onerror = () => {
+          // Fallback to raw DataURL if browser cannot decode via Image element
+          resolve(rawDataUrl);
+        };
+        img.onload = () => {
+          try {
+            const maxDim = 1100;
+            let width = img.naturalWidth || img.width;
+            let height = img.naturalHeight || img.height;
+            if (width > maxDim || height > maxDim) {
+              const ratio = Math.min(maxDim / width, maxDim / height);
+              width = Math.max(1, Math.round(width * ratio));
+              height = Math.max(1, Math.round(height * ratio));
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(rawDataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            let compressed = canvas.toDataURL('image/webp', 0.84);
+            if (!compressed.startsWith('data:image/webp')) {
+              compressed = canvas.toDataURL('image/jpeg', 0.84);
+            }
+            // Keep smaller result so Firestore 1MB limit is never exceeded
+            resolve(compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
+          } catch {
+            resolve(rawDataUrl);
+          }
+        };
+        img.src = rawDataUrl;
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const processImageFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+
+    setIsUploadingImages(true);
+    try {
+      const results = await Promise.allSettled(files.map((f) => compressAndReadImageFile(f)));
+      const loaded: string[] = [];
+      let failedCount = 0;
+
+      results.forEach((res) => {
+        if (res.status === 'fulfilled' && res.value) {
+          loaded.push(res.value);
+        } else {
+          failedCount++;
+        }
+      });
+
+      if (loaded.length > 0) {
+        setProdImages((prev) => [...prev, ...loaded]);
+        showToast('Images Uploaded', `${loaded.length}টি ছবি সফলভাবে আপলোড করা হয়েছে।`, 'success');
+      }
+      if (failedCount > 0) {
+        showToast('কিছু ফাইল আপলোড হয়নি', `${failedCount}টি ফাইল সঠিক ইমেজ ফরম্যাটে ছিল না (JPG, PNG, WebP ব্যবহার করুন)।`, 'error');
+      }
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
+    if (files.length === 0) return;
+    await processImageFiles(files);
   };
 
   const handleAddColor = () => {
@@ -4852,10 +4969,9 @@ service cloud.firestore {
                         <input
                           type="number"
                           min="0"
-                          placeholder="e.g. 500"
+                          placeholder=""
                           value={prodCost || ''}
                           onChange={(e) => handleCostPriceChange(e.target.value)}
-                          required
                           className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#14221C] tabular-nums focus:outline-none focus:border-[#FF762E]"
                         />
                       </div>
@@ -4872,9 +4988,11 @@ service cloud.firestore {
                         <input
                           type="number"
                           min="1"
-                          placeholder="e.g. 680"
+                          placeholder=""
                           value={prodDiscountPrice || ''}
-                          onChange={(e) => setProdDiscountPrice(Number(e.target.value))}
+                          onChange={(e) =>
+                            setProdDiscountPrice(e.target.value === '' ? 0 : Number(e.target.value))
+                          }
                           required
                           className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#FF762E] tabular-nums focus:outline-none focus:border-[#FF762E]"
                         />
@@ -4892,9 +5010,11 @@ service cloud.firestore {
                         <input
                           type="number"
                           min="1"
-                          placeholder="e.g. 880"
+                          placeholder=""
                           value={prodPrice || ''}
-                          onChange={(e) => setProdPrice(Number(e.target.value))}
+                          onChange={(e) =>
+                            setProdPrice(e.target.value === '' ? 0 : Number(e.target.value))
+                          }
                           required
                           className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#14221C] tabular-nums focus:outline-none focus:border-[#FF762E]"
                         />
@@ -5155,8 +5275,21 @@ service cloud.firestore {
                     )}
                   </div>
 
-                  {/* Image Thumbnails with Primary Badge & Reorder */}
-                  <div className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
+                  {/* Image Thumbnails with Primary Badge & Reorder (Supports Drag & Drop) */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.dataTransfer?.files?.length) {
+                        void processImageFiles(e.dataTransfer.files);
+                      }
+                    }}
+                    className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]"
+                  >
                     {prodImages.length > 0 ? (
                       <div className="flex flex-wrap gap-3">
                         {prodImages.map((img, idx) => (
@@ -5177,7 +5310,7 @@ service cloud.firestore {
                               <button
                                 type="button"
                                 onClick={() => handleSetPrimaryImage(idx)}
-                                className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/75 hover:bg-[#14221C] text-white text-[9px] font-bold uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/75 hover:bg-[#14221C] text-white text-[9px] font-bold uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                               >
                                 Set Primary
                               </button>
@@ -5187,19 +5320,19 @@ service cloud.firestore {
                             <button
                               type="button"
                               onClick={() => setProdImages(prodImages.filter((_, i) => i !== idx))}
-                              className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer"
                               title="Remove Image"
                             >
                               <X className="w-3 h-3" />
                             </button>
 
                             {/* Move Left / Right Reorder Controls */}
-                            <div className="absolute bottom-1 inset-x-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded px-1 py-0.5 text-white">
+                            <div className="absolute bottom-1 inset-x-1 flex items-center justify-between opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-black/60 rounded px-1 py-0.5 text-white">
                               <button
                                 type="button"
                                 disabled={idx === 0}
                                 onClick={() => handleMoveImage(idx, 'left')}
-                                className="disabled:opacity-20 hover:text-[#FF762E]"
+                                className="disabled:opacity-20 hover:text-[#FF762E] cursor-pointer"
                                 title="Move Earlier"
                               >
                                 <ArrowLeft className="w-3 h-3" />
@@ -5209,7 +5342,7 @@ service cloud.firestore {
                                 type="button"
                                 disabled={idx === prodImages.length - 1}
                                 onClick={() => handleMoveImage(idx, 'right')}
-                                className="disabled:opacity-20 hover:text-[#FF762E]"
+                                className="disabled:opacity-20 hover:text-[#FF762E] cursor-pointer"
                                 title="Move Later"
                               >
                                 <ArrowRight className="w-3 h-3" />
@@ -5219,13 +5352,16 @@ service cloud.firestore {
                         ))}
                       </div>
                     ) : (
-                      <div className="py-6 px-4 text-center border-2 border-dashed border-[#E5E1D5] rounded-xl bg-white/60">
+                      <div
+                        onClick={() => productImageInputRef.current?.click()}
+                        className="py-6 px-4 text-center border-2 border-dashed border-[#E5E1D5] hover:border-[#FF762E] rounded-xl bg-white/60 cursor-pointer transition-colors"
+                      >
                         <ImageIcon className="w-8 h-8 text-stone-400 mx-auto mb-2" />
                         <p className="text-xs font-bold text-[#14221C]">
-                          কোনো ডিফল্ট ছবি নেই — আপনি যে ছবি আপলোড বা লিংক দিবেন শুধুমাত্র সেটাই সেট থাকবে।
+                          এখানে ক্লিক করে বা ছবি টেনে এনে (Drag & Drop) প্রোডাক্টের ছবি আপলোড করুন
                         </p>
                         <p className="text-[11px] text-[#202522]/60 mt-1">
-                          নিচে ইমেজ URL দিন অথবা কম্পিউটার/মোবাইল থেকে সরাসরি ছবি আপলোড করুন।
+                          নিচে ইমেজ URL দিন অথবা কম্পিউটার/মোবাইল থেকে সরাসরি ১ বা একাধিক ছবি আপলোড করুন।
                         </p>
                       </div>
                     )}
@@ -5235,29 +5371,50 @@ service cloud.firestore {
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
-                      placeholder="Paste image URL (CDN, Cloudinary, Firebase, or relative path)..."
+                      placeholder="ইমেজ URL পেস্ট করুন অথবা কপি করা ছবি Ctrl+V দিয়ে পেস্ট করুন..."
                       value={newImageUrl}
                       onChange={(e) => setNewImageUrl(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs focus:outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddImage();
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const pastedFiles = e.clipboardData?.files;
+                        if (pastedFiles && pastedFiles.length > 0) {
+                          e.preventDefault();
+                          void processImageFiles(pastedFiles);
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs focus:outline-none focus:border-[#FF762E]"
                     />
                     <button
                       type="button"
+                      disabled={isUploadingImages}
                       onClick={handleAddImage}
-                      className="px-4 py-2 bg-[#14221C] hover:bg-[#202522] text-white rounded-xl font-bold uppercase shrink-0 transition-colors"
+                      className="px-4 py-2 bg-[#14221C] hover:bg-[#202522] disabled:opacity-50 text-white rounded-xl font-bold uppercase shrink-0 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      Add Image URL
-                    </button>
-                    <label className="px-4 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] rounded-xl font-bold uppercase cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors">
                       <Upload className="w-3.5 h-3.5 text-[#FF762E]" />
-                      <span>Upload Local Files (১ বা একাধিক)</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </label>
+                      <span>{newImageUrl.trim() ? 'Add Image URL' : 'Upload / Add Image'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUploadingImages}
+                      onClick={() => productImageInputRef.current?.click()}
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 border border-[#E5E1D5] text-[#14221C] rounded-xl font-bold uppercase cursor-pointer shrink-0 flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[#FF762E]" />
+                      <span>{isUploadingImages ? 'আপলোড হচ্ছে...' : 'Upload Local Files (১ বা একাধিক)'}</span>
+                    </button>
+                    <input
+                      ref={productImageInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="sr-only"
+                    />
                   </div>
 
                   {/* Quick Preset Clothing Images */}
