@@ -295,7 +295,7 @@ export const FaqPage: React.FC = () => {
     },
     {
       q: 'What are the delivery charges and timelines?',
-      a: 'Inside Dhaka delivery is ৳70 and arrives within 24–48 hours. Outside Dhaka delivery is ৳130 and arrives within 2–4 business days. Orders with a subtotal of ৳3,000 or more enjoy 100% Free Nationwide Delivery.'
+      a: 'Inside Dhaka City delivery is 100% FREE (৳0) and arrives within 24–48 hours. Dhaka Sub-Area (Savar, Ashulia, Keraniganj, Dhamrai, Nawabganj, Dohar) and all 63 districts outside Dhaka are only ৳50 flat rate (48–72 hours).'
     },
     {
       q: 'Can I exchange the size if the garment does not fit me?',
@@ -356,9 +356,9 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Delivery Zones & Charges</h3>
             <p>
-              • <strong>Inside Dhaka Metro:</strong> ৳70 flat rate. Delivery timeframe: 24 to 48 business hours.<br />
-              • <strong>Outside Dhaka Metro (All 63 Districts):</strong> ৳130 flat rate. Delivery timeframe: 48 to 72 business hours.<br />
-              • <strong>Free Nationwide Delivery:</strong> All orders with a subtotal equal to or exceeding ৳3,000 qualify for free courier delivery anywhere in Bangladesh.
+              • <strong>Inside Dhaka City:</strong> FREE Delivery (৳0). Delivery timeframe: 24 to 48 business hours.<br />
+              • <strong>Dhaka Sub-Area (Savar, Ashulia, Keraniganj, Dhamrai, Nawabganj, Dohar):</strong> ৳50 flat rate. Delivery timeframe: 24 to 48 business hours.<br />
+              • <strong>Outside Dhaka (All 63 Districts):</strong> ৳50 flat rate. Delivery timeframe: 48 to 72 business hours.
             </p>
 
             <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Courier Partners</h3>

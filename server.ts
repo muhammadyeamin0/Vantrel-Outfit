@@ -794,6 +794,7 @@ app.post('/api/products', (req: Request, res: Response) => {
     regularPrice: Number(body.regularPrice),
     discountPrice: body.discountPrice ? Number(body.discountPrice) : undefined,
     discountPercent: body.discountPercent ? Number(body.discountPercent) : undefined,
+    costPrice: body.costPrice !== undefined ? Number(body.costPrice) : undefined,
     images: Array.isArray(body.images) ? body.images : [],
     sizes: Array.isArray(body.sizes) && body.sizes.length > 0 ? body.sizes : ['M', 'L', 'XL', 'XXL'],
     colors: Array.isArray(body.colors) ? body.colors : [],
@@ -822,6 +823,34 @@ app.post('/api/products', (req: Request, res: Response) => {
   recordAudit('Admin Staff', 'Product Moderator', 'Product Created/Synced', `Saved product: ${newProd.name} (${newProd.sku})`);
 
   res.status(201).json({ success: true, message: 'Product created and synced to server disk', data: newProd });
+});
+
+app.post('/api/products/recalculate-prices', (_req: Request, res: Response) => {
+  products = products.map((p) => {
+    const cleanCost =
+      typeof p.costPrice === 'number' && p.costPrice > 0
+        ? Math.round(p.costPrice)
+        : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - 180));
+    const sellingPrice = cleanCost + 180;
+    const regularPrice = sellingPrice + 200;
+    const discountPercent =
+      regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;
+    return {
+      ...p,
+      costPrice: cleanCost,
+      discountPrice: sellingPrice,
+      regularPrice,
+      discountPercent
+    };
+  });
+  saveProductsToDisk();
+  recordAudit(
+    'Admin Staff',
+    'Pricing Engine',
+    'Bulk Price Recalculation',
+    `Recalculated prices (Cost + 180 selling, + 200 regular) across ${products.length} products.`
+  );
+  res.json({ success: true, count: products.length, data: products });
 });
 
 app.put('/api/products/:id', (req: Request, res: Response) => {
@@ -1363,8 +1392,8 @@ app.post('/api/test-email-notification', async (_req: Request, res: Response) =>
       }
     ],
     subtotal: 1850,
-    deliveryFee: 70,
-    total: 1920,
+    deliveryFee: 0,
+    total: 1850,
     paymentMethod: 'Cash on Delivery (COD)',
     paymentStatus: 'Pending'
   };

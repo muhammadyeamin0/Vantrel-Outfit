@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
-import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
+import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../data/bangladeshData';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -127,7 +127,8 @@ export const CartDrawer: React.FC = () => {
   if (!isCartDrawerOpen) return null;
 
   const isDhaka = district.trim().toLowerCase() === 'dhaka';
-  const deliveryZone = isDhaka ? 'inside_dhaka' : 'outside_dhaka';
+  const activeUpazilaForZone = upazila === 'other' ? customUpazila : upazila;
+  const deliveryZone = resolveDeliveryZone(district, activeUpazilaForZone);
   const deliveryFee = calculateDeliveryFee(deliveryZone, cartSubtotal);
   const grandTotal = cartSubtotal + deliveryFee;
 
@@ -241,7 +242,7 @@ export const CartDrawer: React.FC = () => {
           <div className="px-5 py-2.5 bg-emerald-50/80 border-b border-emerald-100 text-xs text-emerald-900 flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-medium">
               <Truck className="w-4 h-4 text-emerald-700 shrink-0" />
-              <span>ক্যাশ অন ডেলিভারি সুবিধা · ঢাকা ৳৭০ / বাইরে ৳১২০</span>
+              <span>ঢাকায় ফ্রি ডেলিভারি (৳০) · সাব-এরিয়া ও ৬৩ জেলায় ৳৫০</span>
             </span>
           </div>
 
@@ -461,7 +462,7 @@ export const CartDrawer: React.FC = () => {
                         <option value="" disabled>জেলা নির্বাচন করুন</option>
                         {allDistricts.map((d) => (
                           <option key={d.name} value={d.name}>
-                            {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ঢাকা - ৳৭০)' : '(৳১২০)'}
+                            {d.name} {d.name.toLowerCase() === 'dhaka' ? '(সিটি ফ্রি · সাব-এরিয়া ৳৫০)' : '(৳৫০)'}
                           </option>
                         ))}
                       </select>
@@ -485,6 +486,7 @@ export const CartDrawer: React.FC = () => {
                           {availableUpazilas.map((u) => (
                             <option key={u} value={u}>
                               {u}
+                              {isDhaka ? (isDhakaSubArea(u) ? ' (সাব-এরিয়া - ৳৫০)' : ' (ফ্রি)') : ''}
                             </option>
                           ))}
                           <option value="other">অন্যান্য / লিখুন...</option>
@@ -547,8 +549,22 @@ export const CartDrawer: React.FC = () => {
                       <span className="font-semibold text-[#14221C] tabular-nums">৳{cartSubtotal.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-stone-600">
-                      <span>ডেলিভারি চার্জ:</span>
-                      <span className="font-semibold text-[#14221C] tabular-nums">+৳{deliveryFee}</span>
+                      <span>
+                        ডেলিভারি চার্জ (
+                        {deliveryZone === 'inside_dhaka'
+                          ? 'ঢাকা সিটি'
+                          : deliveryZone === 'dhaka_sub_area'
+                          ? 'ঢাকা সাব-এরিয়া'
+                          : `${district} জেলা`}
+                        ):
+                      </span>
+                      <span
+                        className={`font-semibold tabular-nums ${
+                          deliveryFee === 0 ? 'text-emerald-700 font-bold' : 'text-[#14221C]'
+                        }`}
+                      >
+                        {deliveryFee === 0 ? 'ফ্রি (৳০)' : `+৳${deliveryFee}`}
+                      </span>
                     </div>
                     <div className="pt-1.5 border-t border-stone-200 flex justify-between font-bold text-sm text-[#14221C]">
                       <span>সর্বমোট প্রদেয় বিল:</span>

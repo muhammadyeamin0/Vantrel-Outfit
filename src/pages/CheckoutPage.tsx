@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
-import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
+import { BANGLADESH_DIVISIONS, resolveDeliveryZone } from '../data/bangladeshData';
 import { PaymentMethod, Address, User } from '../types';
 import { getSavedAddresses, saveAddressLocally, removeAddressLocally } from '../utils/addressStorage';
 import {
@@ -70,13 +70,15 @@ export const CheckoutPage: React.FC = () => {
   const [streetAddress, setStreetAddress] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Delivery zone: Auto-calculated based on selected district
-  // Inside Dhaka = ৳70, Outside Dhaka = ৳120
+  // Delivery zone: Inside Dhaka City = Free (৳0), Dhaka Sub-Area = ৳50, 63 Districts = ৳50
   const isDhakaDistrict = useMemo(() => {
     return district.trim().toLowerCase() === 'dhaka';
   }, [district]);
 
-  const deliveryZone = isDhakaDistrict ? 'inside_dhaka' : 'outside_dhaka';
+  const deliveryZone = useMemo(
+    () => resolveDeliveryZone(district, upazila),
+    [district, upazila]
+  );
 
   // Payment method: Cash on Delivery default
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash on Delivery (COD)');
@@ -235,7 +237,7 @@ export const CheckoutPage: React.FC = () => {
     return regex.test(clean);
   };
 
-  // Calculate live delivery fee: ৳100 inside Dhaka, ৳150 outside Dhaka
+  // Calculate live delivery fee: Free inside Dhaka City, ৳50 Dhaka Sub-Area & 63 Districts
   const deliveryFee = calculateDeliveryFee(deliveryZone, cartSubtotal);
   const finalTotal = cartSubtotal + deliveryFee;
 
@@ -539,7 +541,7 @@ export const CheckoutPage: React.FC = () => {
                   >
                     {allDistricts.map((d) => (
                       <option key={d.name} value={d.name}>
-                        {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ঢাকার ভিতরে - ৳৭০)' : '(ঢাকার বাইরে - ৳১২০)'}
+                        {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ঢাকা সিটি ফ্রি · সাব-এরিয়া ৳৫০)' : '(৬৩ জেলা - ৳৫০)'}
                       </option>
                     ))}
                   </select>
@@ -724,10 +726,20 @@ export const CheckoutPage: React.FC = () => {
               {/* Delivery Fee Added Here at the End */}
               <div className="flex justify-between text-[#202522]/80 font-medium">
                 <span>
-                  ডেলিভারি চার্জ ({isDhakaDistrict ? 'ঢাকা জেলা (৳৭০)' : `${district} জেলা (৳১২০)`}):
+                  ডেলিভারি চার্জ (
+                  {deliveryZone === 'inside_dhaka'
+                    ? 'ঢাকা সিটি — ফ্রি'
+                    : deliveryZone === 'dhaka_sub_area'
+                    ? 'ঢাকা সাব-এরিয়া (৳৫০)'
+                    : `${district} জেলা (৳৫০)`}
+                  ):
                 </span>
-                <span className="font-bold text-[#14221C] tabular-nums">
-                  +৳{deliveryFee}
+                <span
+                  className={`font-bold tabular-nums ${
+                    deliveryFee === 0 ? 'text-emerald-700' : 'text-[#14221C]'
+                  }`}
+                >
+                  {deliveryFee === 0 ? 'ফ্রি (৳০)' : `+৳${deliveryFee}`}
                 </span>
               </div>
 

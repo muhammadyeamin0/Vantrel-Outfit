@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
-import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
+import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../data/bangladeshData';
 import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
 import {
@@ -121,7 +121,7 @@ export const CartPage: React.FC = () => {
 
   // Determine delivery zone automatically
   const isDhakaDistrict = district.trim().toLowerCase() === 'dhaka';
-  const deliveryZone = isDhakaDistrict ? 'inside_dhaka' : 'outside_dhaka';
+  const deliveryZone = resolveDeliveryZone(district, upazila);
   const deliveryFee = calculateDeliveryFee(deliveryZone, cartSubtotal);
   const grandTotal = cartSubtotal + deliveryFee;
 
@@ -535,7 +535,7 @@ export const CartPage: React.FC = () => {
                     >
                       {allDistricts.map((d) => (
                         <option key={d.name} value={d.name}>
-                          {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ঢাকার ভিতরে - ৳৭০)' : '(ঢাকার বাইরে - ৳১২০)'}
+                          {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ঢাকা সিটি ফ্রি · সাব-এরিয়া ৳৫০)' : '(৬৩ জেলা - ৳৫০)'}
                         </option>
                       ))}
                     </select>
@@ -562,6 +562,7 @@ export const CartPage: React.FC = () => {
                         availableUpazilas.map((u) => (
                           <option key={u} value={u}>
                             {u}
+                            {isDhakaDistrict ? (isDhakaSubArea(u) ? ' (সাব-এরিয়া - ৳৫০)' : ' (ফ্রি)') : ''}
                           </option>
                         ))
                       ) : (
@@ -608,10 +609,22 @@ export const CartPage: React.FC = () => {
                 <div className="flex justify-between text-[#202522]/80">
                   <span className="flex items-center gap-1">
                     <Truck className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>ডেলিভারি চার্জ ({isDhakaDistrict ? 'ঢাকার ভিতরে' : 'ঢাকার বাইরে'}):</span>
+                    <span>
+                      ডেলিভারি চার্জ (
+                      {deliveryZone === 'inside_dhaka'
+                        ? 'ঢাকা সিটি'
+                        : deliveryZone === 'dhaka_sub_area'
+                        ? 'ঢাকা সাব-এরিয়া'
+                        : `${district} জেলা`}
+                      ):
+                    </span>
                   </span>
-                  <span className="font-bold text-[#14221C] tabular-nums">
-                    ৳{deliveryFee}
+                  <span
+                    className={`font-bold tabular-nums ${
+                      deliveryFee === 0 ? 'text-emerald-700' : 'text-[#14221C]'
+                    }`}
+                  >
+                    {deliveryFee === 0 ? 'ফ্রি (৳০)' : `৳${deliveryFee}`}
                   </span>
                 </div>
                 <div className="pt-2.5 border-t border-[#E5E1D5] flex justify-between items-baseline">

@@ -1,6 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { useStore } from '../context/StoreContext';
+import {
+  useStore,
+  computePricesFromCost,
+  COST_TO_SELLING_MARKUP_BDT,
+  SELLING_TO_REGULAR_MARKUP_BDT
+} from '../context/StoreContext';
 import { Product, Order, OrderStatus, PaymentStatus, ProductCategory, Coupon, User, Address } from '../types';
+import { resolveDeliveryZone } from '../data/bangladeshData';
 import {
   ShieldCheck,
   TrendingUp,
@@ -68,6 +74,7 @@ export const AdminDashboard: React.FC = () => {
     restoreProduct,
     permanentlyDeleteProduct,
     deleteAllProducts,
+    recalculateAllPricesFromCost,
     duplicateProduct,
     moveProductUp,
     moveProductDown,
@@ -186,8 +193,8 @@ export const AdminDashboard: React.FC = () => {
   const [prodName, setProdName] = useState('');
   const [prodCategory, setProdCategory] = useState<ProductCategory>('Hoodies');
   const [prodSubCategory, setProdSubCategory] = useState('Heavyweight Streetwear');
-  const [prodPrice, setProdPrice] = useState<number>(2500);
-  const [prodDiscountPrice, setProdDiscountPrice] = useState<number>(2100);
+  const [prodPrice, setProdPrice] = useState<number>(1480);
+  const [prodDiscountPrice, setProdDiscountPrice] = useState<number>(1280);
   const [prodSku, setProdSku] = useState('VT-NEW-01');
   const [prodStock, setProdStock] = useState<number>(30);
   const [prodFabric, setProdFabric] = useState('420 GSM 100% Combed Ringspun Cotton');
@@ -202,7 +209,7 @@ export const AdminDashboard: React.FC = () => {
   const [newColorHex, setNewColorHex] = useState('#14221C');
   const [prodGsm, setProdGsm] = useState<number>(420);
   const [prodVideoUrl, setProdVideoUrl] = useState<string>('');
-  const [prodCost, setProdCost] = useState<number>(1200);
+  const [prodCost, setProdCost] = useState<number>(1100);
   const [prodStatus, setProdStatus] = useState<'published' | 'draft' | 'archived'>('published');
   const [prodIsFeatured, setProdIsFeatured] = useState<boolean>(true);
   const [prodIsNewArrival, setProdIsNewArrival] = useState<boolean>(true);
@@ -216,6 +223,7 @@ export const AdminDashboard: React.FC = () => {
   const [productStatusFilter, setProductStatusFilter] = useState<string>('All');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [confirmDeleteAllProducts, setConfirmDeleteAllProducts] = useState<boolean>(false);
+  const [isRecalculatingPrices, setIsRecalculatingPrices] = useState<boolean>(false);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
 
   // Order Detail Inspection Modal
@@ -631,18 +639,19 @@ export const AdminDashboard: React.FC = () => {
 
   // Product Modal Open for Create
   const handleOpenCreateProduct = () => {
+    const defaultPrices = computePricesFromCost(1100);
     setEditingProductId(null);
     setProdName('');
     setProdCategory('Hoodies');
     setProdSubCategory('Heavyweight Streetwear');
-    setProdPrice(2500);
-    setProdDiscountPrice(2100);
+    setProdCost(defaultPrices.costPrice);
+    setProdDiscountPrice(defaultPrices.sellingPrice);
+    setProdPrice(defaultPrices.regularPrice);
     setProdSku(`VT-DROP-${Math.floor(100 + Math.random() * 900)}`);
     setProdStock(35);
     setProdFabric('420 GSM 100% Combed Ringspun Cotton French Terry');
     setProdGsm(420);
     setProdVideoUrl('');
-    setProdCost(1100);
     setProdStatus('published');
     setProdIsFeatured(true);
     setProdIsNewArrival(true);
@@ -754,6 +763,20 @@ export const AdminDashboard: React.FC = () => {
       setProdColors((prev) => [...prev, { name: newColorName.trim(), hex: newColorHex }]);
       setNewColorName('');
     }
+  };
+
+  const handleCostPriceChange = (rawVal: string) => {
+    if (rawVal === '') {
+      setProdCost(0);
+      setProdDiscountPrice(0);
+      setProdPrice(0);
+      return;
+    }
+    const parsed = Math.max(0, Number(rawVal) || 0);
+    const { costPrice, sellingPrice, regularPrice } = computePricesFromCost(parsed);
+    setProdCost(costPrice);
+    setProdDiscountPrice(sellingPrice);
+    setProdPrice(regularPrice);
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
@@ -1086,7 +1109,7 @@ export const AdminDashboard: React.FC = () => {
               data: {
                 orderNumber: orderNum,
                 paymentStatus: parsed.paymentMethod === 'Cash on Delivery (COD)' ? 'Pending' : 'Paid',
-                deliveryFee: 70,
+                deliveryFee: 0,
                 trackingReference: `PTH-${Math.floor(100000 + Math.random() * 900000)}`
               }
             },
@@ -1715,9 +1738,29 @@ export const AdminDashboard: React.FC = () => {
                   )
                 )}
 
+                {products.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={isRecalculatingPrices}
+                    onClick={async () => {
+                      setIsRecalculatingPrices(true);
+                      try {
+                        await recalculateAllPricesFromCost();
+                      } finally {
+                        setIsRecalculatingPrices(false);
+                      }
+                    }}
+                    className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                    title="Cost Price এর সাথে +180 বিক্রয় মূল্য ও +200 Regular Price অনুযায়ী সব প্রোডাক্ট আপডেট করুন"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isRecalculatingPrices ? 'animate-spin' : ''}`} />
+                    <span>{isRecalculatingPrices ? 'আপডেট হচ্ছে...' : 'সব দাম Cost থেকে আপডেট'}</span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleExportProductsCSV}
-                  className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Export CSV</span>
@@ -1725,7 +1768,7 @@ export const AdminDashboard: React.FC = () => {
 
                 <button
                   onClick={handleOpenCreateProduct}
-                  className="px-4 py-2 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center gap-1.5 shadow-md"
+                  className="px-4 py-2 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center gap-1.5 shadow-md whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-4 h-4" />
                   <span>প্রোডাক্ট অ্যাড করুন</span>
@@ -2892,11 +2935,15 @@ export const AdminDashboard: React.FC = () => {
                       <td className="px-4 py-3 text-[#202522]/80 max-w-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            order.customer.district.toLowerCase().includes('dhaka')
+                            resolveDeliveryZone(order.customer.district, order.customer.upazila) === 'inside_dhaka'
                               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               : 'bg-amber-50 text-amber-800 border border-amber-200'
                           }`}>
-                            {order.customer.district} ({order.customer.district.toLowerCase().includes('dhaka') ? '৳৭০' : '৳১২০'})
+                            {order.customer.district} (
+                            {(order.deliveryFee ?? (resolveDeliveryZone(order.customer.district, order.customer.upazila) === 'inside_dhaka' ? 0 : 50)) === 0
+                              ? 'ফ্রি ৳০'
+                              : `৳${order.deliveryFee ?? 50}`}
+                            )
                           </span>
                           <span className="text-[11px] font-bold text-[#14221C]">
                             {order.customer.upazila}
@@ -3098,14 +3145,14 @@ export const AdminDashboard: React.FC = () => {
                 <span className="text-xl font-black text-[#14221C] tabular-nums mt-0.5 block">
                   {allCustomerProfiles.filter((c) => c.district.toLowerCase().includes('dhaka')).length} জন
                 </span>
-                <span className="text-[10px] text-emerald-700 font-semibold block">ডেলিভারি চার্জ ৳৭০</span>
+                <span className="text-[10px] text-emerald-700 font-semibold block">সিটি ফ্রি (৳০) · সাব-এরিয়া ৳৫০</span>
               </div>
               <div className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
-                <span className="text-[#202522]/60 text-[11px] block font-medium">ঢাকার বাইরের জেলা</span>
+                <span className="text-[#202522]/60 text-[11px] block font-medium">ঢাকার বাইরের ৬৩ জেলা</span>
                 <span className="text-xl font-black text-[#14221C] tabular-nums mt-0.5 block">
                   {allCustomerProfiles.filter((c) => !c.district.toLowerCase().includes('dhaka')).length} জন
                 </span>
-                <span className="text-[10px] text-amber-700 font-semibold block">ডেলিভারি চার্জ ৳১২০</span>
+                <span className="text-[10px] text-amber-700 font-semibold block">ডেলিভারি চার্জ ৳৫০</span>
               </div>
               <div className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
                 <span className="text-[#202522]/60 text-[11px] block font-medium">মোট সম্পন্ন অর্ডার</span>
@@ -3210,7 +3257,7 @@ export const AdminDashboard: React.FC = () => {
                               <MapPin className="w-3 h-3 shrink-0" />
                               <span>{cust.district}</span>
                               <span className="text-[9px] opacity-80 font-mono">
-                                ({isDhaka ? '৳৭০' : '৳১২০'})
+                                ({resolveDeliveryZone(cust.district, cust.upazila) === 'inside_dhaka' ? 'ফ্রি ৳০' : '৳৫০'})
                               </span>
                             </span>
                           </td>
@@ -4519,22 +4566,35 @@ service cloud.firestore {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <label className="block font-bold text-[#14221C] mb-1">Inside Dhaka Fee (৳)</label>
+                  <label className="block font-bold text-[#14221C] mb-1">Inside Dhaka City Fee (৳)</label>
                   <input
                     type="number"
-                    value={localSettings.deliveryFeeInsideDhaka}
+                    min={0}
+                    value={localSettings.deliveryFeeInsideDhaka ?? 0}
                     onChange={(e) => setLocalSettings({ ...localSettings, deliveryFeeInsideDhaka: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-emerald-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#14221C] mb-1">Dhaka Sub-Area Fee (৳)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={localSettings.deliveryFeeDhakaSubArea ?? 50}
+                    onChange={(e) => setLocalSettings({ ...localSettings, deliveryFeeDhakaSubArea: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#14221C] mb-1">Outside Dhaka Fee (৳)</label>
+                  <label className="block font-bold text-[#14221C] mb-1">63 Districts / Outside Fee (৳)</label>
                   <input
                     type="number"
-                    value={localSettings.deliveryFeeOutsideDhaka}
+                    min={0}
+                    value={localSettings.deliveryFeeOutsideDhaka ?? 50}
                     onChange={(e) => setLocalSettings({ ...localSettings, deliveryFeeOutsideDhaka: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold"
                   />
@@ -4544,7 +4604,8 @@ service cloud.firestore {
                   <label className="block font-bold text-[#14221C] mb-1">Free Delivery Threshold (৳)</label>
                   <input
                     type="number"
-                    value={localSettings.freeShippingThreshold}
+                    min={0}
+                    value={localSettings.freeShippingThreshold ?? 0}
                     onChange={(e) => setLocalSettings({ ...localSettings, freeShippingThreshold: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-emerald-700"
                   />
@@ -4777,63 +4838,72 @@ service cloud.firestore {
                   )}
                 </div>
 
-                {/* FIELD 3: PRICING (Regular, Sale, Cost Price) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-bold text-[#14221C] mb-1.5 uppercase tracking-wider text-[11px]">
-                      3. Regular Price (৳) *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-[#14221C] text-sm">
-                        ৳
-                      </span>
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="e.g. 2500"
-                        value={prodPrice || ''}
-                        onChange={(e) => setProdPrice(Number(e.target.value))}
-                        required
-                        className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#14221C] focus:outline-none focus:border-[#FF762E]"
-                      />
+                {/* FIELD 3: PRICING (Cost Price First -> Auto Selling Price -> Auto Regular Price) */}
+                <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-bold text-[#14221C] mb-1.5 uppercase tracking-wider text-[11px]">
+                        3. Cost Price / ক্রয়-উৎপাদন মূল্য (৳) *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-[#14221C] text-sm">
+                          ৳
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 500"
+                          value={prodCost || ''}
+                          onChange={(e) => handleCostPriceChange(e.target.value)}
+                          required
+                          className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#14221C] tabular-nums focus:outline-none focus:border-[#FF762E]"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block font-bold text-[#14221C] mb-1.5 uppercase tracking-wider text-[11px]">
-                      Sale / Discount Price (৳)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-[#FF762E] text-sm">
-                        ৳
-                      </span>
-                      <input
-                        type="number"
-                        placeholder="e.g. 2100"
-                        value={prodDiscountPrice || ''}
-                        onChange={(e) => setProdDiscountPrice(Number(e.target.value))}
-                        className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#FF762E] focus:outline-none focus:border-[#FF762E]"
-                      />
+                    <div>
+                      <label className="block font-bold text-[#14221C] mb-1.5 uppercase tracking-wider text-[11px]">
+                        বিক্রয় মূল্য / Selling Price (৳) *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-[#FF762E] text-sm">
+                          ৳
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 680"
+                          value={prodDiscountPrice || ''}
+                          onChange={(e) => setProdDiscountPrice(Number(e.target.value))}
+                          required
+                          className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#FF762E] tabular-nums focus:outline-none focus:border-[#FF762E]"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block font-bold text-[#14221C] mb-1.5 uppercase tracking-wider text-[11px]">
-                      Cost Price / উৎপাদন খরচ (৳)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-neutral-500 text-sm">
-                        ৳
-                      </span>
-                      <input
-                        type="number"
-                        placeholder="e.g. 1100"
-                        value={prodCost || ''}
-                        onChange={(e) => setProdCost(Number(e.target.value))}
-                        className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-sm text-[#14221C] focus:outline-none focus:border-[#FF762E]"
-                      />
+                    <div>
+                      <label className="block font-bold text-[#14221C] mb-1.5 uppercase tracking-wider text-[11px]">
+                        Regular Price (৳) *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-neutral-500 text-sm">
+                          ৳
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 880"
+                          value={prodPrice || ''}
+                          onChange={(e) => setProdPrice(Number(e.target.value))}
+                          required
+                          className="w-full pl-8 pr-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-extrabold text-sm text-[#14221C] tabular-nums focus:outline-none focus:border-[#FF762E]"
+                        />
+                      </div>
                     </div>
                   </div>
+                  <p className="mt-1.5 text-[11px] text-[#202522]/70 tabular-nums">
+                    অটো হিসাব: Cost + ৳{COST_TO_SELLING_MARKUP_BDT} = বিক্রয় মূল্য · বিক্রয় মূল্য + ৳{SELLING_TO_REGULAR_MARKUP_BDT} = Regular Price (প্রয়োজনে ম্যানুয়ালি পরিবর্তন করা যাবে)
+                  </p>
                 </div>
 
                 {/* FIELD 4: PRODUCT DESCRIPTION & TAGLINE */}
@@ -5280,16 +5350,40 @@ service cloud.firestore {
                       </div>
 
                       {/* Pricing & Stock Details */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                         <div>
                           <label className="block font-bold text-[#14221C] mb-1">
-                            Discount Price (৳)
+                            Cost Price (৳)
                           </label>
                           <input
                             type="number"
-                            value={prodDiscountPrice}
+                            value={prodCost || ''}
+                            onChange={(e) => handleCostPriceChange(e.target.value)}
+                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-stone-700 tabular-nums"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-[#14221C] mb-1">
+                            বিক্রয় মূল্য (৳)
+                          </label>
+                          <input
+                            type="number"
+                            value={prodDiscountPrice || ''}
                             onChange={(e) => setProdDiscountPrice(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#FF762E]"
+                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#FF762E] tabular-nums"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-[#14221C] mb-1">
+                            Regular Price (৳)
+                          </label>
+                          <input
+                            type="number"
+                            value={prodPrice || ''}
+                            onChange={(e) => setProdPrice(Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C] tabular-nums"
                           />
                         </div>
 
@@ -5311,19 +5405,7 @@ service cloud.firestore {
                             type="number"
                             value={prodStock}
                             onChange={(e) => setProdStock(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-[#14221C] mb-1">
-                            Cost Price (৳)
-                          </label>
-                          <input
-                            type="number"
-                            value={prodCost}
-                            onChange={(e) => setProdCost(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-stone-700"
+                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold tabular-nums"
                           />
                         </div>
                       </div>
@@ -5670,7 +5752,11 @@ service cloud.firestore {
                               : 'bg-amber-100 text-amber-800'
                           }`}
                         >
-                          {isDhaka ? 'ঢাকা (ডেলিভারি চার্জ ৳৭০)' : 'ঢাকার বাইরে (ডেলিভারি চার্জ ৳১২০)'}
+                          {resolveDeliveryZone(cust.district, cust.upazila) === 'inside_dhaka'
+                            ? 'ঢাকা সিটি (ডেলিভারি ফ্রি ৳০)'
+                            : resolveDeliveryZone(cust.district, cust.upazila) === 'dhaka_sub_area'
+                            ? 'ঢাকা সাব-এরিয়া (ডেলিভারি চার্জ ৳৫০)'
+                            : '৬৩ জেলা (ডেলিভারি চার্জ ৳৫০)'}
                         </span>
                       </div>
                     </div>
@@ -5857,7 +5943,10 @@ service cloud.firestore {
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="font-bold text-[#14221C]">{inspectingOrder.customer.district}</span>
                       <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
-                        ডেলিভারি চার্জ: {inspectingOrder.customer.district.toLowerCase().includes('dhaka') ? '৳৭০' : '৳১২০'}
+                        ডেলিভারি চার্জ:{' '}
+                        {(inspectingOrder.deliveryFee ?? (resolveDeliveryZone(inspectingOrder.customer.district, inspectingOrder.customer.upazila) === 'inside_dhaka' ? 0 : 50)) === 0
+                          ? 'ফ্রি (৳০)'
+                          : `৳${inspectingOrder.deliveryFee ?? 50}`}
                       </span>
                     </div>
                   </div>

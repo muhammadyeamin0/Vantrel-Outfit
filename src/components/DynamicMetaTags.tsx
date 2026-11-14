@@ -125,7 +125,7 @@ export const DynamicMetaTags: React.FC = () => {
         case 'cart':
           title = 'Your Shopping Bag | VANTREL Online Store';
           description =
-            'Review your selected items. Delivery charge: ৳70 inside Dhaka and ৳120 outside Dhaka with nationwide Cash on Delivery.';
+            'Review your selected items. Free delivery inside Dhaka City (৳0), and only ৳50 in Dhaka Sub-Area & all 63 districts with Cash on Delivery.';
           canonicalUrl = `${origin}/?page=cart`;
           break;
         case 'checkout':
@@ -180,7 +180,7 @@ export const DynamicMetaTags: React.FC = () => {
         case 'shipping-policy':
           title = 'Shipping & Delivery Policy | VANTREL OUTFIT';
           description =
-            'Delivery inside Dhaka: ৳70 (24-48 hrs). Outside Dhaka: ৳120 (48-72 hrs). 100% open-box checking allowed with Steadfast Courier.';
+            'Free delivery inside Dhaka City (৳0, 24-48 hrs). Dhaka Sub-Area & all 63 districts: ৳50 flat rate (48-72 hrs). Cash on Delivery nationwide.';
           canonicalUrl = `${origin}/?page=shipping-policy`;
           break;
         case 'return-policy':

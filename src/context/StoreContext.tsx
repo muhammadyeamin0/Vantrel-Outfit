@@ -94,6 +94,28 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
 ]);
 
+export const COST_TO_SELLING_MARKUP_BDT = 180;
+export const SELLING_TO_REGULAR_MARKUP_BDT = 200;
+
+export function computePricesFromCost(cost: number): {
+  costPrice: number;
+  sellingPrice: number;
+  regularPrice: number;
+  discountPercent: number;
+} {
+  const cleanCost = Math.max(0, Math.round(Number(cost) || 0));
+  const sellingPrice = cleanCost + COST_TO_SELLING_MARKUP_BDT;
+  const regularPrice = sellingPrice + SELLING_TO_REGULAR_MARKUP_BDT;
+  const discountPercent =
+    regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;
+  return {
+    costPrice: cleanCost,
+    sellingPrice,
+    regularPrice,
+    discountPercent
+  };
+}
+
 export function sanitizeProductSizes(prod: Product): Product {
   if (!prod) return prod;
   const isPantCategory =
@@ -275,7 +297,7 @@ export interface StoreContextType {
   settings: StoreSettings;
   updateSettings: (newSettings: Partial<StoreSettings>) => void;
   calculateDeliveryFee: (
-    zone: 'inside_dhaka' | 'outside_dhaka' | 'remote_area' | 'express_dhaka',
+    zone: 'inside_dhaka' | 'dhaka_sub_area' | 'outside_dhaka' | 'remote_area' | 'express_dhaka',
     subtotal: number
   ) => number;
 
@@ -289,6 +311,7 @@ export interface StoreContextType {
   restoreProduct: (id: string) => void;
   permanentlyDeleteProduct: (id: string) => void;
   deleteAllProducts: () => void;
+  recalculateAllPricesFromCost: () => Promise<number>;
   duplicateProduct: (id: string) => void;
   moveProductUp: (id: string) => void;
   moveProductDown: (id: string) => void;
@@ -684,17 +707,51 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Settings
   const [settings, setSettings] = useState<StoreSettings>(() => {
-    const saved = localStorage.getItem('vt_settings_v2') || localStorage.getItem('vt_settings') || localStorage.getItem('yw_settings');
-    if (saved) {
+    const savedV3 = localStorage.getItem('vt_settings_v3');
+    if (savedV3) {
       try {
-        const parsed = JSON.parse(saved);
+        const parsed = JSON.parse(savedV3);
         return {
           ...INITIAL_SETTINGS,
           ...parsed,
           storeName: parsed.storeName === 'VANTREL' ? 'VANTREL OUTFIT' : (parsed.storeName || 'VANTREL OUTFIT'),
-          announcementText: parsed.announcementText && parsed.announcementText.includes('VANTREL LUXURY') ? parsed.announcementText.replace('VANTREL LUXURY', 'VANTREL OUTFIT LUXURY') : (parsed.announcementText || INITIAL_SETTINGS.announcementText),
-          deliveryFeeInsideDhaka: parsed.deliveryFeeInsideDhaka === 100 || parsed.deliveryFeeInsideDhaka === 80 ? 70 : (parsed.deliveryFeeInsideDhaka || 70),
-          deliveryFeeOutsideDhaka: parsed.deliveryFeeOutsideDhaka === 150 ? 120 : (parsed.deliveryFeeOutsideDhaka || 120)
+          deliveryFeeInsideDhaka: parsed.deliveryFeeInsideDhaka ?? INITIAL_SETTINGS.deliveryFeeInsideDhaka,
+          deliveryFeeDhakaSubArea: parsed.deliveryFeeDhakaSubArea ?? INITIAL_SETTINGS.deliveryFeeDhakaSubArea,
+          deliveryFeeOutsideDhaka: parsed.deliveryFeeOutsideDhaka ?? INITIAL_SETTINGS.deliveryFeeOutsideDhaka,
+          deliveryFeeRemote: parsed.deliveryFeeRemote ?? INITIAL_SETTINGS.deliveryFeeRemote,
+          deliveryFeeExpress: parsed.deliveryFeeExpress ?? INITIAL_SETTINGS.deliveryFeeExpress
+        };
+      } catch {
+        return INITIAL_SETTINGS;
+      }
+    }
+
+    const legacySaved =
+      localStorage.getItem('vt_settings_v2') ||
+      localStorage.getItem('vt_settings') ||
+      localStorage.getItem('yw_settings');
+    if (legacySaved) {
+      try {
+        const parsed = JSON.parse(legacySaved);
+        const hasOldHeadline =
+          !parsed.announcementText ||
+          parsed.announcementText.includes('৳70') ||
+          parsed.announcementText.includes('৳120') ||
+          parsed.announcementText.includes('VANTREL LUXURY');
+        const oldInside = parsed.deliveryFeeInsideDhaka;
+        const oldOutside = parsed.deliveryFeeOutsideDhaka;
+        return {
+          ...INITIAL_SETTINGS,
+          ...parsed,
+          storeName: parsed.storeName === 'VANTREL' ? 'VANTREL OUTFIT' : (parsed.storeName || 'VANTREL OUTFIT'),
+          announcementText: hasOldHeadline ? INITIAL_SETTINGS.announcementText : parsed.announcementText,
+          deliveryFeeInsideDhaka:
+            oldInside === undefined || oldInside === 70 || oldInside === 80 || oldInside === 100 ? 0 : oldInside,
+          deliveryFeeDhakaSubArea: parsed.deliveryFeeDhakaSubArea ?? 50,
+          deliveryFeeOutsideDhaka:
+            oldOutside === undefined || oldOutside === 120 || oldOutside === 130 || oldOutside === 150 ? 50 : oldOutside,
+          deliveryFeeRemote: 50,
+          deliveryFeeExpress: 50
         };
       } catch {
         return INITIAL_SETTINGS;
@@ -890,6 +947,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [orders]);
 
   useEffect(() => {
+    localStorage.setItem('vt_settings_v3', JSON.stringify(settings));
     localStorage.setItem('vt_settings', JSON.stringify(settings));
   }, [settings]);
 
@@ -1780,16 +1838,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     setAppliedReferralCode(null);
   };
 
-  // Delivery Fee Calculation (Daraz-style: ৳70 inside Dhaka, ৳120 outside Dhaka)
+  // Delivery Fee Calculation: Inside Dhaka Free (৳0), Dhaka Sub-Area ৳50, 63 Districts ৳50
   const calculateDeliveryFee = (
-    zone: 'inside_dhaka' | 'outside_dhaka' | 'remote_area' | 'express_dhaka',
+    zone: 'inside_dhaka' | 'dhaka_sub_area' | 'outside_dhaka' | 'remote_area' | 'express_dhaka',
     _subtotal?: number
   ) => {
-    if (zone === 'express_dhaka') return settings.deliveryFeeExpress || 110;
-    if (zone === 'inside_dhaka') return settings.deliveryFeeInsideDhaka || 70;
-    if (zone === 'outside_dhaka') return settings.deliveryFeeOutsideDhaka || 120;
-    if (zone === 'remote_area') return settings.deliveryFeeRemote || 140;
-    return settings.deliveryFeeInsideDhaka || 70;
+    if (zone === 'inside_dhaka') return settings.deliveryFeeInsideDhaka ?? 0;
+    if (zone === 'dhaka_sub_area') return settings.deliveryFeeDhakaSubArea ?? 50;
+    if (zone === 'outside_dhaka') return settings.deliveryFeeOutsideDhaka ?? 50;
+    if (zone === 'remote_area') return settings.deliveryFeeRemote ?? 50;
+    if (zone === 'express_dhaka') return settings.deliveryFeeExpress ?? 50;
+    return settings.deliveryFeeInsideDhaka ?? 0;
   };
 
   // Active vs Archived Products
@@ -2064,6 +2123,68 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     addAuditLog('PRODUCT_DELETE_ALL', 'Deleted all products from catalog');
     showToast('All Products Deleted', 'Catalog is now empty. You can add new products anytime.', 'info');
+  };
+
+  const recalculateAllPricesFromCost = async (): Promise<number> => {
+    const updatedList = products.map((p) => {
+      const effectiveCost =
+        typeof p.costPrice === 'number' && p.costPrice > 0
+          ? p.costPrice
+          : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - COST_TO_SELLING_MARKUP_BDT));
+      const { costPrice, sellingPrice, regularPrice, discountPercent } =
+        computePricesFromCost(effectiveCost);
+      return {
+        ...p,
+        costPrice,
+        discountPrice: sellingPrice,
+        regularPrice,
+        discountPercent
+      };
+    });
+
+    setProducts(updatedList);
+
+    if (db && updatedList.length > 0) {
+      try {
+        for (let i = 0; i < updatedList.length; i += 450) {
+          const chunk = updatedList.slice(i, i + 450);
+          const batch = writeBatch(db);
+          chunk.forEach((p) => {
+            batch.set(
+              doc(db, 'products', p.id),
+              sanitizeFirestoreData({
+                costPrice: p.costPrice,
+                discountPrice: p.discountPrice,
+                regularPrice: p.regularPrice,
+                discountPercent: p.discountPercent
+              }),
+              { merge: true }
+            );
+          });
+          await batch.commit();
+        }
+      } catch (e) {
+        console.warn('Firestore bulk price recalculation error:', e);
+        handleFirestoreError(e, OperationType.WRITE, 'products');
+      }
+    }
+
+    try {
+      await fetch('/api/products/recalculate-prices', { method: 'POST' });
+    } catch (e) {
+      console.warn('Server bulk price recalculation notice:', e);
+    }
+
+    addAuditLog(
+      'PRODUCT_PRICE_RECALCULATE_ALL',
+      `Recalculated selling (+৳${COST_TO_SELLING_MARKUP_BDT}) and regular (+৳${SELLING_TO_REGULAR_MARKUP_BDT}) prices from cost for ${updatedList.length} products.`
+    );
+    showToast(
+      'সব প্রোডাক্টের দাম আপডেট হয়েছে',
+      `${updatedList.length}টি প্রোডাক্টের বিক্রয় মূল্য (Cost + ৳${COST_TO_SELLING_MARKUP_BDT}) ও Regular Price (+৳${SELLING_TO_REGULAR_MARKUP_BDT}) আপডেট করা হয়েছে।`,
+      'success'
+    );
+    return updatedList.length;
   };
 
   const moveProductUp = async (id: string) => {
@@ -2455,11 +2576,14 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       customerConfirmationDeadline: confirmationDeadline,
       confirmationDeadline: confirmationDeadline,
       canCancelUntil: confirmationDeadline,
-      courierName: data.deliveryZone === 'inside_dhaka' ? 'Pathao' : 'Steadfast',
+      courierName:
+        data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 'Pathao' : 'Steadfast',
       trackingNumber: `VT-PKG-${Math.floor(100000 + Math.random() * 900000)}`,
       trackingUrl: `/tracking?order=${orderNumber}`,
-      estimatedDeliveryMinDays: data.deliveryZone === 'inside_dhaka' ? 1 : 2,
-      estimatedDeliveryMaxDays: data.deliveryZone === 'inside_dhaka' ? 2 : 4,
+      estimatedDeliveryMinDays:
+        data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 1 : 2,
+      estimatedDeliveryMaxDays:
+        data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 2 : 4,
       userId: currentUser?.id || `usr-${Date.now()}`,
       isVerifiedCustomer: Boolean(currentUser?.isVerified ?? true),
       verificationMethod: currentUser?.verificationMethod || 'phone_otp',
@@ -3715,6 +3839,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         restoreProduct,
         permanentlyDeleteProduct,
         deleteAllProducts,
+        recalculateAllPricesFromCost,
         duplicateProduct,
         moveProductUp,
         moveProductDown,

@@ -7,6 +7,39 @@ export interface DivisionData {
   }[];
 }
 
+export const DHAKA_SUB_AREA_UPAZILAS = [
+  'savar',
+  'keraniganj',
+  'dhamrai',
+  'ashulia',
+  'nawabganj',
+  'dohar',
+  'সাভার',
+  'কেরানীগঞ্জ',
+  'ধামরাই',
+  'আশুলিয়া',
+  'আশুলিয়া',
+  'নবাবগঞ্জ',
+  'দোহার'
+] as const;
+
+export function isDhakaSubArea(upazila?: string): boolean {
+  const normalized = (upazila || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return DHAKA_SUB_AREA_UPAZILAS.some((sub) => normalized.includes(sub));
+}
+
+export function resolveDeliveryZone(
+  district?: string,
+  upazila?: string
+): 'inside_dhaka' | 'dhaka_sub_area' | 'outside_dhaka' {
+  const normalizedDist = (district || '').trim().toLowerCase();
+  const isDhakaDist = normalizedDist === 'dhaka' || normalizedDist === 'ঢাকা';
+  if (!isDhakaDist) return 'outside_dhaka';
+  if (isDhakaSubArea(upazila)) return 'dhaka_sub_area';
+  return 'inside_dhaka';
+}
+
 export const BANGLADESH_DIVISIONS: DivisionData[] = [
   {
     name: 'Dhaka',
@@ -31,8 +64,11 @@ export const BANGLADESH_DIVISIONS: DivisionData[] = [
           'Malibagh',
           'Jatrabari',
           'Savar',
+          'Ashulia',
           'Keraniganj',
-          'Dhamrai'
+          'Dhamrai',
+          'Nawabganj',
+          'Dohar'
         ]
       },
       {

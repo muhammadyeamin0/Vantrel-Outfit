@@ -203,7 +203,7 @@ export interface Order {
   pointsDiscount?: number;
   loyaltyPointsRedeemed?: number;
   referralDiscount?: number;
-  deliveryZone?: 'inside_dhaka' | 'outside_dhaka' | 'remote_area' | 'express_dhaka';
+  deliveryZone?: 'inside_dhaka' | 'dhaka_sub_area' | 'outside_dhaka' | 'remote_area' | 'express_dhaka';
   deliveryFee?: number;
   deliveryCharge?: number;
   total: number;
@@ -255,6 +255,7 @@ export interface StoreSettings {
   logoUrl?: string;
   announcementText: string;
   deliveryFeeInsideDhaka: number;
+  deliveryFeeDhakaSubArea: number;
   deliveryFeeOutsideDhaka: number;
   deliveryFeeRemote: number;
   deliveryFeeExpress: number;

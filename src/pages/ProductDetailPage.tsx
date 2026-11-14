@@ -146,7 +146,9 @@ export const ProductDetailPage: React.FC = () => {
   // Delivery estimate calculation
   const isDhaka = selectedDistrict.toLowerCase() === 'dhaka';
   const deliveryDays = isDhaka ? '1–2 Working Days' : '2–4 Working Days';
-  const deliveryCost = isDhaka ? settings.deliveryFeeInsideDhaka : settings.deliveryFeeOutsideDhaka;
+  const deliveryCost = isDhaka
+    ? (settings.deliveryFeeInsideDhaka ?? 0)
+    : (settings.deliveryFeeOutsideDhaka ?? 50);
 
   // Related products
   const relatedProducts = products
@@ -463,13 +465,15 @@ export const ProductDetailPage: React.FC = () => {
             </div>
 
             {/* Seamless Order Assurance */}
-            <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 flex items-center justify-between text-xs text-emerald-900">
+            <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 flex items-center justify-between gap-2 text-xs text-emerald-900">
               <div className="flex items-center gap-2">
                 <Truck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span className="font-medium">ক্যাশ অন ডেলিভারিতে সারাদেশে দ্রুত হোম ডেলিভারি</span>
+                <span className="font-semibold">
+                  ঢাকায় ফ্রি ডেলিভারি (৳০) · সাব-এরিয়া ও ৬৩ জেলায় মাত্র ৳৫০
+                </span>
               </div>
               <span className="text-[11px] font-bold text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 shrink-0">
-                সহজ অর্ডার
+                ক্যাশ অন ডেলিভারি
               </span>
             </div>
 

@@ -242,6 +242,16 @@ export const HomePage: React.FC = () => {
                 <p>{activeSlide.tagline2}</p>
               </div>
 
+              {/* Dhaka Free Delivery Editorial Headline */}
+              <div className="border-l-2 border-[#FF762E] pl-3.5 py-1 bg-black/55 backdrop-blur-sm max-w-lg">
+                <p className="text-sm sm:text-base font-extrabold text-white tracking-wide">
+                  ঢাকার ভেতরে ১০০% <span className="text-emerald-400">ফ্রি ডেলিভারি</span>!
+                </p>
+                <p className="text-[11px] sm:text-xs text-neutral-300 font-medium mt-0.5">
+                  ঢাকা সিটি ৳০ · ঢাকা সাব-এরিয়া ও ৬৩ জেলায় ডেলিভারি মাত্র ৳৫০
+                </p>
+              </div>
+
               {/* Category Quick Badges matching the poster (T-SHIRT / HOODIE / PANT / SHIRT) */}
               <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] font-bold text-white/75">
                 {['T-SHIRT', 'HOODIE', 'PANT', 'SHIRT'].map((item) => (
@@ -635,14 +645,14 @@ export const HomePage: React.FC = () => {
 
             {/* 3 Feature / Trust Badges directly inside the brand narrative area as shown in mockup */}
             <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-6 pt-12 mt-12 border-t border-white/15">
-              {/* Badge 1: Fast Delivery */}
+              {/* Badge 1: Free Dhaka Delivery */}
               <div className="space-y-1.5">
                 <Truck className="w-6 h-6 text-white stroke-[1.5]" />
                 <h4 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-                  Fast Delivery
+                  Free Dhaka Delivery
                 </h4>
                 <p className="text-[11px] text-neutral-400">
-                  All Over Bangladesh
+                  ঢাকায় ফ্রি (৳০) · সাব-এরিয়া ও ৬৩ জেলায় ৳৫০
                 </p>
               </div>
 

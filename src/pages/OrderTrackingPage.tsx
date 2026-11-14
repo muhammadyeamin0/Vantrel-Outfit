@@ -536,10 +536,12 @@ export const OrderTrackingPage: React.FC = () => {
                   <div className="font-bold text-[#14221C]">Estimated Delivery Window</div>
                   <div className="text-[11px] text-[#202522]/70">
                     {searchedOrder.deliveryZone === 'inside_dhaka'
-                      ? 'Inside Dhaka: 24 to 48 Hours via Pathao/Steadfast Express'
+                      ? 'Inside Dhaka City (Free Delivery): 24 to 48 Hours via Pathao/Steadfast'
+                      : searchedOrder.deliveryZone === 'dhaka_sub_area'
+                      ? 'Dhaka Sub-Area (৳50 Delivery): 24 to 48 Hours via Pathao/Steadfast'
                       : searchedOrder.deliveryZone === 'express_dhaka'
                       ? 'Express Dhaka: Same Day Delivery within 8 Hours'
-                      : 'Outside Dhaka: 48 to 72 Hours via Steadfast Hubs'}
+                      : 'Outside Dhaka (All 63 Districts - ৳50 Delivery): 48 to 72 Hours via Steadfast'}
                   </div>
                 </div>
               </div>

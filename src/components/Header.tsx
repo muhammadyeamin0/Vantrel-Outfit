@@ -13,7 +13,8 @@ import {
   Package,
   Palette,
   Lock,
-  MessageCircle
+  MessageCircle,
+  Truck
 } from 'lucide-react';
 import { AdminAuthModal } from './AdminAuthModal';
 
@@ -75,8 +76,9 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-white/10 transition-all text-white">
       {/* Top Announcement Bar */}
       {settings.announcementText && (
-        <div className="bg-[#050505] text-neutral-300 text-[11px] font-medium tracking-wide py-1.5 px-4 text-center border-b border-white/5">
-          <div className="max-w-7xl mx-auto flex items-center justify-center">
+        <div className="bg-[#0D0D0D] text-neutral-100 text-[11px] sm:text-xs font-semibold tracking-wide py-2 px-4 text-center border-b border-white/10">
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
+            <Truck className="w-3.5 h-3.5 text-[#FF762E] shrink-0" />
             <span className="truncate">
               {settings.announcementText}
             </span>
