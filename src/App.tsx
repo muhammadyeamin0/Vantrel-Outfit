@@ -1,25 +1,20 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
-import { CartDrawer } from './components/CartDrawer';
-import { SizeGuideModal } from './components/SizeGuideModal';
-import { ProductComparisonModal, FloatingComparisonDock } from './components/ProductComparisonModal';
-import { AuthModal } from './components/AuthModal';
 import { ToastContainer } from './components/Toast';
-import { FloatingChatWidget } from './components/FloatingChatWidget';
 import { DarazBottomNav } from './components/DarazBottomNav';
 import { TopCategoryStrip } from './components/TopCategoryStrip';
 import { DynamicMetaTags } from './components/DynamicMetaTags';
 
 import { HomePage } from './pages/HomePage';
-import { ShopPage } from './pages/ShopPage';
-import { ProductDetailPage } from './pages/ProductDetailPage';
-import { CartPage } from './pages/CartPage';
-import { CheckoutPage } from './pages/CheckoutPage';
 
-// Lazy-load non-critical & heavy routes to achieve sub-second initial mobile load
+// Lazy-load secondary pages & modals to achieve sub-second 4G initial mobile load
+const ShopPage = lazy(() => import('./pages/ShopPage').then(m => ({ default: m.ShopPage })));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage').then(m => ({ default: m.ProductDetailPage })));
+const CartPage = lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const CustomerAccountPage = lazy(() => import('./pages/CustomerAccountPage').then(m => ({ default: m.CustomerAccountPage })));
 const OrderTrackingPage = lazy(() => import('./pages/OrderTrackingPage').then(m => ({ default: m.OrderTrackingPage })));
@@ -29,8 +24,44 @@ const ContactPage = lazy(() => import('./pages/StaticPages').then(m => ({ defaul
 const FaqPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.FaqPage })));
 const PolicyPage = lazy(() => import('./pages/StaticPages').then(m => ({ default: m.PolicyPage })));
 
+const CartDrawer = lazy(() => import('./components/CartDrawer').then(m => ({ default: m.CartDrawer })));
+const SizeGuideModal = lazy(() => import('./components/SizeGuideModal').then(m => ({ default: m.SizeGuideModal })));
+const ProductComparisonModal = lazy(() => import('./components/ProductComparisonModal').then(m => ({ default: m.ProductComparisonModal })));
+const FloatingComparisonDock = lazy(() => import('./components/ProductComparisonModal').then(m => ({ default: m.FloatingComparisonDock })));
+const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+const FloatingChatWidget = lazy(() => import('./components/FloatingChatWidget').then(m => ({ default: m.FloatingChatWidget })));
+
 const MainContent: React.FC = () => {
-  const { currentPage } = useStore();
+  const {
+    currentPage,
+    isCartDrawerOpen,
+    isSizeGuideOpen,
+    isComparisonModalOpen,
+    isAuthModalOpen,
+    comparisonList
+  } = useStore();
+  const [mountChatWidget, setMountChatWidget] = useState(false);
+
+  // Prefetch likely next routes & defer non-critical chat widget during browser idle time
+  useEffect(() => {
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const preload = () => {
+      import('./pages/ShopPage').catch(() => {});
+      import('./pages/ProductDetailPage').catch(() => {});
+      import('./components/CartDrawer').catch(() => {});
+      setMountChatWidget(true);
+    };
+
+    if (typeof win.requestIdleCallback === 'function') {
+      const idleId = win.requestIdleCallback(preload, { timeout: 2000 });
+      return () => win.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(preload, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -90,12 +121,14 @@ const MainContent: React.FC = () => {
         </Suspense>
       </main>
       <Footer />
-      <CartDrawer />
-      <SizeGuideModal />
-      <ProductComparisonModal />
-      <FloatingComparisonDock />
-      <AuthModal />
-      <FloatingChatWidget />
+      <Suspense fallback={null}>
+        {isCartDrawerOpen && <CartDrawer />}
+        {isSizeGuideOpen && <SizeGuideModal />}
+        {isComparisonModalOpen && <ProductComparisonModal />}
+        {comparisonList.length > 0 && <FloatingComparisonDock />}
+        {isAuthModalOpen && <AuthModal />}
+        {mountChatWidget && <FloatingChatWidget />}
+      </Suspense>
       <ToastContainer />
       <DarazBottomNav />
     </div>

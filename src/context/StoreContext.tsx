@@ -1183,22 +1183,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Continuous 100% Guaranteed Orders Synchronization with Server Backend & Firestore
+  // Scoped Orders Synchronization: Syncs immediately & live on admin/account/tracking/confirmation routes (no idle homepage polling)
+  const needsLiveOrderSync =
+    currentPage === 'admin' ||
+    currentPage === 'account' ||
+    currentPage === 'tracking' ||
+    currentPage === 'confirmation';
+
   useEffect(() => {
+    if (!needsLiveOrderSync) return;
     let isMounted = true;
+    let lastSig = '';
 
     const syncOrdersWithServer = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const res = await fetch('/api/orders');
         if (!res.ok) return;
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && isMounted) {
-          setOrders((currentOrders) => {
-            // If server returned valid list, the server is authoritative
-            return json.data.sort(
-              (a: Order, b: Order) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            );
-          });
+          const sorted = (json.data as Order[]).sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          const nextSig = sorted
+            .map((o) => `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}`)
+            .join('|');
+          if (nextSig !== lastSig) {
+            lastSig = nextSig;
+            setOrders(sorted);
+          }
         }
       } catch {
         // Fallback gracefully
@@ -1206,9 +1219,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     syncOrdersWithServer();
-    const interval = setInterval(syncOrdersWithServer, 6000);
+    const interval = setInterval(syncOrdersWithServer, 25000);
 
-    // Also listen to Firestore orders collection if Firestore is available
+    // Also listen to Firestore orders collection if Firestore is available on active order views
     let firestoreUnsub: (() => void) | undefined;
     if (IS_GOOGLE_CLOUD_CONNECTED && db) {
       try {
@@ -1216,10 +1229,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         firestoreUnsub = onSnapshot(
           ordersCol,
           (snapshot) => {
-            if (!isMounted) return;
-            if (snapshot.empty) {
-              return;
-            }
+            if (!isMounted || snapshot.empty) return;
             const remoteOrders: Order[] = [];
             snapshot.forEach((docSnap) => {
               const remote = docSnap.data() as Order;
@@ -1228,7 +1238,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             remoteOrders.sort(
               (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
             );
-            setOrders(remoteOrders);
+            const nextSig = remoteOrders
+              .map((o) => `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}`)
+              .join('|');
+            if (nextSig !== lastSig) {
+              lastSig = nextSig;
+              setOrders(remoteOrders);
+            }
           },
           (error) => {
             console.warn('Firestore orders onSnapshot notice:', error.message);
@@ -1244,7 +1260,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearInterval(interval);
       if (firestoreUnsub) firestoreUnsub();
     };
-  }, []);
+  }, [needsLiveOrderSync]);
 
   // Listen to Firebase Auth state changes (only if GCP is enabled)
   useEffect(() => {
@@ -1389,12 +1405,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return order;
         });
 
-        if (changed) {
-          return updated;
-        }
-        return prevOrders;
+        return changed ? updated : prevOrders;
       });
-    }, 5000); // Check every 5 seconds
+    }, 15000); // Check every 15 seconds without blocking UI thread
 
     return () => clearInterval(timer);
   }, []);

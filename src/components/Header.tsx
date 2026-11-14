@@ -110,8 +110,11 @@ export const Header: React.FC = () => {
             className="flex items-center gap-2.5 sm:gap-3 tracking-wider shrink-0 select-none group"
           >
             <img
-              src="/assets/images/vantrel-logo.png"
+              src="/assets/images/vantrel-logo.webp"
               alt="VANTREL"
+              width={36}
+              height={36}
+              decoding="async"
               className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]"
             />
             <span className="font-heading text-2xl sm:text-3xl font-black tracking-[0.15em] text-white uppercase">
@@ -252,8 +255,12 @@ export const Header: React.FC = () => {
             <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-[#E5E1D5]">
               <div className="flex items-center gap-2.5">
                 <img
-                  src="/assets/images/vantrel-logo.png"
+                  src="/assets/images/vantrel-logo.webp"
                   alt="VANTREL"
+                  width={32}
+                  height={32}
+                  loading="lazy"
+                  decoding="async"
                   className="w-8 h-8 object-contain rounded-lg bg-[#14221C] p-1.5 shadow-xs border border-stone-800"
                 />
                 <span className="font-heading text-xl font-extrabold tracking-tight text-[#14221C] uppercase">

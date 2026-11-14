@@ -52,7 +52,7 @@ export const HomePage: React.FC = () => {
       categoryList: 'T-SHIRT / HOODIE / PANT / SHIRT',
       ctaText: 'SHOP NOW',
       category: 'All',
-      bgImage: '/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.png'
+      bgImage: '/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp'
     },
     {
       id: 'slide-02',
@@ -91,17 +91,17 @@ export const HomePage: React.FC = () => {
   // Category Banner items dynamically driven by Admin Panel category order
   const categoryBanners = useMemo(() => {
     const categoryImageMap: Record<string, string> = {
-      't-shirts': '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png',
-      'pants': '/assets/images/product_denim_cargo_1792588592254.jpg',
-      'pant': '/assets/images/product_denim_cargo_1792588592254.jpg',
-      'hoodies': '/assets/images/product_premium_hoodie_1792588590406.jpg',
-      'traditional wear': '/assets/images/product_panjabi_casual_1792588592268.jpg',
-      'panjabi': '/assets/images/product_panjabi_casual_1792588592268.jpg',
-      'jackets': '/assets/images/hero_fashion_yeamin_1792588589630.jpg',
-      'shirts': '/assets/images/bangladeshi_classic_shirt_1793107155017.jpg',
-      'polo shirts': 'https://images.unsplash.com/photo-1625910513413-562a1fc8f813?auto=format&fit=crop&w=500&q=80',
-      'sweater': 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=500&q=80',
-      'winter collection': '/assets/images/bangladeshi_hoodie_look_1793107183737.jpg'
+      't-shirts': '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
+      'pants': '/assets/images/product_denim_cargo_1792588592254.webp',
+      'pant': '/assets/images/product_denim_cargo_1792588592254.webp',
+      'hoodies': '/assets/images/product_premium_hoodie_1792588590406.webp',
+      'traditional wear': '/assets/images/product_panjabi_casual_1792588592268.webp',
+      'panjabi': '/assets/images/product_panjabi_casual_1792588592268.webp',
+      'jackets': '/assets/images/hero_fashion_yeamin_1792588589630.webp',
+      'shirts': '/assets/images/bangladeshi_classic_shirt_1793107155017.webp',
+      'polo shirts': 'https://images.unsplash.com/photo-1625910513413-562a1fc8f813?auto=format&fit=crop&w=500&q=75',
+      'sweater': 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=500&q=75',
+      'winter collection': '/assets/images/bangladeshi_hoodie_look_1793107183737.webp'
     };
 
     const activeCats = categories.filter((c) => c !== 'All');
@@ -112,7 +112,7 @@ export const HomePage: React.FC = () => {
       const prodInCat = products.find(
         (p) => (p.category.toLowerCase() === catKey || p.category.toLowerCase().includes(catKey)) && p.images && p.images.length > 0
       );
-      const img = categoryImageMap[catKey] || prodInCat?.images[0] || '/assets/images/product_premium_hoodie_1792588590406.jpg';
+      const img = categoryImageMap[catKey] || prodInCat?.images[0] || '/assets/images/product_premium_hoodie_1792588590406.webp';
       return {
         title: cat.toUpperCase(),
         category: cat,
@@ -149,7 +149,7 @@ export const HomePage: React.FC = () => {
       name: p.name,
       price: p.discountPrice || p.regularPrice,
       regularPrice: p.regularPrice,
-      image: p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.png',
+      image: p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
       category: p.category,
       swatches: (p.colors && p.colors.length > 0)
         ? p.colors.map((c) => c.hex)
@@ -284,12 +284,12 @@ export const HomePage: React.FC = () => {
                 className="relative group cursor-pointer rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl transition-all duration-500 hover:scale-[1.03] hover:border-white/50 h-[50vh] xl:h-[58vh] aspect-[941/1672] bg-neutral-900 ring-1 ring-white/10"
               >
                 <img
-                  src="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.png"
+                  src="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp"
                   alt="VANTREL Choose Your Style - Official High Quality Campaign"
                   className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                   fetchPriority="high"
                   loading="eager"
-                  decoding="sync"
+                  decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                   <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1.5">
@@ -570,7 +570,7 @@ export const HomePage: React.FC = () => {
           {/* Left Panel: COMFORT MEETS STYLE (Model sitting on steps in cream hoodie) */}
           <div className="relative min-h-[460px] sm:min-h-[540px] lg:min-h-[600px] overflow-hidden bg-neutral-900 border border-white/10 group">
             <img
-              src="/assets/images/editorial_cream_hoodie_1793118980188.jpg"
+              src="/assets/images/editorial_cream_hoodie_1793118980188.webp"
               alt="Comfort Meets Style"
               loading="lazy"
               decoding="async"
@@ -606,7 +606,7 @@ export const HomePage: React.FC = () => {
             {/* Model back shot image in lower-right corner matching mockup */}
             <div className="absolute bottom-0 right-0 w-3/5 h-3/5 sm:w-1/2 sm:h-1/2 opacity-35 pointer-events-none overflow-hidden">
               <img
-                src="/assets/images/editorial_story_backshot_1793118981432.jpg"
+                src="/assets/images/editorial_story_backshot_1793118981432.webp"
                 alt="Vantrel Streetwear Back Detail"
                 loading="lazy"
                 decoding="async"

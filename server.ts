@@ -764,6 +764,7 @@ app.get('/api/products', (req: Request, res: Response) => {
     result.sort((a, b) => b.rating - a.rating);
   }
 
+  res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
   res.json({ success: true, count: result.length, data: result });
 });
 
@@ -2252,7 +2253,17 @@ async function startServer() {
   } else {
     const distDir = path.resolve(__dirname, 'dist');
     const distIndexPath = path.join(distDir, 'index.html');
-    app.use(express.static(distDir));
+    app.use(
+      express.static(distDir, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          }
+        }
+      })
+    );
     app.get('*', (req: Request, res: Response) => {
       const matchedProduct = resolveProductMatchedFromReq(req);
       if (matchedProduct && fs.existsSync(distIndexPath)) {

@@ -38,8 +38,12 @@ export const Footer: React.FC = () => {
               className="inline-flex items-center gap-3 group select-none"
             >
               <img
-                src="/assets/images/vantrel-logo.png"
+                src="/assets/images/vantrel-logo.webp"
                 alt="VANTREL OUTFIT"
+                width={40}
+                height={40}
+                loading="lazy"
+                decoding="async"
                 className="w-10 h-10 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]"
               />
               <span className="font-heading text-xl sm:text-2xl font-black tracking-[0.12em] text-white uppercase whitespace-nowrap">

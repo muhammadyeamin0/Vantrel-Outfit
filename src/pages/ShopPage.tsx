@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { ProductCategory } from '../types';
@@ -25,6 +25,12 @@ export const ShopPage: React.FC = () => {
   const [inStockOnly, setInStockOnly] = useState<boolean>(false);
   const [discountOnly, setDiscountOnly] = useState<boolean>(false);
   const [maxPrice, setMaxPrice] = useState<number>(8000);
+  const [visibleCount, setVisibleCount] = useState<number>(24);
+
+  // Reset pagination batch whenever active filters/search/sort change
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [selectedCategory, searchQuery, maxPrice, selectedSize, selectedColor, inStockOnly, discountOnly, sortBy]);
 
   const availableSizes = ['All', 'M', 'L', 'XL', 'XXL'];
   const availableColors = [
@@ -442,10 +448,27 @@ export const ShopPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
+              <div className="space-y-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+                  {filteredProducts.slice(0, visibleCount).map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {visibleCount < filteredProducts.length && (
+                  <div className="flex flex-col items-center justify-center pt-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((prev) => prev + 24)}
+                      className="px-7 py-3 bg-[#141414] hover:bg-[#FF762E] text-white border border-white/15 hover:border-[#FF762E] text-xs font-extrabold uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-lg"
+                    >
+                      আরো প্রোডাক্ট দেখুন ({filteredProducts.length - visibleCount} বাকি)
+                    </button>
+                    <span className="text-[11px] text-neutral-400">
+                      Showing {Math.min(visibleCount, filteredProducts.length)} of {filteredProducts.length} items
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
