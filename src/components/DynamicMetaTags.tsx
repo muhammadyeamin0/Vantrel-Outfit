@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { useStore } from '../context/StoreContext';
-import { PageRoute } from '../context/StoreContext';
+import { useStore, PageRoute } from '../context/StoreContext';
+import { VANTREL_CANONICAL_ORIGIN, toCanonicalSeoImageUrl } from '../utils/imageProxy';
 
 /**
  * Dynamically updates document <title>, Open Graph, Twitter Card meta tags,
@@ -106,8 +106,7 @@ export const DynamicMetaTags: React.FC = () => {
         `Buy ${activeProduct.name} at ${priceText}${fabricSnippet}. Official VANTREL OUTFIT apparel with Cash on Delivery across Bangladesh.`;
 
       if (activeProduct.images && activeProduct.images.length > 0) {
-        const rawImg = activeProduct.images[0];
-        imageUrl = rawImg.startsWith('http') ? rawImg : `${origin}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+        imageUrl = toCanonicalSeoImageUrl(activeProduct.images[0], VANTREL_CANONICAL_ORIGIN);
       }
       imageAlt = `${activeProduct.name} - VANTREL OUTFIT`;
       ogType = 'product';
@@ -273,7 +272,7 @@ export const DynamicMetaTags: React.FC = () => {
     if (ogType === 'product' && activeProduct) {
       const resolvedImages = (activeProduct.images || [])
         .filter((img) => Boolean(img && typeof img === 'string'))
-        .map((img) => (img.startsWith('http') ? img : `${origin}${img.startsWith('/') ? '' : '/'}${img}`));
+        .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
 
       const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
       const productSchema: Record<string, unknown> = {

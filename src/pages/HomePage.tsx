@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCategory, Product } from '../types';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import {
   Truck,
   ShieldCheck,
@@ -116,7 +117,7 @@ export const HomePage: React.FC = () => {
       return {
         title: cat.toUpperCase(),
         category: cat,
-        image: img
+        image: toDisplayImageUrl(img)
       };
     });
   }, [categories, products]);
@@ -149,7 +150,7 @@ export const HomePage: React.FC = () => {
       name: p.name,
       price: p.discountPrice || p.regularPrice,
       regularPrice: p.regularPrice,
-      image: p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
+      image: toDisplayImageUrl(p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp'),
       category: p.category,
       swatches: (p.colors && p.colors.length > 0)
         ? p.colors.map((c) => c.hex)

@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../data/bangladeshData';
 import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import {
   ShoppingBag,
   Trash2,
@@ -298,7 +299,7 @@ export const CartPage: React.FC = () => {
                 {cart.map((item) => (
                   <div key={item.id} className="py-5 first:pt-4 last:pb-0 flex flex-col sm:flex-row items-start gap-4">
                     <img
-                      src={item.image}
+                      src={toDisplayImageUrl(item.image)}
                       alt={item.name}
                       className="w-20 h-24 sm:w-24 sm:h-28 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"

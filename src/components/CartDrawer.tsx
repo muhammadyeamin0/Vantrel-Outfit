@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import {
   X,
   Trash2,
@@ -275,7 +276,7 @@ export const CartDrawer: React.FC = () => {
                 {cart.map((item) => (
                   <div key={item.id} className="pt-3.5 first:pt-0 flex gap-3 bg-white p-3 rounded-2xl border border-[#E5E1D5]/80 shadow-2xs">
                     <img
-                      src={item.image}
+                      src={toDisplayImageUrl(item.image)}
                       alt={item.name}
                       className="w-16 h-20 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"

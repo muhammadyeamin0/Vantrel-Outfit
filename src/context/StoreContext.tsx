@@ -38,6 +38,7 @@ import {
   INITIAL_THEME,
   INITIAL_3D_BANNERS
 } from '../data/products';
+import { rewriteProductImagesToProxy, rewriteToCanonicalProxyUrl } from '../utils/imageProxy';
 import { auth, db, IS_GOOGLE_CLOUD_CONNECTED, sanitizeFirestoreData } from '../firebase';
 import {
   doc,
@@ -174,6 +175,7 @@ export function sanitizeProductSizes(prod: Product): Product {
 
   return {
     ...prod,
+    images: rewriteProductImagesToProxy(prod.images),
     sizes,
     colors,
     variants: finalVariants
@@ -1616,7 +1618,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           productId: product.id,
           name: product.name,
           slug: product.slug,
-          image: product.images[0] || '',
+          image: rewriteToCanonicalProxyUrl(product.images[0] || ''),
           size: selectedSize,
           color: selectedColor,
           price,
@@ -1698,7 +1700,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
               addedAt: new Date().toISOString(),
               name: prod?.name || 'VANTREL Garment',
               price: prod ? (prod.discountPrice ?? prod.regularPrice) : 0,
-              image: prod?.images?.[0] || ''
+              image: rewriteToCanonicalProxyUrl(prod?.images?.[0] || '')
             });
           }
         } catch (error) {
@@ -1924,6 +1926,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
   const updateProduct = async (id: string, updated: Partial<Product>) => {
     const cleanUpdated = { ...updated };
+    if (Array.isArray(cleanUpdated.images)) {
+      cleanUpdated.images = rewriteProductImagesToProxy(cleanUpdated.images);
+    }
     if (Array.isArray(cleanUpdated.sizes)) {
       const allowed = ALLOWED_SIZES as readonly string[];
       const filtered = cleanUpdated.sizes.filter((s) => allowed.includes(s));

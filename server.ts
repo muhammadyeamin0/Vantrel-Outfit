@@ -2,12 +2,21 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
+import dns from 'dns/promises';
+import net from 'net';
 import compression from 'compression';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import {
+  VANTREL_CANONICAL_ORIGIN,
+  normalizeThirdPartyImageUrl,
+  unwrapProxyImageUrl,
+  rewriteProductImagesToProxy,
+  toCanonicalSeoImageUrl
+} from './src/utils/imageProxy.ts';
 import {
   INITIAL_ORDERS,
   INITIAL_COUPONS,
@@ -76,7 +85,12 @@ function loadProductsFromDisk() {
       const content = fs.readFileSync(PRODUCTS_PERSIST_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) {
-        products = parsed.filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id));
+        products = parsed
+          .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+          .map((p) => ({
+            ...p,
+            images: rewriteProductImagesToProxy(p.images)
+          }));
         console.log(`[VANTREL ENGINE] Loaded ${products.length} persistent products from disk.`);
         return;
       }
@@ -107,6 +121,7 @@ async function syncProductsFromFirestore() {
       remoteProducts.push({
         ...data,
         id: docSnap.id,
+        images: rewriteProductImagesToProxy(data.images),
         isArchived: Boolean(data.isArchived || data.status === 'archived')
       });
     });
@@ -716,6 +731,212 @@ setInterval(() => {
 }, 3000);
 
 // ==========================================
+// IMAGE PROXY & URL REWRITER ENDPOINT (/api/image-proxy)
+// ==========================================
+interface CachedProxyImage {
+  buffer: Buffer;
+  contentType: string;
+  etag: string;
+  cachedAt: number;
+}
+
+const IMAGE_PROXY_CACHE = new Map<string, CachedProxyImage>();
+const IMAGE_PROXY_CACHE_MAX_ITEMS = 80;
+const IMAGE_PROXY_CACHE_MAX_BYTES = 1.5 * 1024 * 1024;
+const IMAGE_PROXY_CACHE_TTL_MS = 10 * 60 * 1000;
+const IMAGE_PROXY_MAX_BYTES = 15 * 1024 * 1024;
+
+function isPrivateOrDisallowedIp(ip: string): boolean {
+  if (!ip) return true;
+  if (ip === '::1' || ip === '0.0.0.0') return true;
+  const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (net.isIPv4(normalized)) {
+    const parts = normalized.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return true;
+    const [a, b] = parts;
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    return false;
+  }
+  const lower = ip.toLowerCase();
+  return (
+    lower === '::1' ||
+    lower.startsWith('fe80:') ||
+    lower.startsWith('fc00:') ||
+    lower.startsWith('fd')
+  );
+}
+
+async function assertSafeExternalUrl(targetUrl: string): Promise<URL> {
+  const parsed = new URL(targetUrl);
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only HTTP/HTTPS image URLs are allowed');
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal')
+  ) {
+    throw new Error('Local or internal hostnames are not allowed');
+  }
+  if (net.isIP(hostname)) {
+    if (isPrivateOrDisallowedIp(hostname)) {
+      throw new Error('Private IP addresses are not allowed');
+    }
+    return parsed;
+  }
+  const resolved = await dns.lookup(hostname, { all: true });
+  if (!resolved || resolved.length === 0 || resolved.some((entry) => isPrivateOrDisallowedIp(entry.address))) {
+    throw new Error('Resolved host points to a restricted network address');
+  }
+  return parsed;
+}
+
+function detectImageMimeFromMagicBytes(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+  if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') {
+    return 'image/webp';
+  }
+  if (buf.slice(4, 8).toString('ascii') === 'ftyp') return 'image/avif';
+  const headText = buf.slice(0, 200).toString('utf8').trimStart().toLowerCase();
+  if (headText.startsWith('<svg') || (headText.startsWith('<?xml') && headText.includes('<svg'))) {
+    return 'image/svg+xml';
+  }
+  return null;
+}
+
+async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const safeUrl = await assertSafeExternalUrl(targetUrl);
+  const commonHeaders: Record<string, string> = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9'
+  };
+
+  let response = await fetch(safeUrl.toString(), {
+    method: 'GET',
+    headers: commonHeaders,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(12000)
+  });
+
+  // Some dropshipping/CDN servers require matching Referer header on hotlink checks
+  if (response.status === 401 || response.status === 403) {
+    response = await fetch(safeUrl.toString(), {
+      method: 'GET',
+      headers: {
+        ...commonHeaders,
+        Referer: `${safeUrl.protocol}//${safeUrl.host}/`
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(12000)
+    });
+  }
+
+  if (!response.ok) {
+    throw new Error(`Upstream image server responded with status ${response.status}`);
+  }
+
+  const contentLengthHeader = Number(response.headers.get('content-length') || '0');
+  if (contentLengthHeader > IMAGE_PROXY_MAX_BYTES) {
+    throw new Error('Upstream image exceeds maximum allowed size');
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  if (buffer.length === 0 || buffer.length > IMAGE_PROXY_MAX_BYTES) {
+    throw new Error('Invalid or oversized image payload');
+  }
+
+  let contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!contentType.startsWith('image/')) {
+    const sniffed = detectImageMimeFromMagicBytes(buffer);
+    if (!sniffed) {
+      throw new Error(`Unsupported upstream content-type: ${contentType || 'unknown'}`);
+    }
+    contentType = sniffed;
+  }
+
+  return { buffer, contentType };
+}
+
+function setProxyResponseHeaders(res: Response, contentType: string, contentLength: number, etag: string) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Length', String(contentLength));
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('X-Robots-Tag', 'all');
+  res.setHeader('X-Proxy-Host', 'www.vantreloutfit.shop');
+}
+
+async function handleImageProxyRequest(req: Request, res: Response) {
+  const rawParam = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+  if (!rawParam) {
+    return res.status(400).json({ success: false, error: 'Missing url query parameter' });
+  }
+
+  // Unwrap accidental double-proxying and normalize Google Drive / bare domains
+  const unwrapped = unwrapProxyImageUrl(rawParam) || rawParam;
+  const targetUrl = normalizeThirdPartyImageUrl(unwrapped);
+
+  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    return res.status(400).json({ success: false, error: 'Invalid image URL protocol' });
+  }
+
+  const now = Date.now();
+  const cached = IMAGE_PROXY_CACHE.get(targetUrl);
+  if (cached && now - cached.cachedAt < IMAGE_PROXY_CACHE_TTL_MS) {
+    // Refresh LRU order
+    IMAGE_PROXY_CACHE.delete(targetUrl);
+    IMAGE_PROXY_CACHE.set(targetUrl, cached);
+    setProxyResponseHeaders(res, cached.contentType, cached.buffer.length, cached.etag);
+    if (req.headers['if-none-match'] === cached.etag) {
+      return res.status(304).end();
+    }
+    return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(cached.buffer);
+  }
+
+  try {
+    const { buffer, contentType } = await fetchUpstreamImage(targetUrl);
+    const etag = `"vt-${Buffer.from(targetUrl).toString('base64url').slice(0, 16)}-${buffer.length}"`;
+
+    if (buffer.length <= IMAGE_PROXY_CACHE_MAX_BYTES) {
+      if (IMAGE_PROXY_CACHE.size >= IMAGE_PROXY_CACHE_MAX_ITEMS) {
+        const oldestKey = IMAGE_PROXY_CACHE.keys().next().value;
+        if (oldestKey) IMAGE_PROXY_CACHE.delete(oldestKey);
+      }
+      IMAGE_PROXY_CACHE.set(targetUrl, {
+        buffer,
+        contentType,
+        etag,
+        cachedAt: now
+      });
+    }
+
+    setProxyResponseHeaders(res, contentType, buffer.length, etag);
+    return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(buffer);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to proxy external image';
+    console.warn(`[VANTREL IMAGE PROXY] Failed for ${targetUrl}: ${message}`);
+    return res.status(502).json({ success: false, error: 'Unable to fetch upstream image', detail: message });
+  }
+}
+
+app.get('/api/image-proxy', handleImageProxyRequest);
+app.head('/api/image-proxy', handleImageProxyRequest);
+
+// ==========================================
 // REST API ROUTES
 // ==========================================
 
@@ -796,7 +1017,7 @@ app.post('/api/products', (req: Request, res: Response) => {
     discountPrice: body.discountPrice ? Number(body.discountPrice) : undefined,
     discountPercent: body.discountPercent ? Number(body.discountPercent) : undefined,
     costPrice: body.costPrice !== undefined ? Number(body.costPrice) : undefined,
-    images: Array.isArray(body.images) ? body.images : [],
+    images: rewriteProductImagesToProxy(Array.isArray(body.images) ? body.images : []),
     sizes: Array.isArray(body.sizes) && body.sizes.length > 0 ? body.sizes : ['M', 'L', 'XL', 'XXL'],
     colors: Array.isArray(body.colors) ? body.colors : [],
     variants: body.variants || [],
@@ -864,7 +1085,8 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
       sku: req.body.sku || `VT-${Date.now().toString().slice(-4)}`,
       regularPrice: req.body.regularPrice || 1000,
       totalStock: req.body.totalStock || 20,
-      ...req.body
+      ...req.body,
+      images: rewriteProductImagesToProxy(Array.isArray(req.body.images) ? req.body.images : [])
     };
     products.unshift(created);
     saveProductsToDisk();
@@ -872,7 +1094,11 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
     return res.json({ success: true, data: created });
   }
 
-  products[idx] = { ...products[idx], ...req.body };
+  const nextBody = { ...req.body };
+  if (Array.isArray(nextBody.images)) {
+    nextBody.images = rewriteProductImagesToProxy(nextBody.images);
+  }
+  products[idx] = { ...products[idx], ...nextBody };
   saveProductsToDisk();
   recordAudit('Admin Staff', 'Product Moderator', 'Product Updated', `Updated product: ${products[idx].name}`);
   res.json({ success: true, data: products[idx] });
@@ -1766,6 +1992,8 @@ Allow: /track
 Allow: /track/*
 Allow: /assets/
 Allow: /src/assets/
+Allow: /api/image-proxy
+Allow: /api/image-proxy?*
 Disallow: /admin
 Disallow: /admin/*
 Disallow: /api/admin
@@ -1778,6 +2006,8 @@ Disallow: /api/sms/logs
 # Google Search & Image Crawlers
 User-agent: Googlebot
 Allow: /
+Allow: /api/image-proxy
+Allow: /api/image-proxy?*
 Disallow: /admin
 Disallow: /admin/*
 
@@ -1785,6 +2015,8 @@ User-agent: Googlebot-Image
 Allow: /
 Allow: /assets/
 Allow: /src/assets/
+Allow: /api/image-proxy
+Allow: /api/image-proxy?*
 
 # Google Gemini & Extended AI Models
 User-agent: Google-Extended
@@ -1861,7 +2093,7 @@ app.get('/sitemap.xml', (req: Request, res: Response) => {
     .filter((prod) => !prod.isArchived && prod.status !== 'archived')
     .map((prod) => {
       const rawImg = prod.images && prod.images[0] ? prod.images[0] : '';
-      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
+      const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN).replace(/&/g, '&amp;') : '';
       const price = prod.discountPrice || prod.regularPrice;
       const cleanName = (prod.name || 'Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const cleanDesc = (prod.tagline || prod.description || prod.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1903,7 +2135,7 @@ app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
     .filter((p) => !p.isArchived && p.status !== 'archived')
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
-      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
+      const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN) : '';
       return {
         id: p.id,
         title: p.name,
@@ -1914,7 +2146,7 @@ app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
         sale_price: p.discountPrice ? `${p.discountPrice} BDT` : undefined,
         link: `${baseUrl}/product/${p.slug || p.id}`,
         image_link: imgUrl,
-        additional_image_links: p.images?.slice(1).map((img) => img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`),
+        additional_image_links: p.images?.slice(1).map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN)),
         brand: 'VANTREL OUTFIT',
         category: p.category,
         sizes: p.sizes,
@@ -1942,7 +2174,7 @@ app.get('/api/public/google-product-feed.xml', (req: Request, res: Response) => 
     .filter((p) => !p.isArchived && p.status !== 'archived')
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
-      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
+      const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN).replace(/&/g, '&amp;') : '';
       const cleanTitle = (p.name || 'VANTREL Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const cleanDesc = (p.description || p.tagline || p.name || 'Premium fashion by VANTREL OUTFIT Bangladesh.').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const availability = p.totalStock > 0 ? 'in_stock' : 'out_of_stock';
@@ -2011,7 +2243,7 @@ app.get('/api/public/meta-catalog.csv', (req: Request, res: Response) => {
     .filter((p) => !p.isArchived && p.status !== 'archived')
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
-      const imgUrl = rawImg ? (rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`) : '';
+      const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN) : '';
       const avail = p.totalStock > 0 ? 'in stock' : 'out of stock';
       const cleanTitle = `"${(p.name || '').replace(/"/g, '""')}"`;
       const cleanDesc = `"${(p.description || p.tagline || p.name || '').replace(/"/g, '""')}"`;
@@ -2071,7 +2303,7 @@ function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unkn
   const productUrl = `${baseUrl}/product/${encodeURIComponent(prod.slug || prod.id)}`;
   const resolvedImages = (prod.images || [])
     .filter((img) => Boolean(img && typeof img === 'string'))
-    .map((img) => (img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`));
+    .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
   const effectivePrice = prod.discountPrice || prod.regularPrice;
 
   const schema: Record<string, unknown> = {
@@ -2141,10 +2373,10 @@ app.get('*', (req: Request, res: Response, next) => {
   const productImages = matchedProduct
     ? (matchedProduct.images || [])
         .filter((img) => Boolean(img && typeof img === 'string'))
-        .map((img) => (img.startsWith('http') ? img : `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`))
+        .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN))
     : [];
 
-  const siteImage = productImages[0] || `${baseUrl}/assets/images/vantrel-logo.png`;
+  const siteImage = productImages[0] || `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-logo.png`;
   const effectivePrice = matchedProduct ? (matchedProduct.discountPrice || matchedProduct.regularPrice) : null;
   const canonicalUrl = matchedProduct
     ? `${baseUrl}/product/${encodeURIComponent(matchedProduct.slug || matchedProduct.id)}`
@@ -2180,7 +2412,7 @@ app.get('*', (req: Request, res: Response, next) => {
   ${publishedProducts
     .map((p) => {
       const rawImg = p.images?.[0] || '/assets/images/vantrel-logo.png';
-      const absImg = rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`;
+      const absImg = toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN);
       const pUrl = `${baseUrl}/product/${encodeURIComponent(p.slug || p.id)}`;
       const pPrice = p.discountPrice || p.regularPrice;
       return `<article>
@@ -2277,7 +2509,7 @@ async function startServer() {
           const productTitle = escapeHtmlAttr(`${matchedProduct.name} - ৳${effectivePrice.toLocaleString()} | VANTREL OUTFIT`);
           const productDesc = escapeHtmlAttr((matchedProduct.description || matchedProduct.tagline || matchedProduct.name).trim());
           const rawImg = matchedProduct.images?.[0] || '/assets/images/vantrel-logo.png';
-          const absImg = escapeHtmlAttr(rawImg.startsWith('http') ? rawImg : `${baseUrl}${rawImg.startsWith('/') ? '' : '/'}${rawImg}`);
+          const absImg = escapeHtmlAttr(toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN));
 
           let html = fs.readFileSync(distIndexPath, 'utf-8');
           html = html

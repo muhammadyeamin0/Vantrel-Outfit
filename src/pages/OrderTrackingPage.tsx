@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Order, OrderStatus } from '../types';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import {
   Package,
   Search,
@@ -370,7 +371,7 @@ export const OrderTrackingPage: React.FC = () => {
                     className="flex items-center gap-3.5 p-3 bg-white rounded-xl border border-[#E5E1D5] shadow-xs"
                   >
                     <img
-                      src={item.image}
+                      src={toDisplayImageUrl(item.image)}
                       alt={item.name}
                       className="w-14 h-18 sm:w-16 sm:h-20 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
                     />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { OrderStatus } from '../types';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import {
   CheckCircle2,
   Printer,
@@ -350,7 +351,7 @@ export const OrderConfirmationPage: React.FC = () => {
                   className="flex items-center gap-3.5 p-3 bg-white rounded-xl border border-[#E5E1D5] shadow-xs hover:border-[#14221C]/30 transition-colors"
                 >
                   <img
-                    src={item.image}
+                    src={toDisplayImageUrl(item.image)}
                     alt={item.name}
                     className="w-16 h-20 sm:w-20 sm:h-24 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
                   />
@@ -675,7 +676,7 @@ export const OrderConfirmationPage: React.FC = () => {
                   <tr key={item.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-semibold text-[#14221C] flex items-center gap-3">
                       <img
-                        src={item.image}
+                        src={toDisplayImageUrl(item.image)}
                         alt=""
                         className="w-10 h-12 object-cover rounded bg-stone-100 shrink-0"
                       />

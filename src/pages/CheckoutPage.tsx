@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { BANGLADESH_DIVISIONS, resolveDeliveryZone } from '../data/bangladeshData';
 import { PaymentMethod, Address, User } from '../types';
 import { getSavedAddresses, saveAddressLocally, removeAddressLocally } from '../utils/addressStorage';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -655,7 +656,7 @@ export const CheckoutPage: React.FC = () => {
                 cart.map((item) => (
                   <div key={item.id} className="pt-3 first:pt-0 flex items-center gap-3">
                     <img
-                      src={item.image}
+                      src={toDisplayImageUrl(item.image)}
                       alt={item.name}
                       className="w-14 h-16 object-cover rounded-lg bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import { useStore } from '../context/StoreContext';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import { Heart, ShoppingBag, Eye, Star, Zap } from 'lucide-react';
 
 interface ProductCardProps {
@@ -53,7 +54,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
       {/* Boxy Square Image Container (Daraz Style) */}
       <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border-b border-white/5">
         <img
-          src={product.images[0]}
+          src={toDisplayImageUrl(product.images[0])}
           alt={product.name}
           loading="lazy"
           decoding="async"

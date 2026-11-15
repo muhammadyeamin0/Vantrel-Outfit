@@ -1,5 +1,6 @@
 import React from 'react';
 import { useStore } from '../context/StoreContext';
+import { toDisplayImageUrl } from '../utils/imageProxy';
 import { X, Check, ShoppingBag, Trash2, ArrowRight, Star, ExternalLink } from 'lucide-react';
 
 export const ProductComparisonModal: React.FC = () => {
@@ -95,7 +96,7 @@ export const ProductComparisonModal: React.FC = () => {
                               <X className="w-3.5 h-3.5" />
                             </button>
                             <img
-                              src={p.images[0]}
+                              src={toDisplayImageUrl(p.images[0])}
                               alt={p.name}
                               className="w-full h-48 object-cover rounded-2xl bg-stone-100 border border-[#E5E1D5] mb-3"
                               referrerPolicy="no-referrer"
@@ -269,7 +270,7 @@ export const FloatingComparisonDock: React.FC = () => {
         {comparedProducts.map((p) => (
           <img
             key={p.id}
-            src={p.images[0]}
+            src={toDisplayImageUrl(p.images[0])}
             alt={p.name}
             className="w-10 h-10 rounded-xl object-cover border-2 border-[#14221C]"
             referrerPolicy="no-referrer"

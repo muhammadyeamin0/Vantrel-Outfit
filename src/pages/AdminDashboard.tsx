@@ -8,6 +8,13 @@ import {
 import { Product, Order, OrderStatus, PaymentStatus, ProductCategory, Coupon, User, Address } from '../types';
 import { resolveDeliveryZone } from '../data/bangladeshData';
 import {
+  rewriteToCanonicalProxyUrl,
+  rewriteProductImagesToProxy,
+  toDisplayImageUrl,
+  isExternalThirdPartyImage,
+  normalizeThirdPartyImageUrl
+} from '../utils/imageProxy';
+import {
   ShieldCheck,
   TrendingUp,
   Package,
@@ -705,29 +712,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const normalizeImageUrl = (rawInput: string): string => {
-    const trimmed = rawInput.trim();
-    if (!trimmed) return '';
-    // Auto-convert Google Drive share links into direct image URLs
-    const driveFileMatch = trimmed.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
-    if (driveFileMatch?.[1]) {
-      return `https://lh3.googleusercontent.com/d/${driveFileMatch[1]}`;
-    }
-    const driveOpenMatch = trimmed.match(/drive\.google\.com\/open\?id=([^&]+)/i);
-    if (driveOpenMatch?.[1]) {
-      return `https://lh3.googleusercontent.com/d/${driveOpenMatch[1]}`;
-    }
-    if (
-      trimmed.startsWith('http://') ||
-      trimmed.startsWith('https://') ||
-      trimmed.startsWith('/') ||
-      trimmed.startsWith('data:image/')
-    ) {
-      return trimmed;
-    }
-    if (/^[a-z0-9.-]+\.[a-z]{2,}\//i.test(trimmed)) {
-      return `https://${trimmed}`;
-    }
-    return trimmed;
+    return rewriteToCanonicalProxyUrl(rawInput);
   };
 
   const handleAddImage = () => {
@@ -747,9 +732,16 @@ export const AdminDashboard: React.FC = () => {
       showToast('অকার্যকর লিংক', 'সঠিক ইমেজ URL (https://...) দিন অথবা Upload বাটনে ক্লিক করে ছবি আপলোড করুন।', 'error');
       return;
     }
+    const wasProxied = normalized.includes('/api/image-proxy?url=');
     setProdImages((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
     setNewImageUrl('');
-    showToast('Image Added', 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।', 'success');
+    showToast(
+      wasProxied ? 'VANTREL Proxy URL Added' : 'Image Added',
+      wasProxied
+        ? 'থার্ড-পার্টি লিংকটি স্বয়ংক্রিয়ভাবে vantreloutfit.shop ইমেজ প্রক্সি ইউআরএল-এ রূপান্তর করে যুক্ত করা হয়েছে।'
+        : 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।',
+      'success'
+    );
   };
 
   const handleSetPrimaryImage = (index: number) => {
@@ -962,7 +954,7 @@ export const AdminDashboard: React.FC = () => {
         fit: prodFit.trim(),
         description: prodDesc.trim(),
         tagline: prodTagline.trim(),
-        images: prodImages,
+        images: rewriteProductImagesToProxy(prodImages),
         sizes: prodSizes,
         colors: prodColors,
         variants
@@ -983,7 +975,7 @@ export const AdminDashboard: React.FC = () => {
         costPrice: prodCost,
         status: prodStatus,
         isArchived,
-        images: prodImages,
+        images: rewriteProductImagesToProxy(prodImages),
         videoUrl: prodVideoUrl.trim() || undefined,
         sizes: prodSizes,
         colors: prodColors,
@@ -2790,7 +2782,7 @@ export const AdminDashboard: React.FC = () => {
 
                               {/* Thumbnail */}
                               <img
-                                src={p.images?.[0] || '/assets/images/product_premium_hoodie_1792588590406.jpg'}
+                                src={toDisplayImageUrl(p.images?.[0] || '/assets/images/product_premium_hoodie_1792588590406.webp')}
                                 alt=""
                                 className="w-12 h-14 object-cover rounded-xl bg-stone-100 border border-stone-200 shrink-0"
                               />
@@ -5299,7 +5291,7 @@ service cloud.firestore {
                               idx === 0 ? 'border-[#14221C] ring-2 ring-[#FF762E]/20' : 'border-[#E5E1D5]'
                             }`}
                           >
-                            <img src={img} alt="" className="w-full h-full object-cover" />
+                            <img src={toDisplayImageUrl(img)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
 
                             {/* Primary Badge */}
                             {idx === 0 ? (
@@ -5416,6 +5408,19 @@ service cloud.firestore {
                       className="sr-only"
                     />
                   </div>
+
+                  {/* Live Proxy URL Preview Indicator when Admin types/pastes a 3rd-party or dropshipping link */}
+                  {newImageUrl.trim() && isExternalThirdPartyImage(normalizeThirdPartyImageUrl(newImageUrl)) && (
+                    <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 space-y-0.5">
+                      <div className="font-bold text-emerald-800 flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Auto Image Proxy (vantreloutfit.shop) সক্রিয় হবে:</span>
+                      </div>
+                      <p className="font-mono text-[10px] text-emerald-700 break-all">
+                        {rewriteToCanonicalProxyUrl(newImageUrl)}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Quick Preset Clothing Images */}
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
