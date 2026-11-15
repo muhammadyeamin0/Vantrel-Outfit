@@ -813,6 +813,8 @@ function detectImageMimeFromMagicBytes(buf: Buffer): string | null {
   return null;
 }
 
+const IN_FLIGHT_PROXY_FETCHES = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>();
+
 async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
   const safeUrl = await assertSafeExternalUrl(targetUrl);
   const commonHeaders: Record<string, string> = {
@@ -822,24 +824,45 @@ async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; 
     'Accept-Language': 'en-US,en;q=0.9'
   };
 
-  let response = await fetch(safeUrl.toString(), {
-    method: 'GET',
-    headers: commonHeaders,
-    redirect: 'follow',
-    signal: AbortSignal.timeout(12000)
-  });
+  let response: globalThis.Response | undefined;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      let attemptResp = await fetch(safeUrl.toString(), {
+        method: 'GET',
+        headers: commonHeaders,
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000)
+      });
 
-  // Some dropshipping/CDN servers require matching Referer header on hotlink checks
-  if (response.status === 401 || response.status === 403) {
-    response = await fetch(safeUrl.toString(), {
-      method: 'GET',
-      headers: {
-        ...commonHeaders,
-        Referer: `${safeUrl.protocol}//${safeUrl.host}/`
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(12000)
-    });
+      // Some dropshipping/CDN servers require matching Referer header on hotlink checks
+      if (attemptResp.status === 401 || attemptResp.status === 403) {
+        attemptResp = await fetch(safeUrl.toString(), {
+          method: 'GET',
+          headers: {
+            ...commonHeaders,
+            Referer: `${safeUrl.protocol}//${safeUrl.host}/`
+          },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000)
+        });
+      }
+
+      if (attemptResp.ok || (attemptResp.status >= 400 && attemptResp.status < 429 && attemptResp.status !== 408)) {
+        response = attemptResp;
+        break;
+      }
+      lastErr = new Error(`Upstream image server responded with status ${attemptResp.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+    if (attempt === 0) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  if (!response) {
+    throw lastErr instanceof Error ? lastErr : new Error('Upstream image request failed');
   }
 
   if (!response.ok) {
@@ -908,7 +931,14 @@ async function handleImageProxyRequest(req: Request, res: Response) {
   }
 
   try {
-    const { buffer, contentType } = await fetchUpstreamImage(targetUrl);
+    let inflight = IN_FLIGHT_PROXY_FETCHES.get(targetUrl);
+    if (!inflight) {
+      inflight = fetchUpstreamImage(targetUrl).finally(() => {
+        IN_FLIGHT_PROXY_FETCHES.delete(targetUrl);
+      });
+      IN_FLIGHT_PROXY_FETCHES.set(targetUrl, inflight);
+    }
+    const { buffer, contentType } = await inflight;
     const etag = `"vt-${Buffer.from(targetUrl).toString('base64url').slice(0, 16)}-${buffer.length}"`;
 
     if (buffer.length <= IMAGE_PROXY_CACHE_MAX_BYTES) {
@@ -1960,7 +1990,6 @@ const srcAssetsImages = path.resolve(__dirname, 'src', 'assets', 'images');
 // Support /assets/images & /assets/aistudio statically with aggressive caching
 app.use('/assets/images', express.static(publicAssetsImages, { maxAge: '30d', etag: true }));
 app.use('/assets/aistudio', express.static(publicAistudioImages, { maxAge: '30d', etag: true }));
-app.use(express.static(path.resolve(__dirname, 'public'), { maxAge: '30d', etag: true }));
 
 app.get('/src/assets/images/:filename', (req: Request, res: Response) => {
   const filename = path.basename(req.params.filename);
@@ -2125,6 +2154,9 @@ ${productUrls}
 
   res.type('application/xml').send(sitemapXml);
 });
+
+// Serve remaining static files from public/ after dynamic /robots.txt and /sitemap.xml
+app.use(express.static(path.resolve(__dirname, 'public'), { maxAge: '30d', etag: true }));
 
 app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
   const host = req.get('host') || 'www.vantreloutfit.shop';
@@ -2291,6 +2323,10 @@ function resolveProductMatchedFromReq(req: Request): Product | undefined {
   if (pathParts[0] === 'product' && pathParts[1]) {
     const slugOrId = decodeURIComponent(pathParts[1]);
     return products.find((p) => p.slug === slugOrId || p.id === slugOrId);
+  }
+  if (req.query.page === 'product' && req.query.id) {
+    const pId = String(req.query.id);
+    return products.find((p) => p.id === pId || p.slug === pId);
   }
   if (req.query.product || req.query.productId) {
     const pId = String(req.query.product || req.query.productId);

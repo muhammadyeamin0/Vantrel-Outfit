@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Order, OrderStatus } from '../types';
-import { toDisplayImageUrl } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import {
   Package,
   Search,
@@ -373,6 +373,7 @@ export const OrderTrackingPage: React.FC = () => {
                     <img
                       src={toDisplayImageUrl(item.image)}
                       alt={item.name}
+                      onError={handleProxyImageError}
                       className="w-14 h-18 sm:w-16 sm:h-20 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
                     />
                     <div className="flex-1 min-w-0 space-y-1">

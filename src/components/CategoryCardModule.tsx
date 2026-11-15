@@ -6,6 +6,7 @@ import {
   GENTS_WINTER_CATEGORIES
 } from '../data/categoryShowcaseData';
 import { ArrowRight, Sparkles, Snowflake, Shirt } from 'lucide-react';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 
 interface CategoryCardProps {
   item: CategoryShowcaseItem;
@@ -32,10 +33,10 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ item, onClick }) => 
         <div className="absolute inset-1.5 rounded-full border border-[#FF762E]/30 bg-radial from-amber-100/40 to-orange-200/20" />
 
         <img
-          src={item.image}
+          src={toDisplayImageUrl(item.image)}
           alt={item.title}
+          onError={handleProxyImageError}
           className="relative z-10 w-20 h-20 sm:w-24 sm:h-24 object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-sm"
-          referrerPolicy="no-referrer"
           loading="lazy"
         />
       </div>
@@ -136,8 +137,9 @@ export const CategorySectionModule: React.FC<CategorySectionModuleProps> = ({
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-[#14221C] border-2 border-[#FF762E] flex items-center justify-center text-white shadow-xs overflow-hidden p-0.5">
                 <img
-                  src="/assets/images/bangladeshi_hoodie_look_1793107183737.jpg"
+                  src="/assets/images/bangladeshi_hoodie_look_1793107183737.webp"
                   alt="Gent's Winter"
+                  onError={handleProxyImageError}
                   className="w-full h-full object-cover rounded-full"
                 />
               </div>

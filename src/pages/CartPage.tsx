@@ -3,7 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../data/bangladeshData';
 import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
-import { toDisplayImageUrl } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import {
   ShoppingBag,
   Trash2,
@@ -301,6 +301,7 @@ export const CartPage: React.FC = () => {
                     <img
                       src={toDisplayImageUrl(item.image)}
                       alt={item.name}
+                      onError={handleProxyImageError}
                       className="w-20 h-24 sm:w-24 sm:h-28 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"
                     />

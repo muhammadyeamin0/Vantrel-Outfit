@@ -313,7 +313,7 @@ export const INITIAL_BANNERS: import('../types').BannerConfig[] = [
     subtitle: 'Engineered from 420 GSM custom combed cotton for timeless metropolitan wear.',
     ctaText: 'EXPLORE DROP',
     ctaLink: 'shop',
-    bgImageUrl: '/assets/images/hero_fashion_model_1792588588825.jpg',
+    bgImageUrl: '/assets/images/hero_fashion_yeamin_1792588589630.webp',
     isActive: true
   },
   {
@@ -322,7 +322,7 @@ export const INITIAL_BANNERS: import('../types').BannerConfig[] = [
     subtitle: 'Minimalist silhouettes designed and crafted in Dhaka with double-needle reinforcement.',
     ctaText: 'VIEW LOOKBOOK',
     ctaLink: 'shop',
-    bgImageUrl: '/assets/images/craftsmanship_factory_1792588594240.jpg',
+    bgImageUrl: '/assets/images/editorial_story_backshot_1793118981432.webp',
     isActive: true
   }
 ];
@@ -454,8 +454,8 @@ export const INITIAL_3D_BANNERS: Banner3DConfig[] = [
     ctaLink: 'shop',
     secondaryCtaText: 'LOOKBOOK',
     secondaryCtaLink: 'story',
-    bgImageUrl: '/assets/images/hero_fashion_model_1792588588825.jpg',
-    productCutoutUrl: '/assets/images/product_premium_hoodie_1792588590406.jpg',
+    bgImageUrl: '/assets/images/hero_fashion_yeamin_1792588589630.webp',
+    productCutoutUrl: '/assets/images/product_premium_hoodie_1792588590406.webp',
     depthIntensity: 'deep',
     overlayOpacity: 0.45,
     isActive: true
@@ -470,8 +470,8 @@ export const INITIAL_3D_BANNERS: Banner3DConfig[] = [
     ctaLink: 'shop',
     secondaryCtaText: 'FABRIC STORY',
     secondaryCtaLink: 'story',
-    bgImageUrl: '/assets/images/craftsmanship_factory_1792588594240.jpg',
-    productCutoutUrl: '/assets/images/product_minimal_tshirt_1792588591873.jpg',
+    bgImageUrl: '/assets/images/editorial_story_backshot_1793118981432.webp',
+    productCutoutUrl: '/assets/images/product_minimal_white_tee_1793118980970.webp',
     depthIntensity: 'ultra',
     overlayOpacity: 0.5,
     isActive: true
@@ -484,8 +484,8 @@ export const INITIAL_3D_BANNERS: Banner3DConfig[] = [
     description: 'Available in Ivory Cream, Pitch Black, and Forest Moss. Designed to be your daily uniform for years.',
     ctaText: 'BROWSE TEES',
     ctaLink: 'shop',
-    bgImageUrl: '/assets/images/hero_fashion_model_1792588588825.jpg',
-    productCutoutUrl: '/assets/images/product_oversized_tee_1792588591424.jpg',
+    bgImageUrl: '/assets/images/hero_fashion_yeamin_1792588589630.webp',
+    productCutoutUrl: '/assets/images/product_oversized_tee_1792588591424.webp',
     depthIntensity: 'subtle',
     overlayOpacity: 0.4,
     isActive: true

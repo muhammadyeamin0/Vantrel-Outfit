@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCategory, Product } from '../types';
-import { toDisplayImageUrl } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import {
   Truck,
   ShieldCheck,
@@ -100,8 +100,8 @@ export const HomePage: React.FC = () => {
       'panjabi': '/assets/images/product_panjabi_casual_1792588592268.webp',
       'jackets': '/assets/images/hero_fashion_yeamin_1792588589630.webp',
       'shirts': '/assets/images/bangladeshi_classic_shirt_1793107155017.webp',
-      'polo shirts': 'https://images.unsplash.com/photo-1625910513413-562a1fc8f813?auto=format&fit=crop&w=500&q=75',
-      'sweater': 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=500&q=75',
+      'polo shirts': '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
+      'sweater': '/assets/images/bangladeshi_hoodie_look_1793107183737.webp',
       'winter collection': '/assets/images/bangladeshi_hoodie_look_1793107183737.webp'
     };
 
@@ -357,6 +357,7 @@ export const HomePage: React.FC = () => {
                 alt={cat.title}
                 loading="lazy"
                 decoding="async"
+                onError={handleProxyImageError}
                 className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-75 group-hover:brightness-90"
                 referrerPolicy="no-referrer"
               />
@@ -442,6 +443,7 @@ export const HomePage: React.FC = () => {
                       alt={item.name}
                       loading="lazy"
                       decoding="async"
+                      onError={handleProxyImageError}
                       className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
                     />

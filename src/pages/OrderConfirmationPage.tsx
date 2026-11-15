@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { OrderStatus } from '../types';
-import { toDisplayImageUrl } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import {
   CheckCircle2,
   Printer,
@@ -353,6 +353,7 @@ export const OrderConfirmationPage: React.FC = () => {
                   <img
                     src={toDisplayImageUrl(item.image)}
                     alt={item.name}
+                    onError={handleProxyImageError}
                     className="w-16 h-20 sm:w-20 sm:h-24 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
                   />
                   <div className="flex-1 min-w-0 space-y-1">
@@ -678,6 +679,7 @@ export const OrderConfirmationPage: React.FC = () => {
                       <img
                         src={toDisplayImageUrl(item.image)}
                         alt=""
+                        onError={handleProxyImageError}
                         className="w-10 h-12 object-cover rounded bg-stone-100 shrink-0"
                       />
                       <span>{item.name}</span>

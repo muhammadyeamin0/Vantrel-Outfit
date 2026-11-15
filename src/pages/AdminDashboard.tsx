@@ -12,7 +12,8 @@ import {
   rewriteProductImagesToProxy,
   toDisplayImageUrl,
   isExternalThirdPartyImage,
-  normalizeThirdPartyImageUrl
+  normalizeThirdPartyImageUrl,
+  handleProxyImageError
 } from '../utils/imageProxy';
 import {
   ShieldCheck,
@@ -2784,6 +2785,7 @@ export const AdminDashboard: React.FC = () => {
                               <img
                                 src={toDisplayImageUrl(p.images?.[0] || '/assets/images/product_premium_hoodie_1792588590406.webp')}
                                 alt=""
+                                onError={handleProxyImageError}
                                 className="w-12 h-14 object-cover rounded-xl bg-stone-100 border border-stone-200 shrink-0"
                               />
 
@@ -5291,7 +5293,7 @@ service cloud.firestore {
                               idx === 0 ? 'border-[#14221C] ring-2 ring-[#FF762E]/20' : 'border-[#E5E1D5]'
                             }`}
                           >
-                            <img src={toDisplayImageUrl(img)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={toDisplayImageUrl(img)} alt="" onError={handleProxyImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
 
                             {/* Primary Badge */}
                             {idx === 0 ? (
@@ -5426,11 +5428,11 @@ service cloud.firestore {
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
                     <span className="text-[10px] text-neutral-500 font-bold">স্যাম্পল ছবি যুক্ত করুন:</span>
                     {[
-                      { label: 'Hoodie', url: '/assets/images/product_premium_hoodie_1792588590406.jpg' },
-                      { label: 'T-Shirt', url: '/assets/images/product_luxury_tee_1792588607386.jpg' },
-                      { label: 'Panjabi', url: '/assets/images/product_silk_panjabi_1792588624103.jpg' },
-                      { label: 'Pants', url: '/assets/images/product_minimal_trouser_1792588656689.jpg' },
-                      { label: 'Jacket', url: '/assets/images/product_wool_jacket_1792588640706.jpg' }
+                      { label: 'Hoodie', url: 'https://www.vantreloutfit.shop/assets/images/product_premium_hoodie_1792588590406.webp' },
+                      { label: 'T-Shirt', url: 'https://www.vantreloutfit.shop/assets/images/product_oversized_tee_1792588591424.webp' },
+                      { label: 'Panjabi', url: 'https://www.vantreloutfit.shop/assets/images/product_panjabi_casual_1792588592268.webp' },
+                      { label: 'Pants', url: 'https://www.vantreloutfit.shop/assets/images/product_denim_cargo_1792588592254.webp' },
+                      { label: 'Jacket', url: 'https://www.vantreloutfit.shop/assets/images/hero_fashion_yeamin_1792588589630.webp' }
                     ].map((preset) => (
                       <button
                         key={preset.label}

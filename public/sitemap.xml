@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-
-  <!-- 1. Primary Storefront / Home Page -->
   <url>
     <loc>https://www.vantreloutfit.shop/</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <image:image>
@@ -14,210 +12,1330 @@
       <image:caption>VANTREL OUTFIT — Premium Quality &amp; Trendsetting Fashion</image:caption>
     </image:image>
   </url>
-
-  <!-- 2. Collections & Shop Pages -->
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shop</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shop&amp;category=Hoodies</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shop&amp;category=T-Shirts</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shop&amp;category=Pants</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shop&amp;category=Panjabi</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shop&amp;category=Winter%20Collection</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
-
-  <!-- 3. Key Informational Pages -->
   <url>
     <loc>https://www.vantreloutfit.shop/?page=about</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=contact</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=tracking</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=size-guide</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
-
-  <!-- 4. Legal & Trust Policies -->
   <url>
     <loc>https://www.vantreloutfit.shop/?page=shipping-policy</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=return-policy</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=privacy-policy</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://www.vantreloutfit.shop/?page=terms</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
-
-  <!-- 5. Featured Garment Product Details -->
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-001</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/abstract-print-short-sleeve-cuban-collar-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1784888188_L_7.jpeg</image:loc>
+      <image:title>Abstract Print Short-Sleeve Cuban Collar Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-002</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/dusty-rose-spread-collar-full-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1789503280_L_5.jpeg</image:loc>
+      <image:title>Dusty Rose Spread Collar Full-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳610 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-003</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/light-blue-mandarin-collar-full-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785500413_L_1.jpeg</image:loc>
+      <image:title>Light Blue Mandarin Collar Full-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-004</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/eal-blue-mandarin-collar-long-sleeve-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1768752740_L_6.jpeg</image:loc>
+      <image:title>eal Blue Mandarin Collar Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-005</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/dark-wash-denim-long-sleeve-button-down-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785677462_L_3.jpeg</image:loc>
+      <image:title>Dark-Wash Denim Long-Sleeve Button-Down Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-006</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/porsche-911-rs-vintage-wash-t-shirt</loc>
+    <lastmod>2026-11-14</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785691332_L_6.jpeg</image:loc>
+      <image:title>Porsche 911 RS Vintage Wash T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-007</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/sea-green-mandarin-collar-full-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785500413_L_3.jpeg</image:loc>
+      <image:title>Sea Green Mandarin Collar Full-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-008</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/palm-leaf-print-short-sleeve-cuban-collar-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1784888188_L_3.jpeg</image:loc>
+      <image:title>Palm Leaf Print Short-Sleeve Cuban Collar Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-009</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/porsche-911-rs-vintage-wash-t-shirt</loc>
+    <lastmod>2026-11-14</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785691332_L_7.jpeg</image:loc>
+      <image:title>Porsche 911 RS Vintage Wash T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-010</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/porsche-911-rs-vintage-wash-t-shirt</loc>
+    <lastmod>2026-11-14</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785691332_S_9.jpg</image:loc>
+      <image:title>Porsche 911 RS Vintage Wash T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-011</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/green-mandarin-collar-long-sleeve-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1768752740_L_4.jpeg</image:loc>
+      <image:title>Green Mandarin Collar Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-012</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/dark-purple-mandarin-collar-full-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785500414_L_5.jpeg</image:loc>
+      <image:title>Dark Purple Mandarin Collar Full-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-013</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/slate-teal-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1789503280_L_7.jpeg</image:loc>
+      <image:title>Slate Teal Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳610 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-014</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/grey-mandarin-collar-henley-long-sleeve-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1751976719_L_1.jpg</image:loc>
+      <image:title>Grey Mandarin Collar Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳660 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-015</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/light-grey-short</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1783418700_L_4.jpeg</image:loc>
+      <image:title>Light Grey Short</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-016</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/navy-blue-short-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1783950659_L_1.jpeg</image:loc>
+      <image:title>Navy Blue Short-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳700 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-017</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/wash-denim-long-sleeve-button-down-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785677462_L_1.jpeg</image:loc>
+      <image:title>Wash Denim Long-Sleeve Button-Down Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-018</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/light-blue-short-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1783950659_L_3.jpeg</image:loc>
+      <image:title>Light Blue Short-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳700 BDT</image:caption>
+    </image:image>
   </url>
   <url>
-    <loc>https://www.vantreloutfit.shop/?page=product&amp;id=prod-019</loc>
-    <lastmod>2026-11-05</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://www.vantreloutfit.shop/product/magenta-silk-finish-long-sleeve-dress-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1717442998_L_1.jpeg</image:loc>
+      <image:title>Magenta Silk-Finish Long-Sleeve Dress Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳730 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/tropical-floral-short-sleeve-cuban-collar-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/assets/images/product_premium_hoodie_1792588590406.jpg</image:loc>
+      <image:title>Tropical Floral Short-Sleeve Cuban Collar Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1784888188_L_2.jpeg</image:loc>
+      <image:title>Tropical Floral Short-Sleeve Cuban Collar Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/bottle-green-mandarin-collar-full-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785500414_L_8.jpeg</image:loc>
+      <image:title>Bottle Green Mandarin Collar Full-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/bottle-black-mandarin-collar-full-sleeve-casual-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1785500414_L_7.jpeg</image:loc>
+      <image:title>Bottle black Mandarin Collar Full-Sleeve Casual Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/purple-mandarin-collar-long-sleeve-shirt</loc>
+    <lastmod>2026-11-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1768752740_L_7.jpeg</image:loc>
+      <image:title>Purple Mandarin Collar Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳550 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/maroon-cat-graphic-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1764960432_L_5.jpg</image:loc>
+      <image:title>Maroon Cat Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/abstract-printed-cuban-collar-half-sleeve-shirt-beige-black</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1784888188_L_1.jpeg</image:loc>
+      <image:title>Abstract Printed Cuban Collar Half Sleeve Shirt - Beige &amp; Black</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/premium-luxury-padding-jacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1793789541_L_2.jpeg</image:loc>
+      <image:title>Premium Luxury Padding Jacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳1180 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/typography-printed-cuban-collar-half-sleeve-shirt</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1784888188_L_4.jpeg</image:loc>
+      <image:title>Typography Printed Cuban Collar Half Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/semi-baggy-distressed-denim-pants-dark-blue</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1789242946_L_2.jpeg</image:loc>
+      <image:title>Semi Baggy Distressed Denim Pants - Dark Blue</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳660 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/abstract-typography-printed-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F3OgyJ9ij01NRWiI0cM5lHx6Db9s3QaqqUBXv3sUi.webp</image:loc>
+      <image:title>Abstract Typography Printed Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/leaf-printed-cuban-collar-half-sleeve-shirt</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1783951166_L_2.jpeg</image:loc>
+      <image:title>Leaf Printed Cuban Collar Half Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳670 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/leaf-printed-cuban-collar-half-sleeve-shirt-blue-white</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1783951166_L_3.jpeg</image:loc>
+      <image:title>Leaf Printed Cuban Collar Half Sleeve Shirt - Blue &amp; White</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳670 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/wide-leg-acid-wash-denim-pants-charcoal-grey</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1788984864_L_2.jpeg</image:loc>
+      <image:title>Wide Leg Acid Wash Denim Pants - Charcoal Grey</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/floral-printed-side-panel-mandarin-collar-kurta-shirt-off-white</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1776871140_L_6.jpeg</image:loc>
+      <image:title>Floral Printed Side Panel Mandarin Collar Kurta Shirt - Off-White</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳700 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/birds-printed-mandarin-collar-kurta-shirt-white</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1788981514_L_2.jpeg</image:loc>
+      <image:title>Birds Printed Mandarin Collar Kurta Shirt - White</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳680 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/mandarin-collar-henley-kurta-shirt-black</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1788808285_L_10.jpeg</image:loc>
+      <image:title>Mandarin Collar Henley Kurta Shirt - Black</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/solid-mandarin-collar-henley-kurta-shirt-light-grey</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1788808285_L_3.jpeg</image:loc>
+      <image:title>Solid Mandarin Collar Henley Kurta Shirt - Light Grey</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/patchwork-cuban-collar-half-sleeve-shirt-black-beige</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1782410898_L_2.jpeg</image:loc>
+      <image:title>Patchwork Cuban Collar Half Sleeve Shirt - Black &amp; Beige</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳600 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/geometric-printed-cuban-collar-half-sleeve-shirt-multicolor</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1788091290_L_3.jpeg</image:loc>
+      <image:title>Geometric Printed Cuban Collar Half Sleeve Shirt - Multicolor</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/stylish-semi-baggy-distressed-denim-pants</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1789242946_L_1.jpeg</image:loc>
+      <image:title>Stylish Semi Baggy Distressed Denim Pants</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳660 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/semi-baggy-distressed-denim-pants-black</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1789242946_L_3.jpeg</image:loc>
+      <image:title>Semi Baggy Distressed Denim Pants - Black</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳660 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/mandarin-collar-henley-kurta-shirt-beige</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1788808285_L_7.jpeg</image:loc>
+      <image:title>Mandarin Collar Henley Kurta Shirt - Beige</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-high-neck-monogram-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fn3uKFuc8wGfX5IKuat9TibAydawFJZzVcDNb5M2b.webp</image:loc>
+      <image:title>Black High-Neck Monogram Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/deep-burgundy-half-zip-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FlneEp2Bbmk8Kaxh7bxWwTLHLcaEQlZgcOZikIWpM.webp</image:loc>
+      <image:title>Deep Burgundy Half-Zip Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FEZ6ork5X8HpxcF1AwpmpqmWH8sszxaYgI9ZOSj1u.webp</image:loc>
+      <image:title>Deep Burgundy Half-Zip Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FNYCKNEuAacL0aQ0eBH1i7HfQBspNz6yk55GwKptO.webp</image:loc>
+      <image:title>Deep Burgundy Half-Zip Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FacrITQh3XyhOqmRsXHBbXYU7ZD3cfkeHbnRfI03C.webp</image:loc>
+      <image:title>Deep Burgundy Half-Zip Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FCy3c0tzefQ89wIHtxdPXeYeGSidfRjXl8qESKoWU.webp</image:loc>
+      <image:title>Deep Burgundy Half-Zip Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳590 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/-trust-god-s-plan-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FiQNxk6PJEu5bEk9Su0Dr1g0B2lSw0I8FIvetU0Ty.webp</image:loc>
+      <image:title>&quot;Trust God's Plan&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FbfZtDxzJ4JBL8hqcWag3nMgIxo5CFxvY6E5bud4z.webp</image:loc>
+      <image:title>&quot;Trust God's Plan&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FNQtWfsjYfDyzqwShJe5p7qPHGP4XO2VMHQRAbwIj.webp</image:loc>
+      <image:title>&quot;Trust God's Plan&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FTIBNQ8oU3ApzrJzv319UCdbDgD1U5wNim2qfujnB.webp</image:loc>
+      <image:title>&quot;Trust God's Plan&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FuZdlmx6QTI9xhbC6JWgD3x1eaMKvLTY4RhxxMaII.webp</image:loc>
+      <image:title>&quot;Trust God's Plan&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/los-angeles-gothic-print-t-shirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FAg9UJQeSv1TkWDzmjqxWNGsNqXUIKWQOj8kyNnRE.webp</image:loc>
+      <image:title>Los Angeles&quot; Gothic Print T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳500 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/white-ribbed-henley-long-sleeve-shirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fb5MC3isnNN95w3dM9hVko7vwyXXQK59PMfBV3Q6i.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F54j599nwfed7lc6k4nrqeS84iucDU1OSHn1htzmR.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FRJNC0E0yjrFxaqMr75Ll4FkrKMSVKp2mitZ8pIm8.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FcrK6kcaAFJjLBMC1wWmRBlz3RbE8T7bPSDDZQido.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FVNjdEHLUI820OwSROjNEPSEhVIm5cS52K76zP6mW.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FEanib38Gefhqz2a7kCfz5xRCpyRUmRHgCB2yFHRP.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F6uYcCZwiHdSPw6EgqgvaG6LjIP9z1i3Uap56RjVa.webp</image:loc>
+      <image:title>White Ribbed Henley Long-Sleeve Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳570 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/men-s-premium-shacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1793690412_L_3.jpeg</image:loc>
+      <image:title>Men's Premium Shacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳870 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/off-white-wide-leg-drawstring-sweatpants-</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FvJcUaAbY2fMVdAQyZULJy3rC6B9owrwBRGGB3UUL.webp</image:loc>
+      <image:title>Off-White Wide-Leg Drawstring Sweatpants</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/premium-plaid-shacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1793690412_L_1.jpeg</image:loc>
+      <image:title>Premium Plaid Shacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳870 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/-seven-7-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FgbHh7LAw1UeydYtJViAwVgxlClQMDiqOTl02B6rW.webp</image:loc>
+      <image:title>&quot;Seven 7&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fa4t6fkYm0ZSgKeLZX2G7HbGg43ngj96dlXJYodRf.webp</image:loc>
+      <image:title>&quot;Seven 7&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/abstract-camo-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FBQ90bxy98YyBMbCt3Y9rI6WqRMwTmW30XKU9yn3N.webp</image:loc>
+      <image:title>Abstract Camo Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/california-the-golden-state-estd-1850-hoddi</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FnPSS4VoOZMN52Br4RqiFRDD5I8lnUqtniMTx5Wv5.webp</image:loc>
+      <image:title>California The Golden State Estd 1850 hoddi</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fcm6vhDZZMAh9Rl9IAj3M2pvs4sovXfFzhuKzgnX1.webp</image:loc>
+      <image:title>California The Golden State Estd 1850 hoddi</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FudcYsGZKXSN692iyoeuWRf6WTdwM1yH5KFHOtFSg.webp</image:loc>
+      <image:title>California The Golden State Estd 1850 hoddi</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fu3UidbwbykMCuuvuPZexoPzv3ApcR05hWsoYqyjX.webp</image:loc>
+      <image:title>California The Golden State Estd 1850 hoddi</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-character-back-print-graphic-t-shirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FfcHgzj0nmkhU0O4XUHWV9VdBFvm04lN0EGSRblSz.webp</image:loc>
+      <image:title>Black Character Back-Print Graphic T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳500 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/premium-quality-winter-hoodies</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F56PDJx7XQq1VU3wKtVIemD1845MSUVkGh7BJjoYk.webp</image:loc>
+      <image:title>Premium Quality Winter Hoodies</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳610 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FYdDymym5RFRNTP3DwJJdphAtE9vGbD2DZMyB3kDr.webp</image:loc>
+      <image:title>Premium Quality Winter Hoodies</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳610 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fg8DhC8vccjizD5V391XnX6mWt52KHHBuktimjVwv.webp</image:loc>
+      <image:title>Premium Quality Winter Hoodies</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳610 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F0CqxtGqBWYQlMsPCIGwKyALoXKYwvGK0lpupBMI6.webp</image:loc>
+      <image:title>Premium Quality Winter Hoodies</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳610 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/men-s-suede-shirt-jacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1791711793_L_2.jpeg</image:loc>
+      <image:title>Men's Suede Shirt Jacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳1200 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/white-typography-printed-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1702237932_L_1.jpeg</image:loc>
+      <image:title>White Typography Printed Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/white-kunai-cloud-graphic-back-print-t-shirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fl4C03tSPYCLdPXP2FhsH7uyPnwtjGaP3XLy8DhrZ.webp</image:loc>
+      <image:title>White Kunai &amp; Cloud Graphic Back-Print T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳500 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/men-s-premium-shacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1793690412_L_7.jpeg</image:loc>
+      <image:title>Men's Premium Shacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳870 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/gatke-i-m-not-afraid-graphic-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FI0umGFPNONEL0qyqYUUFI01N6ljDjeDVhOOCL6gs.webp</image:loc>
+      <image:title>GATKE &quot;I'm Not Afraid&quot; Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/-undercover-spider-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F5dw9fPZ24jf7nKYQyVYF3vuDG5UKf2ffLF66jZVz.webp</image:loc>
+      <image:title>&quot;Undercover Spider&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳213 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/paris-minimalist-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FxzwGWfbsrvlrD19x6ZIiTgnuwaSrbZohzIzMu0iD.webp</image:loc>
+      <image:title>Paris Minimalist Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FzcmYd4swhEjgqJf756OAsTVeoRW9mb86Odujd1SC.webp</image:loc>
+      <image:title>Paris Minimalist Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FqFnEGK73Fwd9Ui6gcxI5z3WpLWp4G056SRnNAquo.webp</image:loc>
+      <image:title>Paris Minimalist Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/-good-luck-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FgVvRqW14fLD35agPghDA6bPvhZg4kUeQP844EhYD.webp</image:loc>
+      <image:title>&quot;Good Luck&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F9zfBC68hzYJjhN6wUAx4SiZy3TDooBfBXJRxkDoh.webp</image:loc>
+      <image:title>&quot;Good Luck&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/no-girls-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F6d14WGo7D7xTAv17fGXWjsSo2ujkZUapHW0DG14f.webp</image:loc>
+      <image:title>No Girls&quot; Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/wassup-tree-graphic-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FJXFk3CJa8Uxxjsg34b7ibHYKpYBQGHapyl9MfMh8.webp</image:loc>
+      <image:title>Wassup Tree Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-varsity-jacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1791712594_L_6.jpeg</image:loc>
+      <image:title>Black Varsity Jacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳630 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-anime-graphic-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1730998616_L_10.jpg</image:loc>
+      <image:title>Black Anime Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳650 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/color-blocked-striped-graphic-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FxV9v2iVfyn5FDqTQ1bqwjGk3iZgh75kCatob5a15.webp</image:loc>
+      <image:title>Color-Blocked Striped Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/geometric-monogram-pattern-sweatshirt-</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FrLbdcLPMOHh4tc9vlGjPOAShswcI1DcM7eoP9ST6.webp</image:loc>
+      <image:title>Geometric Monogram Pattern Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FHOniYOpWnixXQ2U82P1PmPqTDLe6BhbrSJkhj522.webp</image:loc>
+      <image:title>Geometric Monogram Pattern Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F6eu6wJ0CNi1ogmlrBNqFQAEL1QpufqYhsvF1Codx.webp</image:loc>
+      <image:title>Geometric Monogram Pattern Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/los-angeles-gothic-print-t-shirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FkX4xLaqRsJvK8p6LzA8N4e9oxcregwf1QHRLuPut.webp</image:loc>
+      <image:title>Los Angeles&quot; Gothic Print T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳500 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/green-teddy-bear-graphic-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1764960471_L_17.jpg</image:loc>
+      <image:title>Green Teddy Bear Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/green-varsity-jacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1791712594_L_2.jpeg</image:loc>
+      <image:title>Green Varsity Jacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳630 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/lee-leesrtroi-graphic-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FNMvIzPyf2P6JU7co4A9BptOdyFZQUeyznR7Y3nct.webp</image:loc>
+      <image:title>Lee Leesrtroi Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F1b6upxsiOZCUe7gek3Z0tO2MupAql5kBVknClpjU.webp</image:loc>
+      <image:title>Lee Leesrtroi Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FIhGv664x5rMjfQHD8QmPbUAyyVlm2wKxq6AUD5ir.webp</image:loc>
+      <image:title>Lee Leesrtroi Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FFpFpr3sFcmNmV9wW1wolzlXsw8S3swN7MGqgVWli.webp</image:loc>
+      <image:title>Lee Leesrtroi Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FzdtMJM0L95rBDI6jhuUTijldEW7fOLeoNmKj9uGs.webp</image:loc>
+      <image:title>Lee Leesrtroi Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/two-wheels-forever-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fi4VxDwJ5zA5uGHGuwt4xggdYpt5jtM9Px7oFkYxN.webp</image:loc>
+      <image:title>Two Wheels Forever Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-wide-leg-drawstring-sweatpants</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F1mvBufRQG7L1tQTOFg4erjEucOGbSgoH4xFP2dD9.webp</image:loc>
+      <image:title>Black Wide-Leg Drawstring Sweatpants</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/bottle-green-graphic-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1764960432_L_13.jpg</image:loc>
+      <image:title>Bottle Green Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/-ethnic-patterned-graphic-sweatshirt-</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F7fGn3ii7MrFgbUeUuZHaZe1PDBgdCDxWcGY1kPRj.webp</image:loc>
+      <image:title>**Ethnic Patterned Graphic Sweatshirt**</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/chance-2023-printed-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fl03sugzgy8wPZlabzEBGF0jRyUAGbGCBjNpsG2Xp.webp</image:loc>
+      <image:title>CHANCE 2023 Printed Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/cr7-printed-black-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fscontent.fcgp36-1.fna.fbcdn.net%2Fv%2Ft1.15752-9%2F900350178_2602927550221893_2651302444975756823_n.jpg%3Fstp%3Ddst-webp_s480x480%26_nc_cat%3D105%26_nc_map%3Durlgen_bucketless%26ccb%3D1-7%26_nc_sid%3D0024fc%26_nc_ohc%3D6FcBJP61xT4Q7kNvwFaCKMN%26_nc_oc%3DAdrLZrEDPN0YL8EhBwzT-KCVy4Z-V85R1wh9STQYdRv3z643cjMmYfrGfEYZDln7trg%26_nc_ad%3Dz-m%26_nc_cid%3D0%26_nc_zt%3D23%26_nc_ht%3Dscontent.fcgp36-1.fna%26_nc_ss%3D7a22e%26oh%3D03_Q7cD6wHuLbqq-QXxDj8aEc2UDNMbVYv00P3vJKMY5_9PlVEuUQ%26oe%3D6B1E7498</image:loc>
+      <image:title>CR7 Printed Black Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳640 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/men-s-andi1962-saltrock-printed-pullover-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FVuQUPscfexlw1CZl0XIu2Vk16aQMGxUueBJEZCG2.webp</image:loc>
+      <image:title>Men's ANDI1962 SaltRock Printed Pullover Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fe6SB0LkL69BSstvDY9bDjZ8oBe2zWoY3biCW0Fwj.webp</image:loc>
+      <image:title>Men's ANDI1962 SaltRock Printed Pullover Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fjh5v4Pb47lAjgrHIdMfz4Yr3lbkMopJqy71wGcUK.webp</image:loc>
+      <image:title>Men's ANDI1962 SaltRock Printed Pullover Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FuxM9wRSqUOhE3fVk7uAV7nRNydDusK1g7MLLXbZU.webp</image:loc>
+      <image:title>Men's ANDI1962 SaltRock Printed Pullover Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/positivity-summer-beach-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FvugH2shHgua9iljkmcY15QlhHVbRMZ5KgcA7cH9E.webp</image:loc>
+      <image:title>Positivity Summer Beach Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳600 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/maroon-varsity-jacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1791712594_L_1.jpeg</image:loc>
+      <image:title>Maroon Varsity Jacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳630 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/balance-graphic-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FeffOQIKSid3rAqt3tQwEnhyT3hBTExqHKyR39bqP.webp</image:loc>
+      <image:title>Balance Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳600 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/grey-wide-leg-drawstring-sweatpants</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FdisE960FybgcDx9LPoRUwIH2FCurjK5BMih5nvm2.webp</image:loc>
+      <image:title>Grey Wide-Leg Drawstring Sweatpants</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-graphic-sweatshirt</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1752689255_L_7.jpg</image:loc>
+      <image:title>Black Graphic Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳390 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/lee-summer-time-printed-dark-green-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FvTzoOdDEnj4YJ3ctfVXDBKqfmlZG4roNVwleqwrF.webp</image:loc>
+      <image:title>Lee Summer Time Printed Dark Green Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F5KXGhvAmTZQxLhL1PEd1q77XPxQxH7QXCSrWkPyA.webp</image:loc>
+      <image:title>Lee Summer Time Printed Dark Green Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fs6mGXFInzM1KngWhJBwXu3klwLdVOhzRzq3xC9pz.webp</image:loc>
+      <image:title>Lee Summer Time Printed Dark Green Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fexg0WW9trogqlVSsDD0y6hId4c3Kq7YT3iJ1mFFZ.webp</image:loc>
+      <image:title>Lee Summer Time Printed Dark Green Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FRRE0LbulfVuJQfqhl15iX6kMY1GLDfUsvfaY3XWt.webp</image:loc>
+      <image:title>Lee Summer Time Printed Dark Green Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳510 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/brown-diamond-pattern-knit-sweatshirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FpexKrrz2FSEcibJi6UJ6W7ue7pUYlL73SMFHabl2.webp</image:loc>
+      <image:title>Brown Diamond Pattern Knit Sweatshirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳330 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/futures-astronaut-moon-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F1OeRLFVGlqXc3SFw4Uag0C0wFHh0RRJtLIBwc7zL.webp</image:loc>
+      <image:title>Futures Astronaut Moon Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FXqj6Qq2Ixwt1e62bsgNg5NekrMP73MJFjBUjxPqQ.webp</image:loc>
+      <image:title>Futures Astronaut Moon Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FPMQQFqQJkL6bnE2FAbDXDkQqI5dxNSmZqmvWYNVr.webp</image:loc>
+      <image:title>Futures Astronaut Moon Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FxaKyYNMyKqcODMgr0Lmd3ZxJDd44CJpa5cZN3BtN.webp</image:loc>
+      <image:title>Futures Astronaut Moon Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FXSEgMYq4ALPbDBl4sAxFy06H0xYKSECnEEn7k9DW.webp</image:loc>
+      <image:title>Futures Astronaut Moon Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/grey-two-piece-layered-graphic-hoodie</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1731746460_L_1.jpg</image:loc>
+      <image:title>Grey Two-Piece Layered Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳700 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/solid-plain-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FhapSeqoVinOY07Uhuk6tCc5Vth4c4b71rLiP6216.webp</image:loc>
+      <image:title>Solid  Plain Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳580 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FM00YOAAOFGhEQoceg4TAYQFFmy8aLeOYK2j1q2hc.webp</image:loc>
+      <image:title>Solid  Plain Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳580 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fsd0NTxyYLLlzGCFsbGq7pyGVdHhMb0xgUsFjkEgj.webp</image:loc>
+      <image:title>Solid  Plain Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳580 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2Fx113RcqYevmIqP8qA2EDOSPtN8sEAzCvjKBynV8t.webp</image:loc>
+      <image:title>Solid  Plain Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳580 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/-trust-issue-gothic-graphic-t-shirt</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FHI0v5DXEUGAQKbJC3fUyJfLgCMuWKWDP103nLJWE.webp</image:loc>
+      <image:title>&quot;Trust Issue&quot; Gothic Graphic T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳500 BDT</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2F2J6tolL3MXQIb7gbdzgtlwhX11TJr3XXMgXNGAKQ.webp</image:loc>
+      <image:title>&quot;Trust Issue&quot; Gothic Graphic T-Shirt</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳500 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/kerwats-graphic-hoodie</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fdropbazarbd.com%2Fstorage%2Fproducts%2F2026%2F10%2FEiKcKZtE4bmoAXc5AbgGy12X21qgpBNBoJd9l7p6.webp</image:loc>
+      <image:title>KERWATS Graphic Hoodie</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳620 BDT</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://www.vantreloutfit.shop/product/black-brown-colorblock-hooded-jacket</loc>
+    <lastmod>2026-11-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://www.vantreloutfit.shop/api/image-proxy?url=https%3A%2F%2Fshopbasebd.com%2Fpublic%2Fuploads%2Fshop%2Fproducts%2F1730221847_L_2.jpg</image:loc>
+      <image:title>Black &amp; Brown Colorblock Hooded Jacket</image:title>
+      <image:caption>Premium heavyweight streetwear essential. - Price: ৳680 BDT</image:caption>
+    </image:image>
   </url>
 </urlset>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
-import { toDisplayImageUrl } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import {
   Heart,
   ShoppingBag,
@@ -204,6 +204,7 @@ export const ProductDetailPage: React.FC = () => {
               <img
                 src={toDisplayImageUrl(product.images[activeImageIndex] || product.images[0])}
                 alt={product.name}
+                onError={handleProxyImageError}
                 referrerPolicy="no-referrer"
                 className={`w-full h-full object-cover object-center transition-transform duration-300 ${
                   isZoomed ? 'scale-125' : 'scale-100'
@@ -247,7 +248,7 @@ export const ProductDetailPage: React.FC = () => {
                       : 'border-[#E5E1D5] opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={toDisplayImageUrl(img)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={toDisplayImageUrl(img)} alt="" onError={handleProxyImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </button>
               ))}
             </div>

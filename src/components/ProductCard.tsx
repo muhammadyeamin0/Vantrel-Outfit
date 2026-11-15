@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import { useStore } from '../context/StoreContext';
-import { toDisplayImageUrl } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { Heart, ShoppingBag, Eye, Star, Zap } from 'lucide-react';
 
 interface ProductCardProps {
@@ -58,6 +58,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
           alt={product.name}
           loading="lazy"
           decoding="async"
+          onError={handleProxyImageError}
           referrerPolicy="no-referrer"
           className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
         />
