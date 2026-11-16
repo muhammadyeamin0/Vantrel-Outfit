@@ -94,10 +94,10 @@ export const TopCategoryStrip: React.FC = () => {
 
   return (
     <div className="bg-[#14221C] text-[#F7F5EF] border-b border-[#2A3B32] shadow-sm select-none relative z-30">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-2 h-11">
+      <div className="max-w-7xl mx-auto pl-2.5 pr-1.5 sm:px-5 lg:px-6">
+        <div className="flex items-center justify-between gap-1.5 h-10 sm:h-11">
           {/* Left badge indicator */}
-          <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#FF762E] pr-3 border-r border-[#2A3B32] shrink-0">
+          <div className="hidden md:flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#FF762E] pr-2.5 border-r border-[#2A3B32] shrink-0">
             <Flame className="w-3.5 h-3.5" />
             <span>ক্যাটাগরি:</span>
           </div>
@@ -105,7 +105,7 @@ export const TopCategoryStrip: React.FC = () => {
           {/* Horizontal Line with Dynamic Categories */}
           <div
             ref={scrollContainerRef}
-            className="flex-1 flex items-center gap-2 overflow-x-auto py-1 scrollbar-none scroll-smooth"
+            className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 scrollbar-none scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {/* 'All' option */}
@@ -152,22 +152,22 @@ export const TopCategoryStrip: React.FC = () => {
             })}
           </div>
 
-          {/* Right: 'মোর / More' Dropdown Trigger (Enlarged & Prominent) */}
-          <div className="relative shrink-0 pl-3 border-l-2 border-[#2A3B32]" ref={dropdownRef}>
+          {/* Right: Compact 'মোর' Dropdown Trigger aligned flush right */}
+          <div className="relative shrink-0 ml-auto pl-1.5 border-l border-[#2A3B32]" ref={dropdownRef}>
             <button
               onClick={() => setIsMoreOpen(!isMoreOpen)}
-              className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md select-none ${
+              className={`px-2 py-1 rounded-md text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer select-none whitespace-nowrap ${
                 isMoreOpen
-                  ? 'bg-[#FF762E] text-white ring-2 ring-orange-300/40 shadow-lg scale-105'
-                  : 'bg-white/20 hover:bg-[#FF762E] text-white border border-white/20 hover:border-transparent hover:shadow-lg hover:scale-105 active:scale-95'
+                  ? 'bg-[#FF762E] text-white ring-1 ring-orange-300/40'
+                  : 'bg-white/15 hover:bg-[#FF762E] text-white border border-white/15 hover:border-transparent active:scale-95'
               }`}
               aria-label="Open More Categories and Navigation"
               aria-expanded={isMoreOpen}
             >
-              <LayoutGrid className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              <span className="font-sans font-black tracking-wider">মোর / MORE</span>
+              <LayoutGrid className="w-3 h-3 shrink-0" />
+              <span className="font-sans font-bold">মোর</span>
               <ChevronDown
-                className={`w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform duration-200 ${
+                className={`w-3 h-3 shrink-0 transition-transform duration-200 ${
                   isMoreOpen ? 'rotate-180' : ''
                 }`}
               />

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCategory, Product } from '../types';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { getProductSeoSlug } from '../utils/seoSlug';
+import { getHomepageShowcaseCategories } from '../utils/categoryShowcase';
 import {
   Truck,
   ShieldCheck,
@@ -89,37 +91,14 @@ export const HomePage: React.FC = () => {
 
   const activeSlide = heroSlides[currentSlide];
 
-  // Category Banner items dynamically driven by Admin Panel category order
+  // Category Banner items dynamically driven by Admin Panel category order & best active product in each section (no hardcoded primary images)
   const categoryBanners = useMemo(() => {
-    const categoryImageMap: Record<string, string> = {
-      't-shirts': '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
-      'pants': '/assets/images/product_denim_cargo_1792588592254.webp',
-      'pant': '/assets/images/product_denim_cargo_1792588592254.webp',
-      'hoodies': '/assets/images/product_premium_hoodie_1792588590406.webp',
-      'traditional wear': '/assets/images/product_panjabi_casual_1792588592268.webp',
-      'panjabi': '/assets/images/product_panjabi_casual_1792588592268.webp',
-      'jackets': '/assets/images/hero_fashion_yeamin_1792588589630.webp',
-      'shirts': '/assets/images/bangladeshi_classic_shirt_1793107155017.webp',
-      'polo shirts': '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
-      'sweater': '/assets/images/bangladeshi_hoodie_look_1793107183737.webp',
-      'winter collection': '/assets/images/bangladeshi_hoodie_look_1793107183737.webp'
-    };
-
-    const activeCats = categories.filter((c) => c !== 'All');
-
-    // Display the first 4 active categories according to admin defined order
-    return activeCats.slice(0, 4).map((cat) => {
-      const catKey = cat.toLowerCase();
-      const prodInCat = products.find(
-        (p) => (p.category.toLowerCase() === catKey || p.category.toLowerCase().includes(catKey)) && p.images && p.images.length > 0
-      );
-      const img = categoryImageMap[catKey] || prodInCat?.images[0] || '/assets/images/product_premium_hoodie_1792588590406.webp';
-      return {
-        title: cat.toUpperCase(),
-        category: cat,
-        image: toDisplayImageUrl(img)
-      };
-    });
+    return getHomepageShowcaseCategories(categories, products, 4).map((item) => ({
+      title: item.title,
+      category: item.category,
+      productName: item.bestProduct.name,
+      image: toDisplayImageUrl(item.image)
+    }));
   }, [categories, products]);
 
   // Dynamic Popular / Top Products managed directly by Admin & Store database
@@ -208,7 +187,7 @@ export const HomePage: React.FC = () => {
         <div className="absolute inset-0 z-0">
           <img
             src={activeSlide.bgImage}
-            alt={activeSlide.title}
+            alt={`${activeSlide.title} - ${activeSlide.tagline1} (${activeSlide.categoryList})`}
             fetchPriority={currentSlide === 0 ? "high" : "auto"}
             loading={currentSlide === 0 ? "eager" : "lazy"}
             decoding={currentSlide === 0 ? "sync" : "async"}
@@ -249,7 +228,7 @@ export const HomePage: React.FC = () => {
                   ঢাকার ভেতরে ১০০% <span className="text-emerald-400">ফ্রি ডেলিভারি</span>!
                 </p>
                 <p className="text-[11px] sm:text-xs text-neutral-300 font-medium mt-0.5">
-                  ঢাকা সিটি ৳০ · ঢাকা সাব-এরিয়া ও ৬৩ জেলায় ডেলিভারি মাত্র ৳৫০
+                  ঢাকা সিটি ৳০ · ৬৩ জেলায় ডেলিভারি মাত্র ৳৫০
                 </p>
               </div>
 
@@ -342,41 +321,50 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 2. CATEGORY ROW (4 CARDS: T-SHIRTS, PANTS, HOODIES, PANJABI) */}
+      {/* 2. CATEGORY ROW (4 CARDS: Best Product of Each Active Category) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-          {categoryBanners.map((cat) => (
-            <div
-              key={cat.title}
-              onClick={() => handleCategoryNav(cat.category)}
-              className="group relative h-64 sm:h-72 md:h-80 lg:h-96 rounded-none overflow-hidden bg-neutral-900 cursor-pointer border border-white/5 shadow-lg"
-            >
-              {/* Image */}
-              <img
-                src={cat.image}
-                alt={cat.title}
-                loading="lazy"
-                decoding="async"
-                onError={handleProxyImageError}
-                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-75 group-hover:brightness-90"
-                referrerPolicy="no-referrer"
-              />
+          {categoryBanners.length > 0 ? (
+            categoryBanners.map((cat) => (
+              <div
+                key={cat.title}
+                onClick={() => handleCategoryNav(cat.category)}
+                className="group relative h-64 sm:h-72 md:h-80 lg:h-96 rounded-none overflow-hidden bg-neutral-900 cursor-pointer border border-white/5 shadow-lg"
+              >
+                {/* Best Product Image of this Category */}
+                <img
+                  src={cat.image}
+                  alt={`${cat.title} - ${cat.productName} | VANTREL OUTFIT`}
+                  loading="lazy"
+                  decoding="async"
+                  onError={handleProxyImageError}
+                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-75 group-hover:brightness-90"
+                  referrerPolicy="no-referrer"
+                />
 
-              {/* Dark Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                {/* Dark Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
-              {/* Text Overlay */}
-              <div className="absolute bottom-5 left-5 right-5 space-y-1.5">
-                <h3 className="font-heading text-lg sm:text-xl md:text-2xl font-black tracking-wider text-white uppercase">
-                  {cat.title}
-                </h3>
-                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-300 group-hover:text-white transition-colors">
-                  <span>Shop Now</span>
-                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                {/* Text Overlay */}
+                <div className="absolute bottom-5 left-5 right-5 space-y-1.5">
+                  <h3 className="font-heading text-lg sm:text-xl md:text-2xl font-black tracking-wider text-white uppercase">
+                    {cat.title}
+                  </h3>
+                  <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-300 group-hover:text-white transition-colors">
+                    <span>Shop Now</span>
+                    <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            [1, 2, 3, 4].map((slot) => (
+              <div
+                key={slot}
+                className="relative h-64 sm:h-72 md:h-80 lg:h-96 rounded-none overflow-hidden bg-neutral-900/70 border border-white/5 animate-pulse"
+              />
+            ))
+          )}
         </div>
       </section>
 
@@ -440,7 +428,9 @@ export const HomePage: React.FC = () => {
                   >
                     <img
                       src={item.image}
-                      alt={item.name}
+                      alt={`${item.name} - ${item.category} by ${item.rawProduct?.brand || 'VANTREL OUTFIT'}`}
+                      width={400}
+                      height={500}
                       loading="lazy"
                       decoding="async"
                       onError={handleProxyImageError}
@@ -464,14 +454,18 @@ export const HomePage: React.FC = () => {
 
                   {/* Details */}
                   <div className="space-y-1.5 mb-2.5 flex-1 flex flex-col justify-start">
-                    <h3
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openProductDetail(item.id);
-                      }}
-                      className="text-xs sm:text-sm font-bold text-black line-clamp-1 leading-snug hover:underline cursor-pointer"
-                    >
-                      {item.name}
+                    <h3 className="text-xs sm:text-sm font-bold text-black line-clamp-1 leading-snug hover:underline cursor-pointer">
+                      <a
+                        href={`/product/${encodeURIComponent(getProductSeoSlug(item.rawProduct || { id: item.id, name: item.name, slug: item.id }, products))}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openProductDetail(item.id);
+                        }}
+                        className="block truncate"
+                      >
+                        {item.name}
+                      </a>
                     </h3>
 
                     {/* Price with Discount */}

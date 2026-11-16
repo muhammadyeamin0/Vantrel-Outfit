@@ -1,32 +1,99 @@
 import React, { useEffect } from 'react';
 import { useStore, PageRoute } from '../context/StoreContext';
 import { VANTREL_CANONICAL_ORIGIN, toCanonicalSeoImageUrl } from '../utils/imageProxy';
+import {
+  getProductSeoSlug,
+  findProductByUrlParam,
+  getCategorySlug,
+  findCategoryBySlug
+} from '../utils/seoSlug';
+
+function truncateSeoDescription(text: string, maxLen: number = 158): string {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLen) return clean;
+  return `${clean.slice(0, maxLen - 3).trim()}...`;
+}
 
 /**
- * Dynamically updates document <title>, Open Graph, Twitter Card meta tags,
- * canonical link, and Schema.org JSON-LD structured data based on the current page & active product.
- * Also keeps URL search parameters in sync for direct link social sharing (?product=id or ?page=name).
+ * Centrally manages SEO-friendly URLs (/product/:slug, /category/:slug, /shop, etc.),
+ * unique Page Titles & Meta Descriptions, Robots indexing directives, Canonical URLs,
+ * Open Graph, Twitter Card meta tags, and Schema.org JSON-LD (Product, Offer, BreadcrumbList, CollectionPage).
  */
 export const DynamicMetaTags: React.FC = () => {
-  const { currentPage, setCurrentPage, selectedProductId, openProductDetail, products } = useStore();
+  const {
+    currentPage,
+    setCurrentPage,
+    selectedProductId,
+    openProductDetail,
+    selectedCategory,
+    setSelectedCategory,
+    categories,
+    products
+  } = useStore();
 
-  // On first mount, parse incoming URL parameters (/product/:slug or ?product= or ?page=) for shared link resolution
+  // 1. Parse incoming URL (/product/:slug, /category/:slug, /shop, or ?product= / ?page= / ?category=) on mount & product load
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const params = new URLSearchParams(window.location.search);
       const pathParts = window.location.pathname.split('/').filter(Boolean);
-      const pathProdParam = pathParts[0] === 'product' && pathParts[1] ? decodeURIComponent(pathParts[1]) : null;
-      const prodParam = params.get('product') || params.get('productId') || pathProdParam;
-      const pageParam = params.get('page') as PageRoute | null;
+      const firstSeg = (pathParts[0] || '').toLowerCase();
+      const secondSeg = pathParts[1] ? decodeURIComponent(pathParts[1]) : null;
 
-      if (prodParam) {
-        const found = products.find((p) => p.id === prodParam || p.slug === prodParam);
+      const prodParam =
+        (firstSeg === 'product' && secondSeg) ||
+        params.get('product') ||
+        params.get('productId') ||
+        (params.get('page') === 'product' ? params.get('id') : null);
+
+      if (prodParam && products.length > 0) {
+        const found = findProductByUrlParam(prodParam, products);
         if (found) {
-          openProductDetail(found.id);
+          if (selectedProductId !== found.id || currentPage !== 'product-detail') {
+            openProductDetail(found.id);
+          }
           return;
         }
       }
+
+      if (firstSeg === 'category' && secondSeg) {
+        const matchedCat = findCategoryBySlug(secondSeg, categories) || secondSeg;
+        setSelectedCategory(matchedCat);
+        setCurrentPage('shop');
+        return;
+      }
+
+      const categoryQuery = params.get('category');
+      if (categoryQuery) {
+        setSelectedCategory(categoryQuery);
+        setCurrentPage('shop');
+        return;
+      }
+
+      const pathRouteMap: Record<string, PageRoute> = {
+        shop: 'shop',
+        products: 'shop',
+        cart: 'cart',
+        checkout: 'checkout',
+        confirmation: 'confirmation',
+        track: 'tracking',
+        tracking: 'tracking',
+        account: 'account',
+        compare: 'compare',
+        admin: 'admin',
+        about: 'about',
+        contact: 'contact',
+        faqs: 'faqs',
+        'size-guide': 'size-guide',
+        'shipping-policy': 'shipping-policy',
+        'return-policy': 'return-policy',
+        'privacy-policy': 'privacy-policy',
+        terms: 'terms'
+      };
+
+      const routeFromPath = pathRouteMap[firstSeg];
+      const pageParam = (routeFromPath || params.get('page')) as PageRoute | null;
+
       if (pageParam && pageParam !== 'home') {
         const validPages: PageRoute[] = [
           'shop',
@@ -55,159 +122,224 @@ export const DynamicMetaTags: React.FC = () => {
     }
   }, [products]);
 
-  // Synchronize URL search params with active navigation without reload
+  // 2. Synchronize clean SEO-friendly path URLs with active SPA navigation without page reload
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const url = new URL(window.location.href);
+      let nextPath = '/';
+
       if (currentPage === 'product-detail' && selectedProductId) {
-        url.searchParams.set('product', selectedProductId);
-        url.searchParams.delete('page');
+        const activeProd = products.find((p) => p.id === selectedProductId);
+        const seoSlug = activeProd ? getProductSeoSlug(activeProd, products) : selectedProductId;
+        nextPath = `/product/${encodeURIComponent(seoSlug)}`;
+      } else if (currentPage === 'shop') {
+        if (selectedCategory && selectedCategory !== 'All') {
+          nextPath = `/category/${encodeURIComponent(getCategorySlug(selectedCategory))}`;
+        } else {
+          nextPath = '/shop';
+        }
+      } else if (currentPage === 'tracking') {
+        nextPath = '/track';
       } else if (currentPage !== 'home') {
-        url.searchParams.set('page', currentPage);
-        url.searchParams.delete('product');
-      } else {
-        url.searchParams.delete('product');
-        url.searchParams.delete('page');
+        nextPath = `/${currentPage}`;
       }
-      window.history.replaceState({}, '', url.toString());
+
+      // Remove legacy SPA query params cleanly while preserving order tracking / payment params if present
+      url.searchParams.delete('product');
+      url.searchParams.delete('productId');
+      url.searchParams.delete('page');
+      url.searchParams.delete('category');
+      if (currentPage === 'product-detail') {
+        url.searchParams.delete('id');
+      }
+
+      const nextUrl = `${nextPath}${url.search}${url.hash}`;
+      const currentFull = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (currentFull !== nextUrl) {
+        window.history.replaceState({}, '', nextUrl);
+      }
     } catch (e) {
       console.warn('URL sync note:', e);
     }
-  }, [currentPage, selectedProductId]);
+  }, [currentPage, selectedProductId, selectedCategory, products]);
 
-  // Dynamically update document title, Open Graph, Twitter tags & Schema JSON-LD
+  // 3. Dynamically update <title>, description, robots, canonical, OG, Twitter & Schema JSON-LD
   useEffect(() => {
     const activeProduct = selectedProductId
       ? products.find((p) => p.id === selectedProductId)
       : null;
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://vantrel.com';
-    const defaultImage = `${origin}/assets/images/hero_fashion_yeamin_1792588589630.jpg`;
+    const canonicalOrigin = VANTREL_CANONICAL_ORIGIN;
+    const defaultImage = `${canonicalOrigin}/assets/images/vantrel-og-image.jpg`;
 
-    let title = 'VANTREL — Premium Bangladeshi Fashion & Streetwear';
+    let title = 'VANTREL OUTFIT — Premium Streetwear & Fashion Bangladesh';
     let description =
-      'Define Your Narrative. Discover premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.';
+      'Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka & Cash on Delivery across Bangladesh.';
     let imageUrl = defaultImage;
-    let imageAlt = 'VANTREL Premium Bangladeshi Streetwear';
+    let imageAlt = 'VANTREL OUTFIT Official Storefront Banner';
     let ogType = 'website';
-    let canonicalUrl = `${origin}/`;
+    let canonicalUrl = `${canonicalOrigin}/`;
+    let robotsDirective = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
     let productPrice: number | null = null;
     let productInStock = true;
+    let productBrand = 'VANTREL OUTFIT';
+
+    const publishedProducts = products.filter((p) => !p.isArchived && p.status !== 'archived');
 
     if (currentPage === 'product-detail' && activeProduct) {
+      const seoSlug = getProductSeoSlug(activeProduct, products);
       const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
       const priceText = `৳${effectivePrice.toLocaleString()}`;
-      const fabricSnippet = activeProduct.fabric ? ` | ${activeProduct.fabric}` : '';
-      title = `${activeProduct.name} - ${priceText} | VANTREL OUTFIT`;
-      description =
+      productBrand = (activeProduct.brand || 'VANTREL OUTFIT').trim();
+      const fabricSnippet = activeProduct.fabric ? ` (${activeProduct.fabric})` : '';
+
+      title = `${activeProduct.name} — ${priceText} | ${productBrand}`;
+      description = truncateSeoDescription(
         activeProduct.description ||
-        activeProduct.tagline ||
-        `Buy ${activeProduct.name} at ${priceText}${fabricSnippet}. Official VANTREL OUTFIT apparel with Cash on Delivery across Bangladesh.`;
+          activeProduct.tagline ||
+          `Buy ${activeProduct.name} for ${priceText}${fabricSnippet} from ${productBrand}. Free delivery inside Dhaka & nationwide Cash on Delivery.`
+      );
 
       if (activeProduct.images && activeProduct.images.length > 0) {
-        imageUrl = toCanonicalSeoImageUrl(activeProduct.images[0], VANTREL_CANONICAL_ORIGIN);
+        imageUrl = toCanonicalSeoImageUrl(activeProduct.images[0], canonicalOrigin);
       }
-      imageAlt = `${activeProduct.name} - VANTREL OUTFIT`;
+      imageAlt = `${activeProduct.name} - ${activeProduct.category} by ${productBrand}`;
       ogType = 'product';
-      canonicalUrl = `${origin}/product/${encodeURIComponent(activeProduct.slug || activeProduct.id)}`;
+      canonicalUrl = `${canonicalOrigin}/product/${encodeURIComponent(seoSlug)}`;
       productPrice = effectivePrice;
-      productInStock = (activeProduct.totalStock ?? 1) > 0;
+      productInStock = (activeProduct.totalStock ?? 0) > 0;
+    } else if (currentPage === 'shop') {
+      const isSpecificCat = Boolean(selectedCategory && selectedCategory !== 'All');
+      const catProducts = isSpecificCat
+        ? publishedProducts.filter(
+            (p) =>
+              p.category.toLowerCase() === selectedCategory.toLowerCase() ||
+              getCategorySlug(p.category) === getCategorySlug(selectedCategory)
+          )
+        : publishedProducts;
+
+      if (isSpecificCat) {
+        const catSlug = getCategorySlug(selectedCategory);
+        title = `${selectedCategory} Collection (${catProducts.length} Items) | VANTREL OUTFIT`;
+        description = truncateSeoDescription(
+          `Shop ${catProducts.length} authentic ${selectedCategory} styles online in Bangladesh at VANTREL OUTFIT. Free delivery in Dhaka & ৳50 nationwide COD.`
+        );
+        canonicalUrl = `${canonicalOrigin}/category/${encodeURIComponent(catSlug)}`;
+        if (catProducts[0]?.images?.[0]) {
+          imageUrl = toCanonicalSeoImageUrl(catProducts[0].images[0], canonicalOrigin);
+        }
+        imageAlt = `${selectedCategory} Collection - VANTREL OUTFIT`;
+      } else {
+        title = 'Shop All Streetwear, Hoodies, Tees & Panjabis | VANTREL OUTFIT';
+        description = truncateSeoDescription(
+          `Explore ${publishedProducts.length} genuine VANTREL OUTFIT garments: hoodies, oversized t-shirts, panjabis, shirts & pants with Free Dhaka delivery.`
+        );
+        canonicalUrl = `${canonicalOrigin}/shop`;
+      }
     } else {
       switch (currentPage) {
-        case 'shop':
-          title = 'Shop Premium Streetwear & Modern Fashion | VANTREL';
-          description =
-            'Browse heavy GSM hoodies, drop-shoulder luxury tees, artisan panjabis, and selvedge denim. Premium fabric weights crafted in Bangladesh.';
-          canonicalUrl = `${origin}/?page=shop`;
-          break;
         case 'cart':
-          title = 'Your Shopping Bag | VANTREL Online Store';
+          title = 'Your Shopping Bag | VANTREL OUTFIT';
           description =
-            'Review your selected items. Free delivery inside Dhaka City (৳0), and only ৳50 in Dhaka Sub-Area & all 63 districts with Cash on Delivery.';
-          canonicalUrl = `${origin}/?page=cart`;
+            'Review your selected VANTREL OUTFIT items. Free delivery inside Dhaka City (৳0), and ৳50 flat delivery across Dhaka Sub-Area & 63 districts.';
+          canonicalUrl = `${canonicalOrigin}/cart`;
+          robotsDirective = 'noindex, nofollow';
           break;
         case 'checkout':
-          title = 'Secure Checkout | VANTREL Bangladesh';
+          title = 'Secure Checkout | VANTREL OUTFIT Bangladesh';
           description =
-            'Complete your order securely with Cash on Delivery (COD) or bKash / Nagad mobile banking. Fast dispatch across 64 districts.';
-          canonicalUrl = `${origin}/?page=checkout`;
+            'Complete your order securely with Cash on Delivery (COD) or bKash / Nagad. Fast nationwide dispatch across 64 districts.';
+          canonicalUrl = `${canonicalOrigin}/checkout`;
+          robotsDirective = 'noindex, nofollow';
           break;
         case 'confirmation':
           title = 'Order Confirmed | VANTREL OUTFIT';
           description =
-            'Thank you for shopping with VANTREL OUTFIT. We are carefully packaging your order with custom branded box packaging.';
-          canonicalUrl = `${origin}/?page=confirmation`;
+            'Thank you for ordering from VANTREL OUTFIT. Track your order status live until doorstep delivery.';
+          canonicalUrl = `${canonicalOrigin}/confirmation`;
+          robotsDirective = 'noindex, nofollow';
           break;
         case 'tracking':
           title = 'Live Order Tracking | VANTREL OUTFIT';
           description =
-            'Track your parcel dispatch and courier status live with Steadfast, Pathao, or RedX logistics tracking.';
-          canonicalUrl = `${origin}/?page=tracking`;
+            'Track your VANTREL OUTFIT parcel dispatch and courier status live across Dhaka and all 64 districts of Bangladesh.';
+          canonicalUrl = `${canonicalOrigin}/track`;
           break;
         case 'account':
-          title = 'Customer Account & Rewards | VANTREL OUTFIT';
+          title = 'Customer Account & Orders | VANTREL OUTFIT';
           description =
-            'Manage your saved delivery addresses, past orders, and redeem loyalty points on your favorite streetwear.';
-          canonicalUrl = `${origin}/?page=account`;
+            'Manage your saved delivery addresses and order history on VANTREL OUTFIT.';
+          canonicalUrl = `${canonicalOrigin}/account`;
+          robotsDirective = 'noindex, nofollow';
           break;
         case 'admin':
-          title = 'VANTREL OUTFIT Operations Dashboard | Admin Panel';
+          title = 'VANTREL OUTFIT Admin Operations';
           description =
-            'Administrative portal for live orders, customer addresses, inventory, courier dispatch, and finance management.';
-          canonicalUrl = `${origin}/?page=admin`;
+            'Administrative portal for live orders, inventory, and store configuration.';
+          canonicalUrl = `${canonicalOrigin}/admin`;
+          robotsDirective = 'noindex, nofollow';
           break;
         case 'about':
-          title = 'About VANTREL OUTFIT — The Narrative & Craftsmanship';
+          title = 'About VANTREL OUTFIT — Craftsmanship & Story';
           description =
-            'Discover VANTREL OUTFIT’s dedication to uncompromising GSM weights, architectural streetwear silhouettes, and ethical local production.';
-          canonicalUrl = `${origin}/?page=about`;
+            'Discover VANTREL OUTFIT’s dedication to heavyweight GSM fabrics, architectural streetwear cuts, and quality garment production in Bangladesh.';
+          canonicalUrl = `${canonicalOrigin}/about`;
           break;
         case 'contact':
           title = 'Contact VANTREL OUTFIT Support';
           description =
-            'Get in touch with the VANTREL OUTFIT team on our official Facebook page for sizing help, custom orders, or customer support.';
-          canonicalUrl = `${origin}/?page=contact`;
+            'Reach the VANTREL OUTFIT team on WhatsApp or Facebook for sizing guidance, order assistance, and customer care in Bangladesh.';
+          canonicalUrl = `${canonicalOrigin}/contact`;
           break;
         case 'faqs':
-        case 'size-guide':
-          title = 'Size Guide & FAQs | VANTREL OUTFIT';
+          title = 'FAQs & Garment Care | VANTREL OUTFIT';
           description =
-            'Explore our detailed chest & length measurements for oversized t-shirts, drop-shoulder hoodies, and fabric care instructions.';
-          canonicalUrl = `${origin}/?page=faqs`;
+            'Answers to frequently asked questions about VANTREL OUTFIT sizing, 420 GSM fabric care, Free Dhaka delivery, and 7-day exchanges.';
+          canonicalUrl = `${canonicalOrigin}/faqs`;
+          break;
+        case 'size-guide':
+          title = 'Exact Garment Size Guide | VANTREL OUTFIT';
+          description =
+            'Check detailed chest, length, and sleeve measurements in inches and cm for hoodies, oversized t-shirts, shirts, and pants.';
+          canonicalUrl = `${canonicalOrigin}/size-guide`;
           break;
         case 'shipping-policy':
           title = 'Shipping & Delivery Policy | VANTREL OUTFIT';
           description =
-            'Free delivery inside Dhaka City (৳0, 24-48 hrs). Dhaka Sub-Area & all 63 districts: ৳50 flat rate (48-72 hrs). Cash on Delivery nationwide.';
-          canonicalUrl = `${origin}/?page=shipping-policy`;
+            'Free delivery inside Dhaka City (৳0, 24–48 hrs). Dhaka Sub-Area & 63 districts flat ৳50 Cash on Delivery across Bangladesh.';
+          canonicalUrl = `${canonicalOrigin}/shipping-policy`;
           break;
         case 'return-policy':
           title = '7-Day Easy Exchange Policy | VANTREL OUTFIT';
           description =
-            'Hassle-free 7-day exchange for any size or fit issues. We ensure full customer satisfaction on every garment.';
-          canonicalUrl = `${origin}/?page=return-policy`;
+            'Hassle-free 7-day size replacement and exchange guarantee on every garment ordered from VANTREL OUTFIT.';
+          canonicalUrl = `${canonicalOrigin}/return-policy`;
           break;
         case 'privacy-policy':
-        case 'terms':
-          title = 'Privacy & Terms of Service | VANTREL OUTFIT';
+          title = 'Privacy Policy | VANTREL OUTFIT';
           description =
-            'Read our customer privacy commitments, data security, and terms of service for purchases made on VANTREL OUTFIT.';
-          canonicalUrl = `${origin}/?page=privacy-policy`;
+            'Read how VANTREL OUTFIT safeguards your delivery address, contact details, and order information.';
+          canonicalUrl = `${canonicalOrigin}/privacy-policy`;
+          break;
+        case 'terms':
+          title = 'Terms of Service | VANTREL OUTFIT';
+          description =
+            'Review the official terms of service, pricing, and delivery conditions for VANTREL OUTFIT Bangladesh.';
+          canonicalUrl = `${canonicalOrigin}/terms`;
           break;
         default:
-          title = 'VANTREL OUTFIT — Premium Quality & Trendsetting Fashion';
+          title = 'VANTREL OUTFIT — Premium Streetwear & Fashion Bangladesh';
           description =
-            'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। Discover premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.';
-          canonicalUrl = `${origin}/`;
+            'Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka & Cash on Delivery across Bangladesh.';
+          canonicalUrl = `${canonicalOrigin}/`;
           break;
       }
     }
 
-    // 1. Update Document Title
+    // Update Document Title
     document.title = title;
 
-    // 2. Helper to set or create <meta> tags in <head>
     const setMetaTag = (attrName: 'name' | 'property', attrValue: string, content: string) => {
       let meta = document.head.querySelector(`meta[${attrName}="${attrValue}"]`) as HTMLMetaElement | null;
       if (!meta) {
@@ -218,40 +350,48 @@ export const DynamicMetaTags: React.FC = () => {
       meta.setAttribute('content', content);
     };
 
-    // 3. Inject standard SEO meta
-    setMetaTag('name', 'description', description);
+    const removeMetaTag = (attrName: 'name' | 'property', attrValue: string) => {
+      const existing = document.head.querySelector(`meta[${attrName}="${attrValue}"]`);
+      if (existing) existing.remove();
+    };
 
-    // 4. Inject Open Graph tags
+    // Standard SEO & Robots Meta (Ensure NO product/category/home page ever gets noindex)
+    setMetaTag('name', 'title', title);
+    setMetaTag('name', 'description', description);
+    setMetaTag('name', 'robots', robotsDirective);
+    setMetaTag('name', 'googlebot', robotsDirective);
+
+    // Open Graph Meta
     setMetaTag('property', 'og:site_name', 'VANTREL OUTFIT');
     setMetaTag('property', 'og:type', ogType);
     setMetaTag('property', 'og:title', title);
     setMetaTag('property', 'og:description', description);
     setMetaTag('property', 'og:image', imageUrl);
+    setMetaTag('property', 'og:image:secure_url', imageUrl);
     setMetaTag('property', 'og:image:alt', imageAlt);
     setMetaTag('property', 'og:url', canonicalUrl);
 
-    // Product-specific OG tags
     if (ogType === 'product' && productPrice !== null) {
-      setMetaTag('property', 'product:price:amount', productPrice.toString());
+      setMetaTag('property', 'product:brand', productBrand);
+      setMetaTag('property', 'product:price:amount', String(productPrice));
       setMetaTag('property', 'product:price:currency', 'BDT');
       setMetaTag('property', 'product:availability', productInStock ? 'in stock' : 'out of stock');
     } else {
-      const priceMeta = document.head.querySelector('meta[property="product:price:amount"]');
-      if (priceMeta) priceMeta.remove();
-      const currMeta = document.head.querySelector('meta[property="product:price:currency"]');
-      if (currMeta) currMeta.remove();
-      const availMeta = document.head.querySelector('meta[property="product:availability"]');
-      if (availMeta) availMeta.remove();
+      removeMetaTag('property', 'product:brand');
+      removeMetaTag('property', 'product:price:amount');
+      removeMetaTag('property', 'product:price:currency');
+      removeMetaTag('property', 'product:availability');
     }
 
-    // 5. Inject Twitter / X Card tags
+    // Twitter / X Card Meta
     setMetaTag('name', 'twitter:card', 'summary_large_image');
+    setMetaTag('name', 'twitter:url', canonicalUrl);
     setMetaTag('name', 'twitter:title', title);
     setMetaTag('name', 'twitter:description', description);
     setMetaTag('name', 'twitter:image', imageUrl);
     setMetaTag('name', 'twitter:image:alt', imageAlt);
 
-    // 6. Update Canonical link
+    // Canonical URL
     let canonicalLink = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (!canonicalLink) {
       canonicalLink = document.createElement('link');
@@ -260,7 +400,7 @@ export const DynamicMetaTags: React.FC = () => {
     }
     canonicalLink.setAttribute('href', canonicalUrl);
 
-    // 7. Inject Schema.org JSON-LD Structured Data
+    // Schema.org JSON-LD Structured Data
     let schemaScript = document.head.querySelector('#vantrel-jsonld') as HTMLScriptElement | null;
     if (!schemaScript) {
       schemaScript = document.createElement('script');
@@ -272,9 +412,11 @@ export const DynamicMetaTags: React.FC = () => {
     if (ogType === 'product' && activeProduct) {
       const resolvedImages = (activeProduct.images || [])
         .filter((img) => Boolean(img && typeof img === 'string'))
-        .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
-
+        .map((img) => toCanonicalSeoImageUrl(img, canonicalOrigin));
       const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
+      const catSlug = getCategorySlug(activeProduct.category);
+      const catUrl = `${canonicalOrigin}/category/${encodeURIComponent(catSlug)}`;
+
       const productSchema: Record<string, unknown> = {
         '@context': 'https://schema.org/',
         '@type': 'Product',
@@ -288,7 +430,7 @@ export const DynamicMetaTags: React.FC = () => {
         category: activeProduct.category,
         brand: {
           '@type': 'Brand',
-          name: 'VANTREL OUTFIT'
+          name: productBrand
         },
         offers: {
           '@type': 'Offer',
@@ -315,16 +457,54 @@ export const DynamicMetaTags: React.FC = () => {
         };
       }
 
-      schemaScript.textContent = JSON.stringify(productSchema);
+      const breadcrumbSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${canonicalOrigin}/` },
+          { '@type': 'ListItem', position: 2, name: activeProduct.category, item: catUrl },
+          { '@type': 'ListItem', position: 3, name: activeProduct.name, item: canonicalUrl }
+        ]
+      };
+
+      schemaScript.textContent = JSON.stringify([productSchema, breadcrumbSchema]);
+    } else if (currentPage === 'shop') {
+      const isSpecificCat = Boolean(selectedCategory && selectedCategory !== 'All');
+      const listProducts = isSpecificCat
+        ? publishedProducts.filter(
+            (p) =>
+              p.category.toLowerCase() === selectedCategory.toLowerCase() ||
+              getCategorySlug(p.category) === getCategorySlug(selectedCategory)
+          )
+        : publishedProducts;
+
+      const collectionSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: title,
+        url: canonicalUrl,
+        description,
+        mainEntity: {
+          '@type': 'ItemList',
+          numberOfItems: listProducts.length,
+          itemListElement: listProducts.slice(0, 20).map((p, idx) => ({
+            '@type': 'ListItem',
+            position: idx + 1,
+            url: `${canonicalOrigin}/product/${encodeURIComponent(getProductSeoSlug(p, products))}`,
+            name: p.name
+          }))
+        }
+      };
+      schemaScript.textContent = JSON.stringify(collectionSchema);
     } else {
       const storeSchema = {
         '@context': 'https://schema.org',
         '@type': 'ClothingStore',
         name: 'VANTREL OUTFIT',
-        url: origin,
-        logo: `${origin}/assets/images/vantrel-logo.png`,
+        url: canonicalOrigin,
+        logo: `${canonicalOrigin}/assets/images/vantrel-logo.png`,
         description:
-          'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। Premium streetwear, 420 GSM hoodies, luxury tees, royal jacquard Panjabi, and tailored denim across Bangladesh with nationwide Cash on Delivery.',
+          'Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka & Cash on Delivery across Bangladesh.',
         priceRange: '৳৳',
         sameAs: [
           'https://www.facebook.com/vantreloutfit',
@@ -332,27 +512,13 @@ export const DynamicMetaTags: React.FC = () => {
         ],
         address: {
           '@type': 'PostalAddress',
-          streetAddress: 'Banani / Gulshan Hub',
           addressLocality: 'Dhaka',
           addressCountry: 'BD'
-        },
-        geo: {
-          '@type': 'GeoCoordinates',
-          latitude: '23.7937',
-          longitude: '90.4066'
-        },
-        openingHoursSpecification: [
-          {
-            '@type': 'OpeningHoursSpecification',
-            dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-            opens: '09:00',
-            closes: '22:00'
-          }
-        ]
+        }
       };
       schemaScript.textContent = JSON.stringify(storeSchema);
     }
-  }, [currentPage, selectedProductId, products]);
+  }, [currentPage, selectedProductId, selectedCategory, products]);
 
   return null;
 };

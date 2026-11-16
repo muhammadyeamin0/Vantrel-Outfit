@@ -16,7 +16,8 @@
         "totalStock": { "type": "number" },
         "fabric": { "type": "string" },
         "gsm": { "type": "number" },
-        "status": { "type": "string" }
+        "status": { "type": "string" },
+        "isCategoryShowcase": { "type": "boolean" }
       },
       "required": ["id", "name", "slug", "sku", "category", "regularPrice", "totalStock"]
     },

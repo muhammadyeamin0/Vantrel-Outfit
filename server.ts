@@ -18,6 +18,12 @@ import {
   toCanonicalSeoImageUrl
 } from './src/utils/imageProxy.ts';
 import {
+  getProductSeoSlug,
+  findProductByUrlParam,
+  getCategorySlug,
+  findCategoryBySlug
+} from './src/utils/seoSlug.ts';
+import {
   INITIAL_ORDERS,
   INITIAL_COUPONS,
   INITIAL_SETTINGS,
@@ -2014,9 +2020,11 @@ app.get('/robots.txt', (req: Request, res: Response) => {
 
 User-agent: *
 Allow: /
+Allow: /shop
 Allow: /products
 Allow: /products/*
 Allow: /product/*
+Allow: /category/*
 Allow: /track
 Allow: /track/*
 Allow: /assets/
@@ -2025,6 +2033,9 @@ Allow: /api/image-proxy
 Allow: /api/image-proxy?*
 Disallow: /admin
 Disallow: /admin/*
+Disallow: /cart
+Disallow: /checkout
+Disallow: /account
 Disallow: /api/admin
 Disallow: /api/admin/*
 Disallow: /api/moderators
@@ -2107,20 +2118,43 @@ Sitemap: ${protocol}://${host}/sitemap.xml
 });
 
 app.get('/sitemap.xml', (req: Request, res: Response) => {
-  const host = req.get('host') || 'www.vantreloutfit.shop';
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const baseUrl = `${protocol}://${host}`;
+  const baseUrl = VANTREL_CANONICAL_ORIGIN;
   const now = new Date().toISOString();
+  const published = products.filter((prod) => !prod.isArchived && prod.status !== 'archived');
 
   const staticUrls = [
     { loc: `${baseUrl}/`, priority: '1.0', changefreq: 'daily' },
-    { loc: `${baseUrl}/products`, priority: '0.9', changefreq: 'daily' },
-    { loc: `${baseUrl}/track`, priority: '0.7', changefreq: 'monthly' }
+    { loc: `${baseUrl}/shop`, priority: '0.9', changefreq: 'daily' },
+    { loc: `${baseUrl}/about`, priority: '0.7', changefreq: 'monthly' },
+    { loc: `${baseUrl}/contact`, priority: '0.7', changefreq: 'monthly' },
+    { loc: `${baseUrl}/faqs`, priority: '0.7', changefreq: 'monthly' },
+    { loc: `${baseUrl}/size-guide`, priority: '0.7', changefreq: 'monthly' },
+    { loc: `${baseUrl}/shipping-policy`, priority: '0.6', changefreq: 'monthly' },
+    { loc: `${baseUrl}/return-policy`, priority: '0.6', changefreq: 'monthly' },
+    { loc: `${baseUrl}/privacy-policy`, priority: '0.5', changefreq: 'monthly' },
+    { loc: `${baseUrl}/terms`, priority: '0.5', changefreq: 'monthly' },
+    { loc: `${baseUrl}/track`, priority: '0.6', changefreq: 'weekly' }
   ];
 
-  const productUrls = products
-    .filter((prod) => !prod.isArchived && prod.status !== 'archived')
+  const categorySeen = new Set<string>();
+  const categoryUrls = published
+    .map((p) => (p.category || '').trim())
+    .filter((c) => {
+      if (!c || c.toLowerCase() === 'all' || categorySeen.has(c.toLowerCase())) return false;
+      categorySeen.add(c.toLowerCase());
+      return true;
+    })
+    .map((cat) => `  <url>
+    <loc>${baseUrl}/category/${encodeURIComponent(getCategorySlug(cat))}</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
+  </url>`)
+    .join('\n');
+
+  const productUrls = published
     .map((prod) => {
+      const seoSlug = getProductSeoSlug(prod, published);
       const rawImg = prod.images && prod.images[0] ? prod.images[0] : '';
       const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN).replace(/&/g, '&amp;') : '';
       const price = prod.discountPrice || prod.regularPrice;
@@ -2128,7 +2162,7 @@ app.get('/sitemap.xml', (req: Request, res: Response) => {
       const cleanDesc = (prod.tagline || prod.description || prod.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
       return `  <url>
-    <loc>${baseUrl}/product/${prod.slug || prod.id}</loc>
+    <loc>${baseUrl}/product/${encodeURIComponent(seoSlug)}</loc>
     <lastmod>${prod.createdDate ? new Date(prod.createdDate).toISOString() : now}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
@@ -2149,6 +2183,7 @@ ${staticUrls.map((u) => `  <url>
     <changefreq>${u.changefreq}</changefreq>
     <priority>${u.priority}</priority>
   </url>`).join('\n')}
+${categoryUrls}
 ${productUrls}
 </urlset>`;
 
@@ -2319,28 +2354,29 @@ function escapeHtmlAttr(val: string): string {
 }
 
 function resolveProductMatchedFromReq(req: Request): Product | undefined {
+  const published = products.filter((p) => !p.isArchived && p.status !== 'archived');
   const pathParts = req.path.split('/').filter(Boolean);
   if (pathParts[0] === 'product' && pathParts[1]) {
-    const slugOrId = decodeURIComponent(pathParts[1]);
-    return products.find((p) => p.slug === slugOrId || p.id === slugOrId);
+    return findProductByUrlParam(pathParts[1], published);
   }
   if (req.query.page === 'product' && req.query.id) {
-    const pId = String(req.query.id);
-    return products.find((p) => p.id === pId || p.slug === pId);
+    return findProductByUrlParam(String(req.query.id), published);
   }
   if (req.query.product || req.query.productId) {
-    const pId = String(req.query.product || req.query.productId);
-    return products.find((p) => p.id === pId || p.slug === pId);
+    return findProductByUrlParam(String(req.query.product || req.query.productId), published);
   }
   return undefined;
 }
 
 function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unknown> {
-  const productUrl = `${baseUrl}/product/${encodeURIComponent(prod.slug || prod.id)}`;
+  const published = products.filter((p) => !p.isArchived && p.status !== 'archived');
+  const seoSlug = getProductSeoSlug(prod, published);
+  const productUrl = `${baseUrl}/product/${encodeURIComponent(seoSlug)}`;
   const resolvedImages = (prod.images || [])
     .filter((img) => Boolean(img && typeof img === 'string'))
     .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
   const effectivePrice = prod.discountPrice || prod.regularPrice;
+  const brandName = (prod.brand || 'VANTREL OUTFIT').trim();
 
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org/',
@@ -2348,14 +2384,14 @@ function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unkn
     '@id': `${productUrl}#product`,
     name: prod.name,
     url: productUrl,
-    image: resolvedImages.length > 0 ? resolvedImages : [`${baseUrl}/assets/images/vantrel-logo.png`],
-    description: (prod.description || prod.tagline || `Buy ${prod.name} from VANTREL OUTFIT Bangladesh.`).trim(),
+    image: resolvedImages.length > 0 ? resolvedImages : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-logo.png`],
+    description: (prod.description || prod.tagline || `Buy ${prod.name} from ${brandName} Bangladesh.`).trim(),
     sku: prod.sku || prod.id,
     mpn: prod.sku || prod.id,
     category: prod.category,
     brand: {
       '@type': 'Brand',
-      name: 'VANTREL OUTFIT'
+      name: brandName
     },
     offers: {
       '@type': 'Offer',
@@ -2391,20 +2427,43 @@ app.get('*', (req: Request, res: Response, next) => {
     return next();
   }
 
-  const host = req.get('host') || 'www.vantreloutfit.shop';
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const baseUrl = `${protocol}://${host}`;
-  const fullUrl = `${baseUrl}${req.originalUrl}`;
+  const baseUrl = VANTREL_CANONICAL_ORIGIN;
+  const publishedProducts = products.filter((p) => !p.isArchived && p.status !== 'archived');
+  const activeCategories = Array.from(new Set(publishedProducts.map((p) => p.category).filter(Boolean)));
 
+  const pathParts = req.path.split('/').filter(Boolean);
   const matchedProduct = resolveProductMatchedFromReq(req);
+  const matchedCategory =
+    !matchedProduct && pathParts[0] === 'category' && pathParts[1]
+      ? findCategoryBySlug(pathParts[1], activeCategories) || decodeURIComponent(pathParts[1])
+      : !matchedProduct && req.query.category
+      ? String(req.query.category)
+      : null;
+
+  const isCategoryAll = matchedCategory?.toLowerCase() === 'all';
+  const catProducts =
+    matchedCategory && !isCategoryAll
+      ? publishedProducts.filter(
+          (p) =>
+            p.category.toLowerCase() === matchedCategory.toLowerCase() ||
+            getCategorySlug(p.category) === getCategorySlug(matchedCategory)
+        )
+      : publishedProducts;
+
+  const matchedSlug = matchedProduct ? getProductSeoSlug(matchedProduct, publishedProducts) : '';
+  const matchedBrand = matchedProduct ? (matchedProduct.brand || 'VANTREL OUTFIT').trim() : 'VANTREL OUTFIT';
 
   const siteTitle = matchedProduct
-    ? `${matchedProduct.name} - ৳${(matchedProduct.discountPrice || matchedProduct.regularPrice).toLocaleString()} | VANTREL OUTFIT`
-    : 'VANTREL OUTFIT - Premium Quality & Trendsetting Fashion Bangladesh';
+    ? `${matchedProduct.name} — ৳${(matchedProduct.discountPrice || matchedProduct.regularPrice).toLocaleString()} | ${matchedBrand}`
+    : matchedCategory && !isCategoryAll
+    ? `${matchedCategory} Collection (${catProducts.length} Items) | VANTREL OUTFIT`
+    : 'VANTREL OUTFIT — Premium Streetwear & Fashion Bangladesh';
 
   const siteDesc = matchedProduct
-    ? (matchedProduct.description || matchedProduct.tagline || `Buy ${matchedProduct.name} online in Bangladesh. 100% genuine premium streetwear by VANTREL OUTFIT. Fast Cash on Delivery across 64 districts.`)
-    : 'এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন। ক্যাশ অন ডেলিভারিতে সারাদেশে দ্রুত ডেলিভারি।';
+    ? (matchedProduct.description || matchedProduct.tagline || `Buy ${matchedProduct.name} online in Bangladesh. Authentic apparel by ${matchedBrand}. Free delivery in Dhaka & Cash on Delivery across Bangladesh.`)
+    : matchedCategory && !isCategoryAll
+    ? `Shop ${catProducts.length} authentic ${matchedCategory} garments online in Bangladesh at VANTREL OUTFIT. Free Dhaka delivery & ৳50 nationwide Cash on Delivery.`
+    : 'Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka & Cash on Delivery across Bangladesh.';
 
   const productImages = matchedProduct
     ? (matchedProduct.images || [])
@@ -2412,21 +2471,45 @@ app.get('*', (req: Request, res: Response, next) => {
         .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN))
     : [];
 
-  const siteImage = productImages[0] || `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-logo.png`;
+  const siteImage =
+    productImages[0] ||
+    (matchedCategory && catProducts[0]?.images?.[0]
+      ? toCanonicalSeoImageUrl(catProducts[0].images[0], VANTREL_CANONICAL_ORIGIN)
+      : `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`);
   const effectivePrice = matchedProduct ? (matchedProduct.discountPrice || matchedProduct.regularPrice) : null;
   const canonicalUrl = matchedProduct
-    ? `${baseUrl}/product/${encodeURIComponent(matchedProduct.slug || matchedProduct.id)}`
-    : fullUrl;
+    ? `${baseUrl}/product/${encodeURIComponent(matchedSlug)}`
+    : matchedCategory && !isCategoryAll
+    ? `${baseUrl}/category/${encodeURIComponent(getCategorySlug(matchedCategory))}`
+    : req.path === '/shop' || req.path === '/products'
+    ? `${baseUrl}/shop`
+    : `${baseUrl}/`;
 
-  const publishedProducts = products.filter((p) => !p.isArchived && p.status !== 'archived');
   const jsonLdPayload = matchedProduct
-    ? buildProductJsonLd(matchedProduct, baseUrl)
+    ? [
+        buildProductJsonLd(matchedProduct, baseUrl),
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${baseUrl}/` },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: matchedProduct.category,
+              item: `${baseUrl}/category/${encodeURIComponent(getCategorySlug(matchedProduct.category))}`
+            },
+            { '@type': 'ListItem', position: 3, name: matchedProduct.name, item: canonicalUrl }
+          ]
+        }
+      ]
     : {
         '@context': 'https://schema.org',
-        '@type': 'ItemList',
-        name: 'VANTREL OUTFIT Product Catalog',
-        numberOfItems: publishedProducts.length,
-        itemListElement: publishedProducts.slice(0, 100).map((p, idx) => ({
+        '@type': matchedCategory ? 'CollectionPage' : 'ItemList',
+        name: siteTitle,
+        url: canonicalUrl,
+        numberOfItems: catProducts.length,
+        itemListElement: catProducts.slice(0, 60).map((p, idx) => ({
           '@type': 'ListItem',
           position: idx + 1,
           item: buildProductJsonLd(p, baseUrl)
@@ -2437,36 +2520,39 @@ app.get('*', (req: Request, res: Response, next) => {
 
   const bodyContent = matchedProduct
     ? `<h1>${escapeHtmlAttr(matchedProduct.name)}</h1>
-  <p>Brand: VANTREL OUTFIT | Price: ৳${effectivePrice} BDT</p>
+  <p>Brand: ${escapeHtmlAttr(matchedBrand)} | Category: ${escapeHtmlAttr(matchedProduct.category)} | SKU: ${escapeHtmlAttr(matchedProduct.sku || matchedProduct.id)}</p>
+  <p>Price: ৳${effectivePrice} BDT | Availability: ${(matchedProduct.totalStock ?? 0) > 0 ? `In Stock (${matchedProduct.totalStock} available)` : 'Out of Stock'}</p>
   <p>${escapeHtmlAttr(siteDesc)}</p>
   ${(productImages.length > 0 ? productImages : [siteImage])
-    .map((imgUrl, idx) => `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(matchedProduct.name)} - VANTREL OUTFIT (${idx + 1})" />`)
+    .map((imgUrl, idx) => `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(matchedProduct.name)} - ${escapeHtmlAttr(matchedProduct.category)}${idx > 0 ? ` View ${idx + 1}` : ''} | ${escapeHtmlAttr(matchedBrand)}" />`)
     .join('\n  ')}
   <a href="${escapeHtmlAttr(canonicalUrl)}">View ${escapeHtmlAttr(matchedProduct.name)} on VANTREL OUTFIT</a>`
     : `<h1>${escapeHtmlAttr(siteTitle)}</h1>
   <p>${escapeHtmlAttr(siteDesc)}</p>
-  ${publishedProducts
+  ${catProducts
     .map((p) => {
       const rawImg = p.images?.[0] || '/assets/images/vantrel-logo.png';
       const absImg = toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN);
-      const pUrl = `${baseUrl}/product/${encodeURIComponent(p.slug || p.id)}`;
+      const pUrl = `${baseUrl}/product/${encodeURIComponent(getProductSeoSlug(p, publishedProducts))}`;
       const pPrice = p.discountPrice || p.regularPrice;
+      const pBrand = (p.brand || 'VANTREL OUTFIT').trim();
       return `<article>
     <a href="${escapeHtmlAttr(pUrl)}">
-      <img src="${escapeHtmlAttr(absImg)}" alt="${escapeHtmlAttr(p.name)} - VANTREL OUTFIT" />
+      <img src="${escapeHtmlAttr(absImg)}" alt="${escapeHtmlAttr(p.name)} - ${escapeHtmlAttr(p.category)} by ${escapeHtmlAttr(pBrand)}" />
       <h2>${escapeHtmlAttr(p.name)}</h2>
     </a>
-    <p>Brand: VANTREL OUTFIT | Price: ${pPrice} BDT</p>
+    <p>Brand: ${escapeHtmlAttr(pBrand)} | Price: ৳${pPrice} BDT | ${(p.totalStock ?? 0) > 0 ? 'In Stock' : 'Out of Stock'}</p>
   </article>`;
     })
     .join('\n  ')}`;
 
   const html = `<!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>${escapeHtmlAttr(siteTitle)}</title>
   <meta name="description" content="${escapeHtmlAttr(siteDesc)}">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <link rel="canonical" href="${escapeHtmlAttr(canonicalUrl)}">
 
   <!-- Open Graph / Facebook / WhatsApp -->

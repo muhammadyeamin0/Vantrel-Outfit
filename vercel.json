@@ -6,7 +6,70 @@
     },
     {
       "source": "/sitemap.xml",
-      "destination": "/sitemap.xml"
+      "destination": "/api/sitemap"
+    },
+    {
+      "source": "/product/:slug",
+      "destination": "/api/seo-page?route=product&slug=:slug"
+    },
+    {
+      "source": "/category/:slug",
+      "destination": "/api/seo-page?route=category&slug=:slug"
+    },
+    {
+      "source": "/shop",
+      "destination": "/api/seo-page?route=shop"
+    },
+    {
+      "source": "/products",
+      "destination": "/api/seo-page?route=products"
+    },
+    {
+      "source": "/about",
+      "destination": "/api/seo-page?route=about"
+    },
+    {
+      "source": "/contact",
+      "destination": "/api/seo-page?route=contact"
+    },
+    {
+      "source": "/faqs",
+      "destination": "/api/seo-page?route=faqs"
+    },
+    {
+      "source": "/size-guide",
+      "destination": "/api/seo-page?route=size-guide"
+    },
+    {
+      "source": "/shipping-policy",
+      "destination": "/api/seo-page?route=shipping-policy"
+    },
+    {
+      "source": "/return-policy",
+      "destination": "/api/seo-page?route=return-policy"
+    },
+    {
+      "source": "/privacy-policy",
+      "destination": "/api/seo-page?route=privacy-policy"
+    },
+    {
+      "source": "/terms",
+      "destination": "/api/seo-page?route=terms"
+    },
+    {
+      "source": "/track",
+      "destination": "/api/seo-page?route=track"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(Googlebot|Google-InspectionTool|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|WhatsApp|Twitterbot|LinkedInBot|Pinterest|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
+        }
+      ],
+      "destination": "/api/seo-page?route=home"
     },
     {
       "source": "/((?!api/|assets/|.*\\..*).*)",
@@ -53,7 +116,7 @@
         },
         {
           "key": "Cache-Control",
-          "value": "public, max-age=3600"
+          "value": "public, s-maxage=300, stale-while-revalidate=600"
         }
       ]
     }

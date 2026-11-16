@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore, PageRoute } from '../context/StoreContext';
 import { ProductCategory } from '../types';
-import { Mail, Phone, MapPin, Send, ShieldCheck, ArrowUpRight, MessageCircle, Instagram } from 'lucide-react';
+import { Mail, MapPin, Send, MessageCircle, Instagram } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const { settings, setCurrentPage, setSelectedCategory, showToast } = useStore();
@@ -162,7 +162,11 @@ export const Footer: React.FC = () => {
             <div className="space-y-2 text-xs text-white/70">
               <div className="flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-[#FF762E] shrink-0 mt-0.5" />
-                <span>{settings.address}</span>
+                <span>
+                  {(settings.address || 'Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh')
+                    .replace(/dhaka/gi, 'Dhaka')
+                    .replace(/bangladesh/gi, 'Bangladesh')}
+                </span>
               </div>
               <a
                 href="https://wa.me/message/E6PISGJZC63TA1"
@@ -171,7 +175,7 @@ export const Footer: React.FC = () => {
                 className="flex items-center gap-2 hover:text-[#25D366] text-white/90 transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
-                <span>হোয়াটসঅ্যাপ হেল্পলাইন (WhatsApp Business)</span>
+                <span>WhatsApp Helpline</span>
               </a>
               <a
                 href="https://www.facebook.com/vantreloutfit"
@@ -180,7 +184,7 @@ export const Footer: React.FC = () => {
                 className="flex items-center gap-2 hover:text-[#1877F2] text-white/90 transition-colors"
               >
                 <MessageCircle className="w-3.5 h-3.5 text-[#1877F2] shrink-0" />
-                <span>ফেসবুক পেজ (fb.com/vantreloutfit)</span>
+                <span>Facebook</span>
               </a>
               <a
                 href="https://www.instagram.com/vantreloutfit"
@@ -189,33 +193,29 @@ export const Footer: React.FC = () => {
                 className="flex items-center gap-2 hover:text-[#E4405F] text-white/90 transition-colors"
               >
                 <Instagram className="w-3.5 h-3.5 text-[#E4405F] shrink-0" />
-                <span>ইনস্টাগ্রাম (instagram.com/vantreloutfit)</span>
+                <span>Instagram</span>
               </a>
-              <div className="flex items-center gap-2">
+              <a
+                href="mailto:vantreloutfit@gmail.com"
+                className="flex items-center gap-2 hover:text-white text-white/80 transition-colors"
+              >
                 <Mail className="w-3.5 h-3.5 text-[#FF762E] shrink-0" />
-                <span>{settings.email}</span>
-              </div>
+                <span>
+                  {settings.email === 'concierge@vantreloutfit.shop' || !settings.email
+                    ? 'vantreloutfit@gmail.com'
+                    : settings.email}
+                </span>
+              </a>
             </div>
 
-            <div className="pt-2 border-t border-white/10 space-y-1 text-[11px] text-white/50">
-              <div>
-                <button onClick={() => navigateTo('privacy-policy')} className="hover:text-white transition-colors">
-                  Privacy Policy
-                </button>
-                <span className="mx-1.5">·</span>
-                <button onClick={() => navigateTo('terms')} className="hover:text-white transition-colors">
-                  Terms of Service
-                </button>
-              </div>
-              <div>
-                <button
-                  onClick={() => navigateTo('admin')}
-                  className="hover:text-[#FF762E] transition-colors inline-flex items-center gap-1 font-semibold"
-                >
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>Admin Portal</span>
-                </button>
-              </div>
+            <div className="pt-2 border-t border-white/10 text-[11px] text-white/50">
+              <button onClick={() => navigateTo('privacy-policy')} className="hover:text-white transition-colors">
+                Privacy Policy
+              </button>
+              <span className="mx-1.5">·</span>
+              <button onClick={() => navigateTo('terms')} className="hover:text-white transition-colors">
+                Terms of Service
+              </button>
             </div>
           </div>
         </div>

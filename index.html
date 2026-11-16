@@ -1,29 +1,31 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Meta Pixel Queue Stub (Deferred external script loads after window.load for fast 4G FCP/LCP) -->
+    <!-- Crawler-Safe Meta Pixel Queue Stub (external script loads after window.load only for non-crawler browsers) -->
     <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];
-    f.addEventListener('load',function(){setTimeout(function(){
-      t=b.createElement(e);t.async=!0;t.src=v;
-      s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
-    },300);});
-    }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '2167529260510757');
-    fbq('track', 'PageView');
+    (function(f,b,e,v,n,t,s){
+      var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
+      var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|lighthouse|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
+      if(f.fbq)return;
+      n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+      if(isBot)return;
+      f.addEventListener('load',function(){setTimeout(function(){
+        t=b.createElement(e);t.async=!0;t.src=v;
+        s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
+      },300);});
+    })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init','2167529260510757');
+    fbq('track','PageView');
     </script>
     <!-- End Meta Pixel Code -->
 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Primary Meta Tags -->
-    <title>VANTREL OUTFIT - Premium Quality & Trendsetting Fashion</title>
-    <meta name="title" content="VANTREL OUTFIT - Premium Quality & Trendsetting Fashion" />
-    <meta name="description" content="এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন।" />
+    <title>VANTREL OUTFIT — Premium Streetwear &amp; Fashion Bangladesh</title>
+    <meta name="title" content="VANTREL OUTFIT — Premium Streetwear &amp; Fashion Bangladesh" />
+    <meta name="description" content="Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka &amp; Cash on Delivery across Bangladesh." />
     <meta name="keywords" content="VANTREL OUTFIT, VANTREL, vantrel outfit, premium fashion, bangladesh streetwear, hoodie, panjabi, luxury tee, dropshoulder, stylish clothing, online shopping bd" />
     <meta name="author" content="VANTREL OUTFIT" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -34,23 +36,23 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.vantreloutfit.shop/" />
     <meta property="og:site_name" content="VANTREL OUTFIT" />
-    <meta property="og:title" content="VANTREL OUTFIT - Premium Quality & Trendsetting Fashion" />
-    <meta property="og:description" content="এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন।" />
-    <meta property="og:image" content="https://www.vantreloutfit.shop/assets/images/vantrel-logo.png" />
-    <meta property="og:image:secure_url" content="https://www.vantreloutfit.shop/assets/images/vantrel-logo.png" />
-    <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
-    <meta property="og:image:alt" content="VANTREL OUTFIT Official Logo" />
+    <meta property="og:title" content="VANTREL OUTFIT — Premium Streetwear &amp; Fashion Bangladesh" />
+    <meta property="og:description" content="Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka &amp; Cash on Delivery across Bangladesh." />
+    <meta property="og:image" content="https://www.vantreloutfit.shop/assets/images/vantrel-og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://www.vantreloutfit.shop/assets/images/vantrel-og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="VANTREL OUTFIT Official Storefront Banner" />
     <meta property="og:locale" content="bn_BD" />
     <meta property="og:locale:alternate" content="en_US" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://www.vantreloutfit.shop/" />
-    <meta name="twitter:title" content="VANTREL OUTFIT - Premium Quality & Trendsetting Fashion" />
-    <meta name="twitter:description" content="এক ছাদের নিচে আপনার পছন্দের স্টাইলিশ ও প্রিমিয়াম ফ্যাশন কালেকশন।" />
-    <meta name="twitter:image" content="https://www.vantreloutfit.shop/assets/images/vantrel-logo.png" />
+    <meta name="twitter:title" content="VANTREL OUTFIT — Premium Streetwear &amp; Fashion Bangladesh" />
+    <meta name="twitter:description" content="Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka &amp; Cash on Delivery across Bangladesh." />
+    <meta name="twitter:image" content="https://www.vantreloutfit.shop/assets/images/vantrel-og-image.jpg" />
     <meta name="twitter:image:alt" content="VANTREL OUTFIT Premium Quality Fashion" />
 
     <!-- Canonical & Sitemap Links -->
@@ -67,16 +69,19 @@
 
     <!-- Preload Primary LCP Hero Banner for Sub-Second 4G Mobile Painting -->
     <link rel="preload" as="image" href="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp" type="image/webp" fetchpriority="high" />
-    <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
-    <link rel="dns-prefetch" href="https://connect.facebook.net" />
 
-    <!-- Non-Blocking Google Fonts Loading -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Outfit:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
-    <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Outfit:wght@400;500;600;700;800&display=swap" />
-    </noscript>
+    <!-- Crawler-Safe Google Fonts with display=swap (skips external CDN requests during search bot renders to avoid GSC resource errors while loading cleanly for real browsers) -->
+    <script>
+    (function(){
+      var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
+      var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|lighthouse|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
+      if(isBot)return;
+      var l=document.createElement('link');
+      l.rel='stylesheet';
+      l.href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap';
+      document.head.appendChild(l);
+    })();
+    </script>
 
     <!-- Schema.org JSON-LD Structured Data for Google Search -->
     <script type="application/ld+json">

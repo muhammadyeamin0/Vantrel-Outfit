@@ -4,9 +4,11 @@
 
 User-agent: *
 Allow: /
+Allow: /shop
 Allow: /products
 Allow: /products/*
 Allow: /product/*
+Allow: /category/*
 Allow: /track
 Allow: /track/*
 Allow: /assets/
@@ -15,6 +17,9 @@ Allow: /api/image-proxy
 Allow: /api/image-proxy?*
 Disallow: /admin
 Disallow: /admin/*
+Disallow: /cart
+Disallow: /checkout
+Disallow: /account
 Disallow: /api/admin
 Disallow: /api/admin/*
 Disallow: /api/moderators

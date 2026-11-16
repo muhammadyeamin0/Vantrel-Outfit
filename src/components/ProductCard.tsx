@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product } from '../types';
 import { useStore } from '../context/StoreContext';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { getProductSeoSlug } from '../utils/seoSlug';
 import { Heart, ShoppingBag, Eye, Star, Zap } from 'lucide-react';
 
 interface ProductCardProps {
@@ -17,7 +18,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
     toggleWishlist,
     addToComparison,
     removeFromComparison,
-    isInComparison
+    isInComparison,
+    products
   } = useStore();
   const [isHovered, setIsHovered] = useState(false);
   const defaultCardColor = product.colors?.[0]?.name || 'Standard';
@@ -55,7 +57,9 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
       <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border-b border-white/5">
         <img
           src={toDisplayImageUrl(product.images[0])}
-          alt={product.name}
+          alt={`${product.name} - ${product.category} by ${product.brand || 'VANTREL OUTFIT'}`}
+          width={500}
+          height={500}
           loading="lazy"
           decoding="async"
           onError={handleProxyImageError}
@@ -63,16 +67,11 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
           className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
         />
 
-        {/* Subtle Tag Overlay */}
+        {/* Category Tag Overlay */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
-          {product.isNewArrival && (
+          {product.category && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-[#14221C] text-[#F7F5EF] rounded">
-              New Drop
-            </span>
-          )}
-          {product.isBestSeller && !product.isNewArrival && (
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-[#202522] text-[#F7F5EF] rounded">
-              Best Seller
+              {product.category}
             </span>
           )}
         </div>
@@ -190,9 +189,19 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
             </div>
           </div>
 
-          {/* Title */}
+          {/* Title with crawlable SEO link */}
           <h3 className="font-heading text-sm sm:text-base font-bold text-white line-clamp-1 group-hover:text-[#FF762E] transition-colors">
-            {product.name}
+            <a
+              href={`/product/${encodeURIComponent(getProductSeoSlug(product, products))}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openProductDetail(product.id);
+              }}
+              className="block truncate"
+            >
+              {product.name}
+            </a>
           </h3>
 
           {/* Tagline / Subtitle */}

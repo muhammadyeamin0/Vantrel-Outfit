@@ -7,6 +7,7 @@ import { ToastContainer } from './components/Toast';
 import { DarazBottomNav } from './components/DarazBottomNav';
 import { TopCategoryStrip } from './components/TopCategoryStrip';
 import { DynamicMetaTags } from './components/DynamicMetaTags';
+import { isSearchCrawler } from './utils/crawlerDetect';
 
 import { HomePage } from './pages/HomePage';
 
@@ -136,10 +137,11 @@ const MainContent: React.FC = () => {
 };
 
 export default function App() {
+  const showAnalytics = !isSearchCrawler();
   return (
     <StoreProvider>
       <MainContent />
-      <Analytics />
+      {showAnalytics && <Analytics />}
     </StoreProvider>
   );
 }

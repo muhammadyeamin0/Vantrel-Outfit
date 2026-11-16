@@ -16,6 +16,10 @@ import {
   handleProxyImageError
 } from '../utils/imageProxy';
 import {
+  getProductsForCategory,
+  getHomepageShowcaseCategories
+} from '../utils/categoryShowcase';
+import {
   ShieldCheck,
   TrendingUp,
   Package,
@@ -96,6 +100,7 @@ export const AdminDashboard: React.FC = () => {
     moveCategoryOrder,
     reorderCategories,
     moveProductInCategory,
+    setCategoryBestProduct,
     orders,
     clearAllOrders,
     deleteOrder,
@@ -2664,6 +2669,106 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* 1.5 Homepage 4 Category Section Cards — Best Product Cover Selector */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pb-4 border-b border-[#E5E1D5]">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 bg-[#14221C] text-white text-[10px] font-black uppercase rounded-full flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3 text-[#FF762E]" />
+                      <span>হোমপেজ ক্যাটাগরি কভার</span>
+                    </span>
+                    <span className="text-xs font-bold text-emerald-700">
+                      অটো বেস্ট + ম্যানুয়াল পরিবর্তন সিস্টেম
+                    </span>
+                  </div>
+                  <h3 className="font-heading text-xl font-bold text-[#14221C] uppercase tracking-tight">
+                    হোমপেজের ৪টি সেকশন কার্ডের বেস্ট প্রোডাক্ট কন্ট্রোল
+                  </h3>
+                  <p className="text-xs text-[#202522]/70 mt-1 max-w-2xl">
+                    হোমপেজে কোনো প্রাইমারি/ডিফল্ট ছবি ব্যবহার না করে প্রতিটি ক্যাটাগরির সেরা প্রোডাক্টের আসল ছবি দেখানো হচ্ছে। নিচ থেকে যেকোনো সেকশনের প্রোডাক্ট পরিবর্তন করতে পারবেন।
+                  </p>
+                </div>
+              </div>
+
+              {(() => {
+                const showcaseCards = getHomepageShowcaseCategories(categories, products, 4);
+                if (showcaseCards.length === 0) {
+                  return (
+                    <div className="p-6 bg-[#F7F5EF] rounded-2xl border border-dashed border-[#E5E1D5] text-center text-xs text-stone-600">
+                      ক্যাটাগরিতে প্রোডাক্ট যুক্ত করার পর এখানে হোমপেজের ৪টি সেকশন কার্ডের বেস্ট প্রোডাক্ট প্রিভিউ ও পরিবর্তনের অপশন দেখতে পাবেন।
+                    </div>
+                  );
+                }
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {showcaseCards.map((card, cardIdx) => {
+                      const catChoices = getProductsForCategory(card.category, products);
+                      const manualChoice = catChoices.find((p) => p.isCategoryShowcase);
+                      const activeBest = card.bestProduct;
+                      const bestPrice = activeBest.discountPrice || activeBest.regularPrice;
+
+                      return (
+                        <div
+                          key={card.category}
+                          className="p-3.5 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] flex flex-col justify-between space-y-3"
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#14221C] text-white rounded-md">
+                                কার্ড #{cardIdx + 1} · {card.category}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                manualChoice ? 'bg-amber-200 text-amber-950' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {manualChoice ? 'ম্যানুয়াল সিলেক্ট' : 'অটো বেস্ট'}
+                              </span>
+                            </div>
+
+                            <div className="relative h-36 rounded-xl overflow-hidden bg-neutral-900 border border-[#E5E1D5]">
+                              <img
+                                src={toDisplayImageUrl(activeBest.images[0])}
+                                alt={activeBest.name}
+                                onError={handleProxyImageError}
+                                className="w-full h-full object-cover object-center"
+                              />
+                              <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white">
+                                <p className="text-xs font-bold truncate">{activeBest.name}</p>
+                                <p className="text-[10px] text-amber-300 font-semibold">
+                                  ৳{bestPrice.toLocaleString()} · ★{activeBest.rating || 5}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold uppercase text-stone-600">
+                              এই সেকশনের প্রোডাক্ট পরিবর্তন করুন:
+                            </label>
+                            <select
+                              value={manualChoice?.id || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCategoryBestProduct(card.category, val || null);
+                              }}
+                              className="w-full px-2.5 py-2 bg-white border border-[#E5E1D5] rounded-xl text-xs font-semibold text-[#14221C] focus:outline-none focus:border-[#FF762E] cursor-pointer"
+                            >
+                              <option value="">অটো বেস্ট ({activeBest.name})</option>
+                              {catChoices.map((prod) => (
+                                <option key={prod.id} value={prod.id}>
+                                  {prod.name} — ৳{(prod.discountPrice || prod.regularPrice).toLocaleString()}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* 2. Category-Wise Product Reordering & Top 10 Control Section */}
             <div id="cat-product-sorter-section" className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-6">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-[#E5E1D5]">
@@ -2806,6 +2911,12 @@ export const AdminDashboard: React.FC = () => {
                                       <span>Top 10</span>
                                     </span>
                                   )}
+                                  {p.isCategoryShowcase && (
+                                    <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-950 text-[9px] font-black uppercase rounded flex items-center gap-0.5 shadow-2xs">
+                                      <Award className="w-2.5 h-2.5" />
+                                      <span>সেকশন বেস্ট কভার</span>
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-3 text-xs text-stone-500 mt-1">
                                   <span className="font-bold text-[#14221C]">৳{price.toLocaleString()}</span>
@@ -2868,6 +2979,21 @@ export const AdminDashboard: React.FC = () => {
                               >
                                 <Star className={`w-3.5 h-3.5 ${p.isTopProduct ? 'fill-current text-black' : 'text-stone-400'}`} />
                                 <span>{p.isTopProduct ? 'টপ টেনে আছে' : '+টপ টেন'}</span>
+                              </button>
+
+                              {/* Section Best Product / Category Card Cover Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => setCategoryBestProduct(p.category, p.isCategoryShowcase ? null : p.id)}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-xl border flex items-center gap-1 cursor-pointer transition-all shadow-2xs ${
+                                  p.isCategoryShowcase
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700 text-white font-black'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900'
+                                }`}
+                                title={p.isCategoryShowcase ? 'সেকশন কার্ড কভার থেকে সরিয়ে অটো বেস্ট করুন' : 'এই প্রোডাক্টটিকে হোমপেজ ক্যাটাগরি কার্ডের ছবি হিসেবে সেট করুন'}
+                              >
+                                <Award className="w-3.5 h-3.5" />
+                                <span>{p.isCategoryShowcase ? 'সেকশন কভারে আছে' : 'সেকশন কভার'}</span>
                               </button>
 
                               {/* Direct Position / Rank Setter */}
@@ -5293,7 +5419,7 @@ service cloud.firestore {
                               idx === 0 ? 'border-[#14221C] ring-2 ring-[#FF762E]/20' : 'border-[#E5E1D5]'
                             }`}
                           >
-                            <img src={toDisplayImageUrl(img)} alt="" onError={handleProxyImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={toDisplayImageUrl(img)} alt={`${prodName || 'Product'} preview ${idx + 1}`} onError={handleProxyImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
 
                             {/* Primary Badge */}
                             {idx === 0 ? (

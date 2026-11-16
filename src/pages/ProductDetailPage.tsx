@@ -157,7 +157,11 @@ export const ProductDetailPage: React.FC = () => {
     .slice(0, 4);
 
   return (
-    <div className="bg-[#0A0A0A] text-white min-h-screen py-8">
+    <div
+      className="bg-[#0A0A0A] text-white min-h-screen py-8"
+      itemScope
+      itemType="https://schema.org/Product"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         {/* Breadcrumb & Navigation */}
         <div className="flex items-center justify-between text-xs text-neutral-400">
@@ -202,8 +206,12 @@ export const ProductDetailPage: React.FC = () => {
               onMouseLeave={() => setIsZoomed(false)}
             >
               <img
+                itemProp="image"
                 src={toDisplayImageUrl(product.images[activeImageIndex] || product.images[0])}
-                alt={product.name}
+                alt={`${product.name} - ${product.category}${product.fabric ? ` (${product.fabric})` : ''} | ${product.brand || 'VANTREL OUTFIT'}`}
+                fetchPriority="high"
+                loading="eager"
+                decoding="sync"
                 onError={handleProxyImageError}
                 referrerPolicy="no-referrer"
                 className={`w-full h-full object-cover object-center transition-transform duration-300 ${
@@ -248,7 +256,15 @@ export const ProductDetailPage: React.FC = () => {
                       : 'border-[#E5E1D5] opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={toDisplayImageUrl(img)} alt="" onError={handleProxyImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img
+                    src={toDisplayImageUrl(img)}
+                    alt={`${product.name} - ${product.category} View ${idx + 1} | ${product.brand || 'VANTREL OUTFIT'}`}
+                    loading="lazy"
+                    decoding="async"
+                    onError={handleProxyImageError}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                 </button>
               ))}
             </div>
@@ -260,14 +276,17 @@ export const ProductDetailPage: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-neutral-400">
                 <span className="uppercase tracking-widest font-bold text-[#FF762E]">
-                  {product.brand} · {product.category}
+                  <span itemProp="brand" itemScope itemType="https://schema.org/Brand">
+                    <span itemProp="name">{product.brand || 'VANTREL OUTFIT'}</span>
+                  </span>{' '}
+                  · <span itemProp="category">{product.category}</span>
                 </span>
                 <span className="font-mono text-[11px] text-neutral-500">
-                  SKU: {matchedVariant ? matchedVariant.sku : product.sku}
+                  SKU: <span itemProp="sku">{matchedVariant ? matchedVariant.sku : product.sku}</span>
                 </span>
               </div>
 
-              <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+              <h1 itemProp="name" className="font-heading text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
                 {product.name}
               </h1>
 
@@ -295,8 +314,18 @@ export const ProductDetailPage: React.FC = () => {
             </div>
 
             {/* Price Row */}
-            <div className="flex items-baseline gap-3 py-3 border-y border-white/10">
-              <span className="text-3xl font-extrabold text-white tabular-nums">
+            <div
+              itemProp="offers"
+              itemScope
+              itemType="https://schema.org/Offer"
+              className="flex items-baseline gap-3 py-3 border-y border-white/10"
+            >
+              <meta itemProp="priceCurrency" content="BDT" />
+              <link
+                itemProp="availability"
+                href={currentStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'}
+              />
+              <span itemProp="price" content={String(price)} className="text-3xl font-extrabold text-white tabular-nums">
                 ৳ {price.toLocaleString()}
               </span>
               {hasDiscount && (
@@ -501,7 +530,7 @@ export const ProductDetailPage: React.FC = () => {
               <h3 className="text-sm font-bold uppercase tracking-wider text-white">
                 Product Story & Details
               </h3>
-              <p className="text-xs leading-relaxed text-neutral-300">
+              <p itemProp="description" className="text-xs leading-relaxed text-neutral-300">
                 {product.description}
               </p>
               <div className="text-xs space-y-1.5 pt-2 text-neutral-400">
@@ -704,7 +733,9 @@ export const ProductDetailPage: React.FC = () => {
                           >
                             <img
                               src={photo}
-                              alt="Customer review outfit"
+                              alt={`${product.name} verified customer review outfit photo`}
+                              loading="lazy"
+                              decoding="async"
                               referrerPolicy="no-referrer"
                               className="w-full h-full object-cover group-hover:scale-108 transition-transform"
                             />

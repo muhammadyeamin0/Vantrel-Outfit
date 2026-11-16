@@ -39,6 +39,8 @@ import {
   INITIAL_3D_BANNERS
 } from '../data/products';
 import { rewriteProductImagesToProxy, rewriteToCanonicalProxyUrl } from '../utils/imageProxy';
+import { isSearchCrawler, withTimeout } from '../utils/crawlerDetect';
+import { doesProductMatchCategory } from '../utils/categoryShowcase';
 import { auth, db, IS_GOOGLE_CLOUD_CONNECTED, sanitizeFirestoreData } from '../firebase';
 import {
   doc,
@@ -336,6 +338,7 @@ export interface StoreContextType {
     direction: 'up' | 'down' | 'top',
     targetRank?: number
   ) => Promise<void>;
+  setCategoryBestProduct: (category: ProductCategory, productId: string | null) => Promise<void>;
   banners: BannerConfig[];
   updateBanner: (id: string, updated: Partial<BannerConfig>) => void;
 
@@ -1021,25 +1024,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [lastPlacedOrder]);
 
-  // Validate initial Firestore server connectivity on boot
+  // Validate initial Firestore server connectivity on boot (human sessions only)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !db) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) return;
+    let cancelled = false;
     async function testConnection() {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
+        await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 3500, 'Connection check timed out');
       } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
+        if (!cancelled && error instanceof Error && error.message.includes('the client is offline')) {
           console.warn('Firebase client is offline or network unavailable.');
         }
       }
     }
     testConnection();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Real-time Firestore Products Sync for Shop Page & Admin Dashboard across Mobile & Laptop
+  // Public Storefront Products Loading: Uses fast one-time getDocs + /api/products fallback
+  // (Prevents persistent Firestore Listen/channel XHR streams from hanging during Googlebot rendering)
   useEffect(() => {
     let isMounted = true;
-    let hasFirestoreSnapshot = false;
+    let hasFirestoreData = false;
 
     const mergeDynamicCategories = (loadedProducts: Product[]) => {
       if (loadedProducts.length === 0) return;
@@ -1057,20 +1065,37 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     };
 
+    const sortProductsList = (items: Product[]) => {
+      return [...items].sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+          return a.sortOrder - b.sortOrder;
+        }
+        return 0;
+      });
+    };
+
     const hydrateFromServerFallback = async () => {
       try {
-        const res = await fetch('/api/products');
+        const signal =
+          typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+            ? AbortSignal.timeout(3000)
+            : undefined;
+        const res = await fetch('/api/products', signal ? { signal } : undefined);
         if (!res.ok) return;
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMounted && !hasFirestoreSnapshot) {
-          const serverProducts = (json.data as Product[])
-            .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-            .map((p) =>
-              sanitizeProductSizes({
-                ...p,
-                isArchived: Boolean(p.isArchived || p.status === 'archived')
-              })
-            );
+        if (json.success && Array.isArray(json.data) && isMounted && !hasFirestoreData) {
+          const serverProducts = sortProductsList(
+            (json.data as Product[])
+              .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+              .map((p) =>
+                sanitizeProductSizes({
+                  ...p,
+                  isArchived: Boolean(p.isArchived || p.status === 'archived')
+                })
+              )
+          );
           setProducts(serverProducts);
           mergeDynamicCategories(serverProducts);
         }
@@ -1079,86 +1104,86 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
+    // Always kick off fast JSON hydration in parallel so initial render never stalls
+    hydrateFromServerFallback();
+
     if (!IS_GOOGLE_CLOUD_CONNECTED || !db) {
-      hydrateFromServerFallback();
       return () => {
         isMounted = false;
       };
     }
-
-    // Detect bots/crawlers (Googlebot, Lighthouse, Google-InspectionTool, bingbot, etc.)
-    const isBot =
-      typeof navigator !== 'undefined' &&
-      /bot|crawler|spider|crawling|googlebot|bingbot|google-inspectiontool|lighthouse/i.test(
-        navigator.userAgent || ''
-      );
 
     const productsCol = collection(db, 'products');
+    const timeoutMs = isSearchCrawler() ? 2500 : 4500;
 
-    // Bots and search engine crawlers should perform a single one-time query instead of opening continuous streaming XHR channels
-    if (isBot) {
-      getDocs(productsCol)
-        .then((snapshot) => {
-          if (!isMounted) return;
-          const remoteProducts: Product[] = [];
-          snapshot.forEach((docSnap) => {
-            if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-            const data = docSnap.data() as Product;
-            remoteProducts.push(
-              sanitizeProductSizes({
-                ...data,
-                id: docSnap.id,
-                isArchived: Boolean(data.isArchived || data.status === 'archived')
-              })
-            );
-          });
-          setProducts(remoteProducts);
-          mergeDynamicCategories(remoteProducts);
-        })
-        .catch((err) => {
-          console.warn('Bot products load notice:', err);
-          hydrateFromServerFallback();
+    withTimeout(getDocs(productsCol), timeoutMs, 'Firestore initial products read timed out')
+      .then((snapshot) => {
+        if (!isMounted) return;
+        hasFirestoreData = true;
+
+        if (snapshot.empty) {
+          setProducts([]);
+          return;
+        }
+
+        const remoteProducts: Product[] = [];
+        snapshot.forEach((docSnap) => {
+          if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+          const data = docSnap.data() as Product;
+          remoteProducts.push(
+            sanitizeProductSizes({
+              ...data,
+              id: docSnap.id,
+              isArchived: Boolean(data.isArchived || data.status === 'archived')
+            })
+          );
         });
-      return () => {
-        isMounted = false;
-      };
+
+        const sorted = sortProductsList(remoteProducts);
+        setProducts(sorted);
+        mergeDynamicCategories(sorted);
+      })
+      .catch((err) => {
+        console.warn('Firestore one-time products load notice (using /api/products fallback):', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Scoped Real-Time Firestore Products Sync: Only active inside Admin Dashboard for non-crawler sessions
+  useEffect(() => {
+    if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) {
+      return;
     }
 
-    // Fast initial hydration from server disk while Firestore listener connects
-    hydrateFromServerFallback();
+    let isMounted = true;
+    const productsCol = collection(db, 'products');
 
     const unsubscribe = onSnapshot(
       productsCol,
       (snapshot) => {
         if (!isMounted) return;
-
         if (snapshot.empty) {
-          // Do not overwrite server-hydrated products with an empty offline cache snapshot
-          if (snapshot.metadata.fromCache) {
-            return;
-          }
-          hasFirestoreSnapshot = true;
-          // Never auto-seed primary or default products — only Admin-added products belong in the store
+          if (snapshot.metadata.fromCache) return;
           setProducts([]);
           return;
         }
 
-        hasFirestoreSnapshot = true;
-
-        // Live real-time documents from Firestore (filtering out any legacy primary IDs if ever present)
         const remoteProducts: Product[] = [];
         snapshot.forEach((docSnap) => {
           if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
           const data = docSnap.data() as Product;
-          const cleanProd = sanitizeProductSizes({
-            ...data,
-            id: docSnap.id,
-            isArchived: Boolean(data.isArchived || data.status === 'archived')
-          });
-          remoteProducts.push(cleanProd);
+          remoteProducts.push(
+            sanitizeProductSizes({
+              ...data,
+              id: docSnap.id,
+              isArchived: Boolean(data.isArchived || data.status === 'archived')
+            })
+          );
         });
 
-        // Consistent ordering: Pinned products first, then sortOrder, then createdDate
         remoteProducts.sort((a, b) => {
           if (a.isPinned && !b.isPinned) return -1;
           if (!a.isPinned && b.isPinned) return 1;
@@ -1169,13 +1194,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
 
         setProducts(remoteProducts);
-        mergeDynamicCategories(remoteProducts);
       },
       (error) => {
-        console.error('Firestore products onSnapshot error:', error);
-        if (!hasFirestoreSnapshot) {
-          hydrateFromServerFallback();
-        }
+        console.warn('Admin Firestore products sync notice:', error.message);
       }
     );
 
@@ -1183,9 +1204,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isMounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [currentPage]);
 
-  // Scoped Orders Synchronization: Syncs immediately & live on admin/account/tracking/confirmation routes (no idle homepage polling)
+  // Scoped Orders Synchronization: Syncs immediately on admin/account/tracking/confirmation routes
   const needsLiveOrderSync =
     currentPage === 'admin' ||
     currentPage === 'account' ||
@@ -1193,7 +1214,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentPage === 'confirmation';
 
   useEffect(() => {
-    if (!needsLiveOrderSync) return;
+    if (!needsLiveOrderSync || isSearchCrawler()) return;
     let isMounted = true;
     let lastSig = '';
 
@@ -1223,14 +1244,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     syncOrdersWithServer();
     const interval = setInterval(syncOrdersWithServer, 25000);
 
-    // Also listen to Firestore orders collection if Firestore is available on active order views
+    // Real-time orders stream is scoped strictly to Admin Dashboard (public tracking/account uses /api/orders + one-time read)
     let firestoreUnsub: (() => void) | undefined;
     if (IS_GOOGLE_CLOUD_CONNECTED && db) {
-      try {
-        const ordersCol = collection(db, 'orders');
-        firestoreUnsub = onSnapshot(
-          ordersCol,
-          (snapshot) => {
+      const ordersCol = collection(db, 'orders');
+      if (currentPage === 'admin') {
+        try {
+          firestoreUnsub = onSnapshot(
+            ordersCol,
+            (snapshot) => {
+              if (!isMounted || snapshot.empty) return;
+              const remoteOrders: Order[] = [];
+              snapshot.forEach((docSnap) => {
+                const remote = docSnap.data() as Order;
+                remoteOrders.push({ ...remote, id: docSnap.id });
+              });
+              remoteOrders.sort(
+                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              );
+              const nextSig = remoteOrders
+                .map((o) => `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}`)
+                .join('|');
+              if (nextSig !== lastSig) {
+                lastSig = nextSig;
+                setOrders(remoteOrders);
+              }
+            },
+            (error) => {
+              console.warn('Firestore orders onSnapshot notice:', error.message);
+            }
+          );
+        } catch (e) {
+          console.warn('Firestore orders sync notice:', e);
+        }
+      } else {
+        withTimeout(getDocs(ordersCol), 3500, 'Orders read timed out')
+          .then((snapshot) => {
             if (!isMounted || snapshot.empty) return;
             const remoteOrders: Order[] = [];
             snapshot.forEach((docSnap) => {
@@ -1247,13 +1296,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               lastSig = nextSig;
               setOrders(remoteOrders);
             }
-          },
-          (error) => {
-            console.warn('Firestore orders onSnapshot notice:', error.message);
-          }
-        );
-      } catch (e) {
-        console.warn('Firestore orders sync notice:', e);
+          })
+          .catch(() => {});
       }
     }
 
@@ -1262,11 +1306,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearInterval(interval);
       if (firestoreUnsub) firestoreUnsub();
     };
-  }, [needsLiveOrderSync]);
+  }, [needsLiveOrderSync, currentPage]);
 
-  // Listen to Firebase Auth state changes (only if GCP is enabled)
+  // Listen to Firebase Auth state changes (skipped for search crawlers)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser) {
         setCurrentUser((prev) => {
@@ -1298,15 +1342,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => unsubscribe();
   }, []);
 
-  // Real-time Firestore Wishlist Sync for authenticated / logged-in user (only if GCP is enabled)
+  // Real-time Firestore Wishlist Sync for authenticated / logged-in user (human sessions only)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !db) return;
-    const isBot =
-      typeof navigator !== 'undefined' &&
-      /bot|crawler|spider|crawling|googlebot|bingbot|google-inspectiontool|lighthouse/i.test(
-        navigator.userAgent || ''
-      );
-    if (isBot) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) return;
 
     const firebaseUid = auth?.currentUser?.uid;
     if (!firebaseUid) return;
@@ -2514,6 +2552,52 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     showToast('প্রোডাক্ট পজিশন আপডেট হয়েছে', 'ক্যাটাগরির প্রোডাক্ট ক্রম সফলভাবে সাজানো হয়েছে।', 'success');
+  };
+
+  const setCategoryBestProduct = async (category: ProductCategory, productId: string | null) => {
+    const affectedProducts: { id: string; nextVal: boolean }[] = [];
+
+    setProducts((prev) =>
+      prev.map((p) => {
+        const matchesCat = doesProductMatchCategory(p, category) || p.id === productId;
+        if (!matchesCat) return p;
+        const nextVal = Boolean(productId && p.id === productId);
+        if (Boolean(p.isCategoryShowcase) !== nextVal) {
+          affectedProducts.push({ id: p.id, nextVal });
+        }
+        return { ...p, isCategoryShowcase: nextVal };
+      })
+    );
+
+    if (db && affectedProducts.length > 0) {
+      try {
+        const batch = writeBatch(db);
+        affectedProducts.forEach(({ id, nextVal }) => {
+          batch.set(doc(db, 'products', id), { isCategoryShowcase: nextVal }, { merge: true });
+        });
+        await batch.commit();
+      } catch (e) {
+        console.warn('Firestore setCategoryBestProduct warning:', e);
+      }
+    }
+
+    // Also mirror update to local backend if running Express dev server
+    affectedProducts.forEach(({ id, nextVal }) => {
+      fetch(`/api/products/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isCategoryShowcase: nextVal })
+      }).catch(() => {});
+    });
+
+    const chosen = productId ? products.find((p) => p.id === productId) : null;
+    showToast(
+      chosen ? 'সেকশন বেস্ট প্রোডাক্ট সেট হয়েছে' : 'অটো বেস্ট মোড চালু হয়েছে',
+      chosen
+        ? `"${category}" কার্ডের ছবি এখন "${chosen.name}" থেকে দেখানো হবে।`
+        : `"${category}" কার্ডে অটোমেটিক সেরা প্রোডাক্টের ছবি দেখানো হবে।`,
+      'success'
+    );
   };
 
   const updateBanner = (id: string, updated: Partial<BannerConfig>) => {
@@ -3873,6 +3957,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         moveCategoryOrder,
         reorderCategories,
         moveProductInCategory,
+        setCategoryBestProduct,
         banners,
         updateBanner,
         orders,

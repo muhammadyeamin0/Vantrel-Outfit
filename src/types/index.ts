@@ -105,6 +105,7 @@ export interface Product {
   isArchived?: boolean;
   isPinned?: boolean;
   isTopProduct?: boolean;
+  isCategoryShowcase?: boolean;
   sortOrder?: number;
   costPrice?: number;
   status?: 'published' | 'draft' | 'archived';

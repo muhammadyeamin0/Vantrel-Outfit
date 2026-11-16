@@ -66,7 +66,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   whatsappUrl: 'https://wa.me/message/E6PISGJZC63TA1',
   facebookUrl: 'https://www.facebook.com/vantreloutfit',
   instagramUrl: 'https://www.instagram.com/vantreloutfit',
-  email: 'concierge@vantreloutfit.shop',
+  email: 'vantreloutfit@gmail.com',
   address: 'Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh',
   bKashMerchantNumber: '01711234567',
   isBkashActive: false,

@@ -16,71 +16,171 @@ import {
 export const AboutPage: React.FC = () => {
   const { setCurrentPage } = useStore();
 
+  const pillars = [
+    {
+      number: '01. Substance Over Noise',
+      copy: 'We reject disposable, lightweight basics. Every garment is cut from densely milled heavyweight cotton (260 GSM jersey tees, 420 GSM French Terry fleece) and structured twill—engineered to hold architectural form wash after wash.'
+    },
+    {
+      number: '02. Rooted in Craftsmanship',
+      copy: 'Born in the knitwear capital of the world, VANTREL works directly with master patternmakers and boutique ateliers in Narayanganj and Gazipur—enforcing export-grade seam density, tonal hardware, and precision washes.'
+    },
+    {
+      number: '03. Honest Luxury, Fair Value',
+      copy: 'Zero intermediary retail markups. Every collection is released direct-to-consumer in Bangladeshi Taka (BDT), delivering international luxury streetwear standards with transparent, attainable value.'
+    }
+  ];
+
+  const standards = [
+    { metric: '260–420 GSM', label: 'Heavyweight Fabrics' },
+    { metric: '100%', label: 'Batch Quality Control' },
+    { metric: 'Nationwide', label: 'Cash on Delivery' },
+    { metric: '7-Day', label: 'Easy Size Exchange' }
+  ];
+
   return (
-    <div className="bg-[#F7F5EF] min-h-screen py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        <div className="text-center space-y-3">
+    <div className="bg-[#0A0A0A] text-[#F7F5EF] min-h-screen py-14 sm:py-20 selection:bg-white selection:text-black">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 sm:space-y-24">
+        {/* 1. Editorial Hero Section */}
+        <section className="text-center space-y-5 max-w-3xl mx-auto">
           <img
-            src="/assets/images/vantrel-logo.png"
+            src="/assets/images/vantrel-logo.webp"
             alt="VANTREL OUTFIT"
-            className="w-16 h-16 object-contain rounded-2xl bg-[#14221C] p-2.5 shadow-md mx-auto border border-stone-800"
+            width={56}
+            height={56}
+            className="w-14 h-14 object-contain rounded-xl bg-[#141414] p-2 mx-auto border border-white/15"
           />
-          <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
-            Our Manifesto
-          </span>
-          <h1 className="font-heading text-4xl sm:text-5xl font-black text-[#14221C] tracking-tight uppercase">
-            Define Your Narrative.
-          </h1>
-          <p className="text-xs sm:text-sm text-[#202522]/70 max-w-xl mx-auto leading-relaxed">
-            VANTREL OUTFIT was established in Dhaka to redefine contemporary South Asian apparel through heavyweight textiles, understated silhouettes, and structural architectural integrity.
+          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#FF762E]">
+            OUR MANIFESTO
           </p>
-        </div>
+          <h1 className="font-heading text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-[0.04em] uppercase leading-[0.95]">
+            DEFINE YOUR NARRATIVE.
+          </h1>
+          <p className="text-sm sm:text-base text-neutral-300 max-w-2xl mx-auto leading-relaxed font-normal">
+            Born in Bangladesh, VANTREL bridges architectural tailoring with contemporary street culture. We obsess over heavyweight textiles, precision silhouettes, and uncompromising durability—crafted for those who move with intent.
+          </p>
+        </section>
 
-        {/* Hero image banner */}
-        <div className="rounded-3xl overflow-hidden border border-[#E5E1D5] shadow-md aspect-[16/9]">
+        {/* Hero Editorial Campaign Frame */}
+        <div className="relative overflow-hidden border border-white/10 bg-[#141414] aspect-[16/9] shadow-2xl">
           <img
-            src="/assets/images/hero_fashion_yeamin_1792588589630.jpg"
-            alt="YEAMIN WEAR Atelier"
-            className="w-full h-full object-cover"
+            src="/assets/images/hero_fashion_yeamin_1792588589630.webp"
+            alt="VANTREL OUTFIT Architectural Streetwear Campaign"
+            className="w-full h-full object-cover object-center contrast-105"
           />
-        </div>
-
-        {/* Pillars */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-[#E5E1D5] space-y-2">
-            <h3 className="font-heading font-bold text-base text-[#14221C]">
-              01. Substance Over Noise
-            </h3>
-            <p className="text-xs text-[#202522]/70 leading-relaxed font-sans">
-              We reject thin, disposable fast-fashion cotton. Our t-shirts start at 260 GSM and our hoodies at 420 GSM—built for lifetime wear.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-[#E5E1D5] space-y-2">
-            <h3 className="font-heading font-bold text-base text-[#14221C]">
-              02. Rooted in Bangladesh
-            </h3>
-            <p className="text-xs text-[#202522]/70 leading-relaxed font-sans">
-              Bangladesh is the world's premier knitwear hub. We partner directly with master knitters and stitchers in Narayanganj and Gazipur.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-[#E5E1D5] space-y-2">
-            <h3 className="font-heading font-bold text-base text-[#14221C]">
-              03. Transparent Pricing
-            </h3>
-            <p className="text-xs text-[#202522]/70 leading-relaxed font-sans">
-              No middleman markups. Every piece is priced fairly in Bangladeshi Taka, accessible to youth, creators, and discerning tastemakers.
-            </p>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A]/80 via-transparent to-black/20" />
+          <div className="absolute bottom-5 left-6 right-6 flex items-center justify-between text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-white/75">
+            <span>VANTREL ATELIER — DHAKA</span>
+            <span>ARCHIVE EDITION</span>
           </div>
         </div>
 
-        <div className="text-center pt-4">
+        {/* 2. Editorial Split Section */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center border-t border-white/10 pt-14 sm:pt-16">
+          <div className="lg:col-span-6 relative overflow-hidden border border-white/10 bg-[#141414] aspect-[4/5] shadow-xl">
+            <img
+              src="/assets/images/editorial_story_backshot_1793118981432.webp"
+              alt="Structured streetwear silhouette and heavyweight textile drape"
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover object-center contrast-110"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          </div>
+
+          <div className="lg:col-span-6 space-y-6 lg:pl-4">
+            <span className="inline-block text-[11px] font-bold uppercase tracking-[0.28em] text-[#FF762E]">
+              SILHOUETTE &amp; PROPORTION
+            </span>
+            <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-black text-white uppercase tracking-tight leading-[1.02]">
+              ENGINEERED FOR THE MODERN SILHOUETTE
+            </h2>
+            <div className="w-14 h-[2px] bg-[#FF762E]" />
+            <p className="text-sm sm:text-base text-neutral-300 leading-relaxed">
+              Every pattern is drafted from first principles around intentional proportion. Our structured fits pair dropped shoulders and boxy drapes with clean necklines and heavyweight rib-knit collars that frame the upper body cleanly.
+            </p>
+            <p className="text-sm text-neutral-400 leading-relaxed">
+              Below the waist, relaxed trousers and architectural cargos fall with natural weight—balancing movement, structure, and minimalist restraint for everyday wear in Dhaka and beyond.
+            </p>
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10 text-[11px] uppercase tracking-[0.18em] text-neutral-400 font-bold">
+              <div>
+                <span className="block text-white font-black text-sm tracking-normal mb-0.5">Structured</span>
+                Tailored Fits
+              </div>
+              <div>
+                <span className="block text-white font-black text-sm tracking-normal mb-0.5">Relaxed</span>
+                Fluid Trousers
+              </div>
+              <div>
+                <span className="block text-white font-black text-sm tracking-normal mb-0.5">Boxy</span>
+                Architectural Drapes
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3. Three Core Pillars */}
+        <section className="space-y-8 border-t border-white/10 pt-14 sm:pt-16">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#FF762E]">
+                CORE PRINCIPLES
+              </p>
+              <h2 className="font-heading text-2xl sm:text-3xl font-black text-white uppercase tracking-tight mt-1">
+                THE VANTREL STANDARD
+              </h2>
+            </div>
+            <p className="text-xs text-neutral-400 uppercase tracking-[0.2em]">
+              DHAKA, BANGLADESH
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {pillars.map((pillar) => (
+              <div
+                key={pillar.number}
+                className="bg-[#141414] p-7 border border-white/10 hover:border-white/25 transition-colors space-y-3"
+              >
+                <h3 className="font-heading font-bold text-base sm:text-lg text-white tracking-tight uppercase">
+                  {pillar.number}
+                </h3>
+                <p className="text-xs sm:text-sm text-neutral-400 leading-relaxed font-sans">
+                  {pillar.copy}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 4. Minimalist 4-Column Brand Standards Strip */}
+        <section className="border-y border-white/10 py-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            {standards.map((item, idx) => (
+              <div
+                key={item.label}
+                className={`space-y-1.5 ${idx > 0 ? 'lg:border-l lg:border-white/10 lg:pl-8' : ''}`}
+              >
+                <p className="font-heading text-xl sm:text-2xl font-black text-white tracking-tight uppercase">
+                  {item.metric}
+                </p>
+                <p className="text-xs text-neutral-400 font-medium tracking-wider uppercase">
+                  {item.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Editorial CTA */}
+        <div className="text-center pb-4">
           <button
-            onClick={() => setCurrentPage('shop')}
-            className="px-8 py-3.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all shadow-md"
+            onClick={() => {
+              setCurrentPage('shop');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="px-10 py-4 bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase tracking-[0.25em] transition-all shadow-xl cursor-pointer"
           >
-            Explore The Drop
+            Explore The Drop →
           </button>
         </div>
       </div>

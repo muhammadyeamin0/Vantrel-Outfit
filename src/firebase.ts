@@ -2,14 +2,17 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+import { isSearchCrawler } from './utils/crawlerDetect';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with ignoreUndefinedProperties and force long-polling in browser
-// to avoid WebChannel streaming hangs/10s timeouts behind proxies, mobile ISPs, or iframes.
+// For real users, enable long-polling fallback behind restrictive mobile/proxy networks.
+// For search engine crawlers, avoid long-polling streaming overrides so one-time getDocs completes cleanly.
+const isCrawlerSession = typeof window !== 'undefined' && isSearchCrawler();
+
 const firestoreSettings =
-  typeof window !== 'undefined'
+  typeof window !== 'undefined' && !isCrawlerSession
     ? {
         ignoreUndefinedProperties: true,
         experimentalForceLongPolling: true,
@@ -42,4 +45,3 @@ export function sanitizeFirestoreData<T>(obj: T): T {
 }
 
 export default app;
-
