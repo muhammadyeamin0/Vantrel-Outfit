@@ -591,8 +591,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'register' | 'otp' | 'forgot'>('login');
 
-  // Products (strictly from Admin Panel / Firestore — never auto-seeded with primary products)
+  // Products (hydrates immediately from pre-rendered #vantrel-ssr-products or localStorage — never auto-seeded with primary products)
   const [products, setProducts] = useState<Product[]>(() => {
+    if (typeof document !== 'undefined') {
+      const ssrScript = document.getElementById('vantrel-ssr-products');
+      if (ssrScript && ssrScript.textContent) {
+        try {
+          const parsedSsr: Product[] = JSON.parse(ssrScript.textContent);
+          if (Array.isArray(parsedSsr) && parsedSsr.length > 0) {
+            return parsedSsr
+              .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+              .map(sanitizeProductSizes);
+          }
+        } catch {
+          // fallback below
+        }
+      }
+    }
     const saved = localStorage.getItem('vt_products_v4');
     if (saved) {
       try {
@@ -1024,13 +1039,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [lastPlacedOrder]);
 
-  // Validate initial Firestore server connectivity on boot (human sessions only)
+  // Validate Firestore server connectivity strictly when entering Admin Dashboard (human sessions only)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) return;
+    if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) return;
     let cancelled = false;
     async function testConnection() {
       try {
-        await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 3500, 'Connection check timed out');
+        await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 4000, 'Connection check timed out');
       } catch (error) {
         if (!cancelled && error instanceof Error && error.message.includes('the client is offline')) {
           console.warn('Firebase client is offline or network unavailable.');
@@ -1041,13 +1056,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentPage]);
 
-  // Public Storefront Products Loading: Uses fast one-time getDocs + /api/products fallback
-  // (Prevents persistent Firestore Listen/channel XHR streams from hanging during Googlebot rendering)
+  // Public Storefront Products Loading: Uses embedded SSR catalog or clean /api/products REST endpoint
+  // (Eliminates client-side Firestore Listen/channel WebChannel XHR streams during Googlebot indexing & public visits)
   useEffect(() => {
     let isMounted = true;
-    let hasFirestoreData = false;
 
     const mergeDynamicCategories = (loadedProducts: Product[]) => {
       if (loadedProducts.length === 0) return;
@@ -1076,16 +1090,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     };
 
-    const hydrateFromServerFallback = async () => {
+    // 1. Check for server-embedded catalog first (zero XHR needed on SSR/Googlebot routes)
+    let hasSsrCatalog = false;
+    if (typeof document !== 'undefined') {
+      const ssrScript = document.getElementById('vantrel-ssr-products');
+      if (ssrScript && ssrScript.textContent) {
+        try {
+          const parsedSsr = JSON.parse(ssrScript.textContent) as Product[];
+          if (Array.isArray(parsedSsr) && parsedSsr.length > 0) {
+            hasSsrCatalog = true;
+            const cleanSsr = sortProductsList(
+              parsedSsr
+                .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+                .map((p) =>
+                  sanitizeProductSizes({
+                    ...p,
+                    isArchived: Boolean(p.isArchived || p.status === 'archived')
+                  })
+                )
+            );
+            setProducts(cleanSsr);
+            mergeDynamicCategories(cleanSsr);
+          }
+        } catch {
+          // Proceed to fetch below
+        }
+      }
+    }
+
+    // Search crawlers with SSR catalog already embedded do not need any additional XHR requests
+    if (isSearchCrawler() && hasSsrCatalog) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    // 2. Clean single-shot HTTP fetch to /api/products (never aborted prematurely by short client timer)
+    const loadFromProductsApi = async () => {
       try {
-        const signal =
-          typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
-            ? AbortSignal.timeout(3000)
-            : undefined;
-        const res = await fetch('/api/products', signal ? { signal } : undefined);
-        if (!res.ok) return;
+        const res = await fetch('/api/products', {
+          headers: { Accept: 'application/json' }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMounted && !hasFirestoreData) {
+        if (json.success && Array.isArray(json.data) && isMounted) {
           const serverProducts = sortProductsList(
             (json.data as Product[])
               .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
@@ -1100,52 +1148,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           mergeDynamicCategories(serverProducts);
         }
       } catch (err) {
-        console.warn('Server products fallback load notice:', err);
+        // Emergency Firestore fallback ONLY for non-crawler browser sessions if /api/products fails
+        if (!isMounted || isSearchCrawler() || !IS_GOOGLE_CLOUD_CONNECTED || !db) {
+          console.warn('Products API load notice:', err);
+          return;
+        }
+        try {
+          const snapshot = await withTimeout(
+            getDocs(collection(db, 'products')),
+            5000,
+            'Firestore fallback read timed out'
+          );
+          if (!isMounted || snapshot.empty) return;
+          const remoteProducts: Product[] = [];
+          snapshot.forEach((docSnap) => {
+            if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+            const data = docSnap.data() as Product;
+            remoteProducts.push(
+              sanitizeProductSizes({
+                ...data,
+                id: docSnap.id,
+                isArchived: Boolean(data.isArchived || data.status === 'archived')
+              })
+            );
+          });
+          const sorted = sortProductsList(remoteProducts);
+          setProducts(sorted);
+          mergeDynamicCategories(sorted);
+        } catch (fbErr) {
+          console.warn('Products fallback load notice:', fbErr);
+        }
       }
     };
 
-    // Always kick off fast JSON hydration in parallel so initial render never stalls
-    hydrateFromServerFallback();
-
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !db) {
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    const productsCol = collection(db, 'products');
-    const timeoutMs = isSearchCrawler() ? 2500 : 4500;
-
-    withTimeout(getDocs(productsCol), timeoutMs, 'Firestore initial products read timed out')
-      .then((snapshot) => {
-        if (!isMounted) return;
-        hasFirestoreData = true;
-
-        if (snapshot.empty) {
-          setProducts([]);
-          return;
-        }
-
-        const remoteProducts: Product[] = [];
-        snapshot.forEach((docSnap) => {
-          if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-          const data = docSnap.data() as Product;
-          remoteProducts.push(
-            sanitizeProductSizes({
-              ...data,
-              id: docSnap.id,
-              isArchived: Boolean(data.isArchived || data.status === 'archived')
-            })
-          );
-        });
-
-        const sorted = sortProductsList(remoteProducts);
-        setProducts(sorted);
-        mergeDynamicCategories(sorted);
-      })
-      .catch((err) => {
-        console.warn('Firestore one-time products load notice (using /api/products fallback):', err);
-      });
+    loadFromProductsApi();
 
     return () => {
       isMounted = false;
@@ -1244,42 +1280,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     syncOrdersWithServer();
     const interval = setInterval(syncOrdersWithServer, 25000);
 
-    // Real-time orders stream is scoped strictly to Admin Dashboard (public tracking/account uses /api/orders + one-time read)
+    // Real-time orders stream is scoped strictly to Admin Dashboard
     let firestoreUnsub: (() => void) | undefined;
-    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
-      const ordersCol = collection(db, 'orders');
-      if (currentPage === 'admin') {
-        try {
-          firestoreUnsub = onSnapshot(
-            ordersCol,
-            (snapshot) => {
-              if (!isMounted || snapshot.empty) return;
-              const remoteOrders: Order[] = [];
-              snapshot.forEach((docSnap) => {
-                const remote = docSnap.data() as Order;
-                remoteOrders.push({ ...remote, id: docSnap.id });
-              });
-              remoteOrders.sort(
-                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-              );
-              const nextSig = remoteOrders
-                .map((o) => `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}`)
-                .join('|');
-              if (nextSig !== lastSig) {
-                lastSig = nextSig;
-                setOrders(remoteOrders);
-              }
-            },
-            (error) => {
-              console.warn('Firestore orders onSnapshot notice:', error.message);
-            }
-          );
-        } catch (e) {
-          console.warn('Firestore orders sync notice:', e);
-        }
-      } else {
-        withTimeout(getDocs(ordersCol), 3500, 'Orders read timed out')
-          .then((snapshot) => {
+    if (currentPage === 'admin' && IS_GOOGLE_CLOUD_CONNECTED && db) {
+      try {
+        const ordersCol = collection(db, 'orders');
+        firestoreUnsub = onSnapshot(
+          ordersCol,
+          (snapshot) => {
             if (!isMounted || snapshot.empty) return;
             const remoteOrders: Order[] = [];
             snapshot.forEach((docSnap) => {
@@ -1296,8 +1304,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               lastSig = nextSig;
               setOrders(remoteOrders);
             }
-          })
-          .catch(() => {});
+          },
+          (error) => {
+            console.warn('Firestore orders onSnapshot notice:', error.message);
+          }
+        );
+      } catch (e) {
+        console.warn('Firestore orders sync notice:', e);
       }
     }
 
@@ -1308,9 +1321,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [needsLiveOrderSync, currentPage]);
 
-  // Listen to Firebase Auth state changes (skipped for search crawlers)
+  // Listen to Firebase Auth state changes (skipped for search crawlers and anonymous public landing)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
+    const needsAuthSync =
+      isAuthModalOpen ||
+      currentPage === 'account' ||
+      currentPage === 'checkout' ||
+      currentPage === 'admin' ||
+      Boolean(currentUser);
+    if (!needsAuthSync || !IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser) {
         setCurrentUser((prev) => {
@@ -1340,7 +1359,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAuthModalOpen, currentPage, currentUser?.id]);
 
   // Real-time Firestore Wishlist Sync for authenticated / logged-in user (human sessions only)
   useEffect(() => {

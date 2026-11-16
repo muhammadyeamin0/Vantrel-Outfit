@@ -13,8 +13,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const products = await getLiveProducts();
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=180, stale-while-revalidate=300');
-    res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ success: true, data: products }));
+    res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300');
+    res.setHeader('X-Robots-Tag', 'all');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(
+      req.method === 'HEAD'
+        ? undefined
+        : JSON.stringify({ success: true, count: products.length, data: products })
+    );
   } catch (err) {
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

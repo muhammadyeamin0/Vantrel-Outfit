@@ -395,6 +395,14 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         ).replace(/</g, '\\u003c')}</script>`
       : '';
 
+  const ssrProductsScript =
+    published.length > 0
+      ? `<script type="application/json" id="vantrel-ssr-products">${JSON.stringify(published).replace(
+          /</g,
+          '\\u003c'
+        )}</script>`
+      : '';
+
   const shellHtml = await getAppShellHtml(req);
   let finalHtml = '';
 
@@ -445,7 +453,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         /<meta\s+name="twitter:image:alt"\s+content="[^"]*"\s*\/?>/i,
         `<meta name="twitter:image:alt" content="${escapeHtmlAttr(ogImageAlt)}" />`
       )
-      .replace('</head>', `${extraHeadMeta}\n  ${jsonLdScript}\n  </head>`)
+      .replace('</head>', `${extraHeadMeta}\n  ${jsonLdScript}\n  ${ssrProductsScript}\n  </head>`)
       .replace('<div id="root"></div>', `<div id="root">${ssrRootHtml}</div>`);
   } else {
     finalHtml = `<!doctype html>
@@ -472,6 +480,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
   <meta name="twitter:image" content="${escapeHtmlAttr(ogImage)}" />
   <meta name="twitter:image:alt" content="${escapeHtmlAttr(ogImageAlt)}" />${extraHeadMeta}
   ${jsonLdScript}
+  ${ssrProductsScript}
 </head>
 <body>
   <div id="root">${ssrRootHtml}</div>

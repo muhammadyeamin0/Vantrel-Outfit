@@ -58,7 +58,7 @@ export async function getLiveProducts(forceRefresh = false): Promise<Product[]> 
     const snapshot = await Promise.race([
       getDocs(collection(db, 'products')),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore read timeout')), 5500)
+        setTimeout(() => reject(new Error('Firestore read timeout')), 3500)
       )
     ]);
 

@@ -995,7 +995,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 // 2. Products Endpoints
-app.get('/api/products', (req: Request, res: Response) => {
+app.get(['/api/products', '/api/product'], (req: Request, res: Response) => {
   const { category, search, sort } = req.query;
   let result = [...products];
 
@@ -1021,7 +1021,9 @@ app.get('/api/products', (req: Request, res: Response) => {
     result.sort((a, b) => b.rating - a.rating);
   }
 
-  res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  res.setHeader('X-Robots-Tag', 'all');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.json({ success: true, count: result.length, data: result });
 });
 
@@ -2031,6 +2033,8 @@ Allow: /assets/
 Allow: /src/assets/
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/products
+Allow: /api/product
 Disallow: /admin
 Disallow: /admin/*
 Disallow: /cart
@@ -2048,6 +2052,8 @@ User-agent: Googlebot
 Allow: /
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/products
+Allow: /api/product
 Disallow: /admin
 Disallow: /admin/*
 

@@ -9,6 +9,10 @@
       "destination": "/api/sitemap"
     },
     {
+      "source": "/api/product",
+      "destination": "/api/products"
+    },
+    {
       "source": "/product/:slug",
       "destination": "/api/seo-page?route=product&slug=:slug"
     },
@@ -66,7 +70,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(Googlebot|Google-InspectionTool|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|WhatsApp|Twitterbot|LinkedInBot|Pinterest|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
+          "value": ".*(Googlebot|Google-InspectionTool|GoogleOther|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|WhatsApp|Twitterbot|LinkedInBot|Pinterest|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
         }
       ],
       "destination": "/api/seo-page?route=home"
