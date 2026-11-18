@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/*.ts": {
+      "includeFiles": "{dist/index.html,data/products_store.json,firebase-applet-config.json}"
+    }
+  },
   "rewrites": [
     {
       "source": "/robots.txt",
@@ -70,7 +75,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(Googlebot|Google-InspectionTool|GoogleOther|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|WhatsApp|Twitterbot|LinkedInBot|Pinterest|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
+          "value": ".*(Googlebot|Google-InspectionTool|GoogleOther|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|whatsapp|TelegramBot|Discordbot|Slackbot|Twitterbot|LinkedInBot|Pinterest|Viber|Snapchat|redditbot|Instagram|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
         }
       ],
       "destination": "/api/seo-page?route=home"

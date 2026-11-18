@@ -1,14 +1,18 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import type { Product } from '../../src/types';
 import {
   VANTREL_CANONICAL_ORIGIN,
+  type MinimalProductRecord,
   rewriteProductImagesToProxy,
-  toCanonicalSeoImageUrl
-} from '../../src/utils/imageProxy';
-import { getProductSeoSlug, getCategorySlug } from '../../src/utils/seoSlug';
-import firebaseConfig from '../../firebase-applet-config.json';
-import fallbackProductsData from '../../data/products_store.json';
+  toCanonicalSeoImageUrl,
+  getProductSeoSlug,
+  getCategorySlug
+} from './seoUtils.js';
+
+export type ProductRecord = MinimalProductRecord;
 
 const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-001', 'prod-002', 'prod-003', 'prod-004', 'prod-005',
@@ -18,10 +22,51 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
 ]);
 
 const CACHE_TTL_MS = 120 * 1000;
-let cachedProducts: Product[] | null = null;
+let cachedProducts: ProductRecord[] | null = null;
 let cachedAt = 0;
 
-function normalizeProductsList(list: Product[]): Product[] {
+function resolveRepoFilePath(relativePath: string): string | null {
+  const candidates: string[] = [path.resolve(process.cwd(), relativePath)];
+  try {
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    candidates.push(path.resolve(dir, '../../', relativePath));
+    candidates.push(path.resolve(dir, '../', relativePath));
+  } catch {
+    // ignore
+  }
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+export function readRepoTextFile(relativePath: string): string | null {
+  const resolved = resolveRepoFilePath(relativePath);
+  if (!resolved) return null;
+  try {
+    return fs.readFileSync(resolved, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+function readJsonFile<T>(relativePath: string): T | null {
+  const raw = readRepoTextFile(relativePath);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeProductsList(list: ProductRecord[]): ProductRecord[] {
   const normalized = list
     .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
     .map((p) => ({
@@ -43,57 +88,68 @@ function normalizeProductsList(list: Product[]): Product[] {
   return normalized;
 }
 
-export async function getLiveProducts(forceRefresh = false): Promise<Product[]> {
+export async function getLiveProducts(forceRefresh = false): Promise<ProductRecord[]> {
   const now = Date.now();
   if (!forceRefresh && cachedProducts && now - cachedAt < CACHE_TTL_MS) {
     return cachedProducts;
   }
 
   try {
-    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const db = firebaseConfig.firestoreDatabaseId
-      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-      : getFirestore(app);
+    const firebaseConfig = readJsonFile<{
+      apiKey?: string;
+      authDomain?: string;
+      projectId?: string;
+      storageBucket?: string;
+      messagingSenderId?: string;
+      appId?: string;
+      firestoreDatabaseId?: string;
+    }>('firebase-applet-config.json');
 
-    const snapshot = await Promise.race([
-      getDocs(collection(db, 'products')),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore read timeout')), 3500)
-      )
-    ]);
+    if (firebaseConfig && firebaseConfig.projectId) {
+      const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+      const db = firebaseConfig.firestoreDatabaseId
+        ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+        : getFirestore(app);
 
-    const remote: Product[] = [];
-    snapshot.forEach((docSnap) => {
-      if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-      const data = docSnap.data() as Product;
-      remote.push({
-        ...data,
-        id: docSnap.id
+      const snapshot = await Promise.race([
+        getDocs(collection(db, 'products')),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore read timeout')), 3500)
+        )
+      ]);
+
+      const remote: ProductRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+        const data = docSnap.data() as ProductRecord;
+        remote.push({
+          ...data,
+          id: docSnap.id
+        });
       });
-    });
 
-    if (remote.length > 0) {
-      cachedProducts = normalizeProductsList(remote);
-      cachedAt = now;
-      return cachedProducts;
+      if (remote.length > 0) {
+        cachedProducts = normalizeProductsList(remote);
+        cachedAt = now;
+        return cachedProducts;
+      }
     }
   } catch (err) {
     console.warn('[VANTREL SEO] Firestore live fetch fallback to bundled store:', err instanceof Error ? err.message : err);
   }
 
-  const fallbackList = Array.isArray(fallbackProductsData)
-    ? (fallbackProductsData as unknown as Product[])
-    : [];
+  const fallbackData = readJsonFile<ProductRecord[]>('data/products_store.json');
+  const fallbackList = Array.isArray(fallbackData) ? fallbackData : [];
   cachedProducts = normalizeProductsList(fallbackList);
   cachedAt = now;
   return cachedProducts;
 }
 
-export function getPublishedProducts(allProducts: Product[]): Product[] {
+export function getPublishedProducts(allProducts: ProductRecord[]): ProductRecord[] {
   return allProducts.filter((p) => !p.isArchived && p.status !== 'archived');
 }
 
-export function getActiveCategories(publishedProducts: Product[]): string[] {
+export function getActiveCategories(publishedProducts: ProductRecord[]): string[] {
   const seen = new Set<string>();
   const cats: string[] = [];
   for (const p of publishedProducts) {
@@ -123,7 +179,11 @@ export function escapeHtmlAttr(val: string): string {
     .replace(/>/g, '&gt;');
 }
 
-export function buildProductJsonLd(prod: Product, allProducts: Product[], baseUrl: string = VANTREL_CANONICAL_ORIGIN): Record<string, unknown> {
+export function buildProductJsonLd(
+  prod: ProductRecord,
+  allProducts: ProductRecord[],
+  baseUrl: string = VANTREL_CANONICAL_ORIGIN
+): Record<string, unknown> {
   const seoSlug = getProductSeoSlug(prod, allProducts);
   const productUrl = `${baseUrl}/product/${encodeURIComponent(seoSlug)}`;
   const resolvedImages = (prod.images || [])
@@ -138,7 +198,7 @@ export function buildProductJsonLd(prod: Product, allProducts: Product[], baseUr
     '@id': `${productUrl}#product`,
     name: prod.name,
     url: productUrl,
-    image: resolvedImages.length > 0 ? resolvedImages : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-logo.png`],
+    image: resolvedImages.length > 0 ? resolvedImages : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`],
     description: (prod.description || prod.tagline || `${prod.name} by ${brandName}.`).trim(),
     sku: prod.sku || prod.id,
     mpn: prod.sku || prod.id,
@@ -162,7 +222,7 @@ export function buildProductJsonLd(prod: Product, allProducts: Product[], baseUr
     }
   };
 
-  if (prod.reviewCount > 0 && prod.rating > 0) {
+  if ((prod.reviewCount ?? 0) > 0 && (prod.rating ?? 0) > 0) {
     schema.aggregateRating = {
       '@type': 'AggregateRating',
       ratingValue: String(prod.rating),

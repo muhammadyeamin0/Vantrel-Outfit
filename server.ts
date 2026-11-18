@@ -2427,7 +2427,7 @@ function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unkn
 
 app.get('*', (req: Request, res: Response, next) => {
   const userAgent = req.headers['user-agent'] || '';
-  const isSocialCrawler = /facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot/i.test(userAgent);
+  const isSocialCrawler = /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot|Viber|Snapchat|redditbot|Instagram|SkypeUriPreview|Embedly/i.test(userAgent);
 
   if (!isSocialCrawler) {
     return next();

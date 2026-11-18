@@ -7,7 +7,7 @@ export function isSearchCrawler(): boolean {
   if (typeof navigator === 'undefined') return true;
   const ua = navigator.userAgent || '';
   if (
-    /bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|apis-google|feedfetcher-google|bingbot|slurp|duckduckbot|baiduspider|yandex|applebot|facebookexternalhit|facebot|meta-externalagent|whatsapp|twitterbot|linkedinbot|pinterest|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|perplexitybot|chrome-lighthouse|lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(
+    /bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|apis-google|feedfetcher-google|bingbot|slurp|duckduckbot|baiduspider|yandex|applebot|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|whatsapp|telegrambot|discordbot|slackbot|twitterbot|linkedinbot|pinterest|viber|snapchat|redditbot|instagram|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|perplexitybot|chrome-lighthouse|lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(
       ua
     )
   ) {

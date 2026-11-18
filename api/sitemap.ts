@@ -1,12 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { VANTREL_CANONICAL_ORIGIN, toCanonicalSeoImageUrl } from '../src/utils/imageProxy';
-import { getProductSeoSlug, getCategorySlug } from '../src/utils/seoSlug';
+import {
+  VANTREL_CANONICAL_ORIGIN,
+  toCanonicalSeoImageUrl,
+  getProductSeoSlug,
+  getCategorySlug
+} from './_lib/seoUtils.js';
 import {
   getLiveProducts,
   getPublishedProducts,
   getActiveCategories,
   escapeXml
-} from './_lib/storeCatalog';
+} from './_lib/storeCatalog.js';
 
 type VercelReq = IncomingMessage & {
   query?: Record<string, string | string[] | undefined>;
