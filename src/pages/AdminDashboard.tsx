@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { auth } from '../firebase';
 import {
   useStore,
   computePricesFromCost,
@@ -117,9 +118,7 @@ export const AdminDashboard: React.FC = () => {
     settings,
     updateSettings,
     currentUser,
-    loginAsAdmin,
-    verifyAdminCredentials,
-    loginAsStaff,
+    signInAdminWithGoogle,
     logout,
     currentStaffRole,
     setCurrentStaffRole,
@@ -267,10 +266,7 @@ export const AdminDashboard: React.FC = () => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Admin Access Security Gate State
-  const [adminInputEmail, setAdminInputEmail] = useState('');
-  const [adminInputPin, setAdminInputPin] = useState('');
   const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
-  const [showAdminPin, setShowAdminPin] = useState(false);
   const [isVerifyingAdmin, setIsVerifyingAdmin] = useState(false);
 
   // Aggregated Customer Profiles from registered customers + all placed orders
@@ -375,43 +371,30 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [allCustomerProfiles, customerSearch]);
 
-  // Strict Authorization Check: Only muhammadeyamin0@gmail.com with Super Admin/Admin role
+  // Strict Authorization Check: Only email-verified muhammadeyamin0@gmail.com with Super Admin/Admin role
   const isAuthorizedAdmin =
     Boolean(currentUser) &&
+    Boolean(currentUser?.emailVerified) &&
     currentUser?.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
     (currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin');
 
   if (!isAuthorizedAdmin) {
-    const handleAdminUnlock = (e: React.FormEvent) => {
-      e.preventDefault();
+    const handleGoogleAdminUnlock = async () => {
       setAdminAuthError(null);
-      const email = adminInputEmail.trim().toLowerCase();
-      const pin = adminInputPin.trim();
-
-      if (!email || !pin) {
-        setAdminAuthError('অনুগ্রহ করে অনুমোদিত জিমেইল ও ৪-ডিজিটের পাসওয়ার্ড দিন।');
-        return;
-      }
-
-      if (email !== 'muhammadeyamin0@gmail.com') {
-        setAdminAuthError('এই জিমেইলটি অ্যাডমিন হিসেবে অনুমোদিত নয়। শুধুমাত্র muhammadeyamin0@gmail.com অনুমোদিত।');
-        setAdminInputPin('');
-        return;
-      }
-
       setIsVerifyingAdmin(true);
-      setTimeout(() => {
-        setIsVerifyingAdmin(false);
-        const res = verifyAdminCredentials(email, pin);
-        if (res.success) {
-          setAdminInputEmail('');
-          setAdminInputPin('');
-          setAdminAuthError(null);
-        } else {
-          setAdminAuthError(res.message || 'ভুল জিমেইল অথবা ৪-ডিজিটের পাসওয়ার্ড! সঠিক তথ্য দিন।');
-          setAdminInputPin('');
+      try {
+        const res = await signInAdminWithGoogle();
+        if (!res.success) {
+          setAdminAuthError(
+            res.message ||
+              'অ্যাক্সেস সংরক্ষিত! শুধুমাত্র ভেরিফাইড অ্যাডমিন (muhammadeyamin0@gmail.com) গুগল অ্যাকাউন্ট দিয়ে প্রবেশ করতে পারবেন।'
+          );
         }
-      }, 300);
+      } catch (err: any) {
+        setAdminAuthError(err?.message || 'Google Admin যাচাই ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+      } finally {
+        setIsVerifyingAdmin(false);
+      }
     };
 
     return (
@@ -425,7 +408,9 @@ export const AdminDashboard: React.FC = () => {
               অ্যাডমিন পোর্টাল সিকিউরিটি লক
             </h2>
             <p className="text-xs text-stone-400 leading-relaxed max-w-sm mx-auto">
-              এই ড্যাশবোর্ডটি শুধুমাত্র অনুমোদিত অ্যাডমিনের জন্য সংরক্ষিত। প্রবেশ করতে আপনার অথোরাইজড জিমেইল ও ৪-ডিজিটের পাসওয়ার্ড দিন।
+              এই ড্যাশবোর্ডটি শুধুমাত্র অনুমোদিত ও ইমেইল-ভেরিফাইড অ্যাডমিন (
+              <span className="font-mono text-emerald-400">muhammadeyamin0@gmail.com</span>)-এর জন্য
+              সংরক্ষিত। প্রবেশ করতে Google Admin অ্যাকাউন্ট দিয়ে সাইন ইন করুন।
             </p>
           </div>
 
@@ -436,73 +421,41 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleAdminUnlock} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-stone-200 mb-1.5">
-                অনুমোদিত জিমেইল (Admin Gmail) <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  value={adminInputEmail}
-                  onChange={(e) => {
-                    setAdminInputEmail(e.target.value);
-                    if (adminAuthError) setAdminAuthError(null);
-                  }}
-                  placeholder="আপনার জিমেইল এড্রেস লিখুন"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-[#19221D] border border-[#2B3B32] text-white placeholder-stone-500 rounded-xl focus:outline-none focus:border-emerald-500 transition-colors"
-                  required
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-stone-200 mb-1.5">
-                ৪-ডিজিটের পাসওয়ার্ড (4-Digit PIN) <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type={showAdminPin ? 'text' : 'password'}
-                  maxLength={4}
-                  value={adminInputPin}
-                  onChange={(e) => {
-                    setAdminInputPin(e.target.value);
-                    if (adminAuthError) setAdminAuthError(null);
-                  }}
-                  placeholder="••••"
-                  autoComplete="current-password"
-                  className="w-full pl-10 pr-10 py-2.5 text-sm tracking-[0.4em] font-mono text-center bg-[#19221D] border border-[#2B3B32] text-white placeholder-stone-600 rounded-xl focus:outline-none focus:border-emerald-500 transition-colors"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowAdminPin(!showAdminPin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white p-1 cursor-pointer"
-                  title={showAdminPin ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
-                >
-                  {showAdminPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
+          <div className="space-y-3">
             <button
-              type="submit"
+              type="button"
+              onClick={handleGoogleAdminUnlock}
               disabled={isVerifyingAdmin}
-              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+              className="w-full py-3.5 px-4 bg-white hover:bg-stone-100 text-[#111413] text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
             >
-              {isVerifyingAdmin ? (
-                <span>যাচাই করা হচ্ছে...</span>
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>আনলক করুন ও প্রবেশ করুন</span>
-                </>
-              )}
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>{isVerifyingAdmin ? 'যাচাই করা হচ্ছে...' : 'Google Admin দিয়ে আনলক করুন'}</span>
             </button>
-          </form>
+
+            <div className="p-3 bg-[#19221D] border border-[#2B3B32] rounded-xl text-[11px] text-stone-300 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                Firebase Google Authentication ও Server Token Verification সক্রিয় রয়েছে।
+              </span>
+            </div>
+          </div>
 
           <div className="pt-2 border-t border-[#223028] text-center">
             <button
@@ -1124,12 +1077,22 @@ export const AdminDashboard: React.FC = () => {
   const handleTestEmailNotification = async () => {
     setIsTestingEmail(true);
     try {
-      const res = await fetch('/api/test-email-notification', { method: 'POST' });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = await auth?.currentUser?.getIdToken().catch(() => '');
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/test-email-notification', {
+        method: 'POST',
+        headers
+      });
       const data = await res.json();
-      if (data.details?.delivered) {
+      if (res.ok && data.details?.delivered) {
         showToast('Email Delivered!', `Test email sent to ${data.details.recipient}`, 'success');
+      } else if (!res.ok) {
+        showToast('Unauthorized / Error', data?.error || 'Admin verification failed.', 'error');
       } else {
-        showToast('Notification Ready', `Target: ${data.details?.recipient || 'muhammadeyamin0@gmail.com'}. Set App Password for inbox delivery.`, 'info');
+        showToast('Notification Ready', `Target: ${data.details?.recipient || 'muhammadeyamin0@gmail.com'}. Set GMAIL_APP_PASSWORD in Vercel Env Vars for live delivery.`, 'info');
       }
     } catch {
       showToast('Error', 'Failed to dispatch test notification.', 'error');
@@ -1331,7 +1294,6 @@ export const AdminDashboard: React.FC = () => {
               onChange={(e) => {
                 const r = e.target.value as any;
                 setCurrentStaffRole(r);
-                loginAsStaff(r);
               }}
               className="px-3 py-1.5 text-xs font-bold bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl focus:outline-none text-[#14221C] cursor-pointer"
             >
@@ -3841,8 +3803,9 @@ export const AdminDashboard: React.FC = () => {
                     <label className="block font-bold text-[#14221C] mb-1">API Key / Token</label>
                     <input
                       type="password"
-                      value={settings.smsApiKey || 'gw_live_demo_key_sec892'}
+                      value={settings.smsApiKey || ''}
                       onChange={(e) => updateSettings({ smsApiKey: e.target.value })}
+                      placeholder="Configured via server environment or enter SMS token"
                       className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-mono text-xs"
                     />
                   </div>
@@ -4613,34 +4576,29 @@ router.post('/coupons/validate', async (req, res) => {
                         `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isAdmin() {
-      return isAuthenticated() && 
-        request.auth.token.role == 'admin' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() &&
+        request.auth.token.email == 'muhammadeyamin0@gmail.com' &&
+        request.auth.token.email_verified == true;
     }
 
-    // Public catalog can be read by anyone, only admin can create/edit
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
-    // Orders can be read by customer owner or admin
-    match /orders/{orderId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow create: if true; // Allows guest checkout with validation
-      allow update: if isAdmin();
-    }
-
-    // Coupons can be validated by anyone, created only by admin
-    match /coupons/{couponId} {
+    match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['orderNumber', 'total', 'items', 'customer']);
     }
   }
 }`,
@@ -4658,14 +4616,18 @@ service cloud.firestore {
 {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null &&
+        request.auth.token.email == 'muhammadeyamin0@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
     match /products/{productId} {
       allow read: if true;
-      allow write: if request.auth.token.role == 'admin';
+      allow write: if isAdmin();
     }
     match /orders/{orderId} {
-      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.token.role == 'admin');
-      allow create: if true;
-      allow update: if request.auth.token.role == 'admin';
+      allow read, update, delete: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['orderNumber', 'total', 'items', 'customer']);
     }
   }
 }`}
@@ -4952,16 +4914,13 @@ service cloud.firestore {
 
                   <div>
                     <label className="block font-bold text-[#14221C] mb-1">
-                      Google App Password (16 Letters)
+                      Server SMTP Credential (Vercel Env: GMAIL_APP_PASSWORD)
                     </label>
                     <input
-                      type="password"
-                      value={localSettings.gmailNotificationAppPassword || ''}
-                      onChange={(e) =>
-                        setLocalSettings({ ...localSettings, gmailNotificationAppPassword: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-white border border-[#E5E1D5] rounded-xl font-mono text-xs"
-                      placeholder="e.g. abcd efgh ijkl mnop"
+                      type="text"
+                      readOnly
+                      value="Managed securely via GMAIL_APP_PASSWORD environment variable"
+                      className="w-full px-3 py-2 bg-stone-100 border border-[#E5E1D5] rounded-xl font-mono text-[11px] text-[#202522]/70"
                     />
                   </div>
                 </div>

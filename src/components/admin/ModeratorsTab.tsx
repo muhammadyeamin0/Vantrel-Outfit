@@ -27,7 +27,6 @@ export const ModeratorsTab: React.FC = () => {
     deleteStaffModerator,
     currentStaffRole,
     setCurrentStaffRole,
-    loginAsStaff,
     auditLogs,
     showToast
   } = useStore();
@@ -143,7 +142,6 @@ export const ModeratorsTab: React.FC = () => {
         <button
           onClick={() => {
             setCurrentStaffRole('Super Admin');
-            loginAsStaff('Super Admin');
             showToast('Role Switched', 'Switched to Super Admin for administration.', 'success');
           }}
           className="mt-2 px-5 py-2.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase rounded-xl transition-colors"

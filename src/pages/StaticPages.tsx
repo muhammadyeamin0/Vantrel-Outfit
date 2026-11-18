@@ -388,6 +388,9 @@ export const ContactPage: React.FC = () => {
 };
 
 export const FaqPage: React.FC = () => {
+  const { settings } = useStore();
+  const merchantLine = settings.bKashMerchantNumber || 'our official merchant number shown at checkout';
+
   const faqs = [
     {
       q: 'How does Cash on Delivery (COD) work?',
@@ -403,10 +406,10 @@ export const FaqPage: React.FC = () => {
     },
     {
       q: 'How do I pay using bKash or Nagad?',
-      a: 'At checkout, select bKash or Nagad. Make payment using the merchant option to our official verified number (01711234567) using the exact order total and reference YEAMIN, then input your TrxID in the checkout field.'
+      a: `At checkout, select bKash or Nagad. Make payment using the merchant option to our verified account (${merchantLine}) using the exact order total and reference VANTREL, then input your TrxID in the checkout field.`
     },
     {
-      q: 'What makes YEAMIN WEAR fabrics different?',
+      q: 'What makes VANTREL OUTFIT fabrics different?',
       a: 'All our cotton is 100% combed ringspun cotton milled in Bangladesh. Our heavyweight hoodies are made of 420 GSM custom loopback French terry, and our tees use 260 GSM high-density cotton that prevents neck-rib stretching and fading.'
     }
   ];

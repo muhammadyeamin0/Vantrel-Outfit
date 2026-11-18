@@ -68,21 +68,21 @@ export const INITIAL_SETTINGS: StoreSettings = {
   instagramUrl: 'https://www.instagram.com/vantreloutfit',
   email: 'vantreloutfit@gmail.com',
   address: 'Level 4, Road 11, Block D, Banani, Dhaka-1213, Bangladesh',
-  bKashMerchantNumber: '01711234567',
+  bKashMerchantNumber: '',
   isBkashActive: false,
   bKashStatus: 'pending',
-  nagadMerchantNumber: '01711234567',
+  nagadMerchantNumber: '',
   sslCommerzStoreId: 'vantrel_live',
   pointsPerSpend: 50, // 1 point per 50 BDT
   pointsRedeemRate: 1, // 1 point = 1 BDT
   referralRewardBDT: 200,
   refereeRewardBDT: 100,
   smsProvider: 'greenweb',
-  smsApiKey: 'gw_live_demo_key_sec892',
+  smsApiKey: '',
   smsSenderId: 'VANTREL OUTFIT',
   orderNotificationEmail: 'muhammadeyamin0@gmail.com',
   gmailNotificationUser: 'muhammadeyamin0@gmail.com',
-  gmailNotificationAppPassword: 'mnul thdc eztk hmfc'
+  gmailNotificationAppPassword: ''
 };
 
 export const INITIAL_CUSTOMERS: User[] = [
@@ -90,7 +90,7 @@ export const INITIAL_CUSTOMERS: User[] = [
     id: 'usr-001',
     name: 'Muhammad Yeamin',
     email: 'muhammadeyamin0@gmail.com',
-    phone: '01711234567',
+    phone: '',
     role: 'customer',
     joinedDate: '2026-08-14',
     totalOrders: 4,
@@ -267,15 +267,6 @@ export const INITIAL_SMS_LOGS: import('../types').SmsLog[] = [
     status: 'Sent',
     timestamp: '2026-10-19T10:15:00.000Z',
     provider: 'Greenweb SMS Gateway BD'
-  },
-  {
-    id: 'sms-log-003',
-    phone: '01711234567',
-    message: 'VANTREL Security: Your one-time verification code is 849201. Valid for 5 minutes.',
-    template: 'otp_verification',
-    status: 'Sent',
-    timestamp: '2026-10-22T08:00:00.000Z',
-    provider: 'Greenweb SMS Gateway BD'
   }
 ];
 
@@ -387,8 +378,8 @@ export const INITIAL_MODERATORS: StaffModerator[] = [
   {
     id: 'mod-001',
     name: 'Muhammad Yeamin',
-    email: 'yeamin@vantrel.com',
-    phone: '01711234567',
+    email: 'muhammadeyamin0@gmail.com',
+    phone: '',
     role: 'Super Admin',
     status: 'Active',
     assignedDate: '2026-01-01',

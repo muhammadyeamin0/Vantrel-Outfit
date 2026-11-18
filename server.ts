@@ -1164,15 +1164,26 @@ app.delete('/api/products/:id', (req: Request, res: Response) => {
 
 // 3. Orders Endpoints
 app.get('/api/orders', (req: Request, res: Response) => {
-  const { status, phone, search } = req.query;
+  const { status, phone, search, orderNumber } = req.query;
   let result = [...orders];
 
   if (status && status !== 'All') {
     result = result.filter((o) => o.orderStatus === status);
   }
 
+  if (orderNumber) {
+    const cleanNum = String(orderNumber).trim().toUpperCase();
+    result = result.filter((o) => o.orderNumber.toUpperCase() === cleanNum);
+  }
+
   if (phone) {
-    result = result.filter((o) => o.customer.phone.includes(String(phone)));
+    const digits = String(phone).replace(/[^\d]/g, '');
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    result = result.filter((o) => {
+      const ordDigits = String(o.customer?.phone || '').replace(/[^\d]/g, '');
+      const ordLast10 = ordDigits.length >= 10 ? ordDigits.slice(-10) : ordDigits;
+      return last10 ? ordLast10 === last10 : o.customer.phone.includes(String(phone));
+    });
   }
 
   if (search) {
@@ -1641,7 +1652,7 @@ app.post('/api/test-email-notification', async (_req: Request, res: Response) =>
     createdAt: new Date().toISOString(),
     customer: {
       fullName: 'Muhammad Yeamin (Store Owner)',
-      phone: '01711234567',
+      phone: 'Verified Store Owner',
       district: 'Dhaka',
       upazila: 'Banani',
       streetAddress: 'House 14, Road 11, Block D',

@@ -18,6 +18,66 @@
       "destination": "/api/products"
     },
     {
+      "source": "/api/products/recalculate-prices",
+      "destination": "/api/products?action=recalculate-prices"
+    },
+    {
+      "source": "/api/products/:id",
+      "destination": "/api/products?id=:id"
+    },
+    {
+      "source": "/api/orders/:id/auto-confirm",
+      "destination": "/api/orders?id=:id&action=auto-confirm"
+    },
+    {
+      "source": "/api/orders/:id/cancel",
+      "destination": "/api/orders?id=:id&action=cancel"
+    },
+    {
+      "source": "/api/orders/:id/approve",
+      "destination": "/api/orders?id=:id&action=approve"
+    },
+    {
+      "source": "/api/orders/:id/courier",
+      "destination": "/api/orders?id=:id&action=courier"
+    },
+    {
+      "source": "/api/orders/:id/status",
+      "destination": "/api/orders?id=:id&action=status"
+    },
+    {
+      "source": "/api/orders/:id",
+      "destination": "/api/orders?id=:id"
+    },
+    {
+      "source": "/api/send-order-notification",
+      "destination": "/api/store-ops?op=send-order-notification"
+    },
+    {
+      "source": "/api/test-email-notification",
+      "destination": "/api/store-ops?op=test-email-notification"
+    },
+    {
+      "source": "/api/send-whatsapp-confirmation",
+      "destination": "/api/store-ops?op=send-whatsapp-confirmation"
+    },
+    {
+      "source": "/api/finances/:id*",
+      "destination": "/api/store-ops?op=finances"
+    },
+    {
+      "source": "/api/moderators/:id*",
+      "destination": "/api/store-ops?op=moderators"
+    },
+    {
+      "source": "/api/theme",
+      "destination": "/api/store-ops?op=theme"
+    },
+    {
+      "source": "/api/banners-3d",
+      "destination": "/api/store-ops?op=banners-3d"
+    },
+    {
       "source": "/product/:slug",
       "destination": "/api/seo-page?route=product&slug=:slug"
     },

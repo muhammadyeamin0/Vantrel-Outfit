@@ -91,6 +91,16 @@
         "freeShippingThreshold": { "type": "number" }
       },
       "required": ["storeName", "deliveryFeeInsideDhaka", "deliveryFeeOutsideDhaka"]
+    },
+    "AdminRegistry": {
+      "title": "AdminRegistry",
+      "description": "Out-of-band provisioned admin access registry keyed by Firebase UID",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["email", "role"]
     }
   },
   "firestore": {
@@ -117,6 +127,10 @@
     "/settings/{settingId}": {
       "schema": "StoreSettings",
       "description": "Global storefront configurations"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminRegistry",
+      "description": "Authorized admin identities (read-only from client)"
     }
   }
 }

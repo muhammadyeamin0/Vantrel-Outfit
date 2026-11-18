@@ -2,12 +2,9 @@ import React from 'react';
 import { useStore, PageRoute } from '../context/StoreContext';
 import {
   Home,
+  Store,
   ShoppingBag,
-  Package,
-  User as UserIcon,
-  Search,
-  CheckCircle2,
-  ShieldCheck
+  User as UserIcon
 } from 'lucide-react';
 
 export const DarazBottomNav: React.FC = () => {
@@ -39,7 +36,7 @@ export const DarazBottomNav: React.FC = () => {
     {
       id: 'shop',
       label: 'শপ',
-      icon: ShoppingBag,
+      icon: Store,
       isActive: currentPage === 'shop' || currentPage === 'product-detail',
       onClick: () => setCurrentPage('shop')
     },
@@ -53,7 +50,7 @@ export const DarazBottomNav: React.FC = () => {
     },
     {
       id: 'account',
-      label: currentUser ? (currentUser.name.split(' ')[0].slice(0, 8) || 'প্রোফাইল') : 'প্রোফাইল',
+      label: currentUser ? ((currentUser.name || 'প্রোফাইল').trim().split(' ')[0].slice(0, 8) || 'প্রোফাইল') : 'প্রোফাইল',
       icon: UserIcon,
       isVerified: Boolean(currentUser?.isVerified),
       isActive: currentPage === 'account',

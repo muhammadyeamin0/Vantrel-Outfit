@@ -322,6 +322,19 @@ export interface StoreContextType {
   pinProductToTop: (id: string) => void;
   toggleTopProduct: (id: string) => Promise<void>;
   moveProductToTop: (id: string) => void;
+  addProductReview: (
+    productId: string,
+    review: {
+      id: string;
+      author: string;
+      rating: number;
+      date: string;
+      comment: string;
+      verifiedPurchase?: boolean;
+      location?: string;
+      photos?: string[];
+    }
+  ) => void;
   getProductById: (id: string) => Product | undefined;
   getProductBySlug: (slug: string) => Product | undefined;
 
@@ -378,16 +391,19 @@ export interface StoreContextType {
   setIsAuthModalOpen: (open: boolean) => void;
   authModalTab: 'login' | 'register' | 'otp' | 'forgot';
   setAuthModalTab: (tab: 'login' | 'register' | 'otp' | 'forgot') => void;
-  sendOtp: (phone: string) => { success: boolean; code?: string; message: string };
+  sendOtp: (phone: string) => { success: boolean; message: string };
   verifyOtp: (phone: string, otp: string, customerName?: string) => { success: boolean; user?: User; message: string };
-  socialLogin: (provider: 'google' | 'facebook', profileData?: { name?: string; email?: string; phone?: string }) => User;
+  socialLogin: (
+    provider: 'google' | 'facebook',
+    profileData?: { name?: string; email?: string; phone?: string }
+  ) => Promise<User | null>;
   verifyAndLoginCustomer: (data: {
     method: 'phone_otp' | 'google' | 'facebook';
     name: string;
     phone: string;
     email?: string;
     otp?: string;
-  }) => { success: boolean; user: User; message: string };
+  }) => Promise<{ success: boolean; user?: User; message: string }>;
   registerCustomer: (data: {
     name: string;
     email: string;
@@ -398,7 +414,7 @@ export interface StoreContextType {
   loginAsCustomer: (emailOrPhone: string, name?: string) => void;
   loginAsStaff: (role: StaffRole, name?: string) => void;
   loginAsAdmin: () => void;
-  verifyAdminCredentials: (email: string, pin: string) => { success: boolean; message?: string };
+  signInAdminWithGoogle: () => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   customers: User[];
   updateCustomerStatus: (userId: string, status: 'Active' | 'Inactive') => void;
@@ -455,127 +471,6 @@ export interface StoreContextType {
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
-
-const SAMPLE_ORDERS: Order[] = [
-  {
-    id: 'ord-101',
-    orderNumber: 'VT-89241',
-    customer: {
-      fullName: 'Muhammad Yeamin',
-      phone: '01711234567',
-      email: 'muhammadeyamin0@gmail.com',
-      division: 'Dhaka',
-      district: 'Dhaka',
-      upazila: 'Banani',
-      streetAddress: 'House 42, Road 11, Block D, Banani',
-      notes: 'Please call before delivery'
-    },
-    items: [
-      {
-        id: 'prod-001-M-Forest Pine',
-        productId: 'prod-001',
-        name: 'VANTREL Signature Heavyweight Pine Hoodie',
-        slug: 'vantrel-heavyweight-pine-hoodie',
-        image: '/assets/images/product_premium_hoodie_1792588590406.jpg',
-        size: 'M',
-        color: 'Forest Pine',
-        price: 2650,
-        regularPrice: 3200,
-        quantity: 1,
-        maxStock: 24,
-        sku: 'VT-HD-001-M-FP'
-      },
-      {
-        id: 'prod-002-L-Raw Ivory Cream',
-        productId: 'prod-002',
-        name: 'VANTREL Artisan Raw Cream Heavyweight Oversized Tee',
-        slug: 'vantrel-artisan-cream-oversized-tee',
-        image: '/assets/images/product_oversized_tee_1792588591424.jpg',
-        size: 'L',
-        color: 'Raw Ivory Cream',
-        price: 1350,
-        regularPrice: 1650,
-        quantity: 1,
-        maxStock: 25,
-        sku: 'VT-TS-002-L-IC'
-      }
-    ],
-    subtotal: 4000,
-    discount: 400,
-    couponCode: 'VANTREL10',
-    deliveryZone: 'inside_dhaka',
-    deliveryFee: 0,
-    total: 3600,
-    paymentMethod: 'bKash',
-    paymentStatus: 'Paid',
-    transactionId: 'BK9X77A12',
-    orderStatus: 'Shipped',
-    courierName: 'Steadfast',
-    trackingNumber: 'ST-DH-8921',
-    trackingUrl: 'https://steadfast.com.bd/t/ST-DH-8921',
-    estimatedDeliveryMinDays: 1,
-    estimatedDeliveryMaxDays: 2,
-    createdAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    customerConfirmationDeadline: new Date(Date.now() - 47 * 3600 * 1000).toISOString(),
-    canCancelUntil: new Date(Date.now() - 47 * 3600 * 1000).toISOString(),
-    statusHistory: [
-      { status: 'Pending Customer Confirmation', timestamp: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), note: 'Order placed via bKash', actor: 'Customer' },
-      { status: 'Customer Confirmed', timestamp: new Date(Date.now() - 47.5 * 3600 * 1000).toISOString(), note: 'Confirmed automatically past 15-min window', actor: 'System' },
-      { status: 'Order Confirmed', timestamp: new Date(Date.now() - 40 * 3600 * 1000).toISOString(), note: 'Approved by order moderator', actor: 'Rafiqul (Moderator)' },
-      { status: 'Processing', timestamp: new Date(Date.now() - 36 * 3600 * 1000).toISOString(), note: 'Dispatched to garment packaging line', actor: 'Warehouse Team' },
-      { status: 'Packed', timestamp: new Date(Date.now() - 28 * 3600 * 1000).toISOString(), note: 'Sealed in VANTREL custom packaging', actor: 'Warehouse Team' },
-      { status: 'Shipped', timestamp: new Date(Date.now() - 12 * 3600 * 1000).toISOString(), note: 'Handed over to Steadfast courier (ST-DH-8921)', actor: 'Logistics' }
-    ]
-  },
-  {
-    id: 'ord-102',
-    orderNumber: 'VT-89190',
-    customer: {
-      fullName: 'Farhan Kabir',
-      phone: '01819998877',
-      email: 'farhan@example.com',
-      division: 'Chattogram',
-      district: 'Chattogram',
-      upazila: 'Agrabad',
-      streetAddress: 'Flat 4B, Green View Tower, Agrabad C/A',
-      notes: 'Leave at reception if unavailable'
-    },
-    items: [
-      {
-        id: 'prod-003-32-Indigo / Charcoal Duo',
-        productId: 'prod-003',
-        name: 'VANTREL Dual Tone Relaxed Fit Selvedge Denim',
-        slug: 'vantrel-selvedge-relaxed-denim',
-        image: '/assets/images/product_denim_cargo_1792588592254.jpg',
-        size: '32',
-        color: 'Indigo / Charcoal Duo',
-        price: 3150,
-        regularPrice: 3800,
-        quantity: 1,
-        maxStock: 20,
-        sku: 'VT-JN-003-32-IC'
-      }
-    ],
-    subtotal: 3150,
-    discount: 0,
-    deliveryZone: 'outside_dhaka',
-    deliveryFee: 0,
-    total: 3150,
-    paymentMethod: 'Cash on Delivery (COD)',
-    paymentStatus: 'Pending',
-    orderStatus: 'Awaiting Staff Approval',
-    estimatedDeliveryMinDays: 2,
-    estimatedDeliveryMaxDays: 3,
-    createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-    customerConfirmationDeadline: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-    canCancelUntil: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-    statusHistory: [
-      { status: 'Pending Customer Confirmation', timestamp: new Date(Date.now() - 25 * 60 * 1000).toISOString(), note: 'Order placed via Cash on Delivery', actor: 'Customer' },
-      { status: 'Customer Confirmed', timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), note: '15-minute cancellation window elapsed. Marked customer confirmed.', actor: 'System' },
-      { status: 'Awaiting Staff Approval', timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), note: 'Queued for moderator order verification', actor: 'System' }
-    ]
-  }
-];
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Navigation & Page State
@@ -1039,9 +934,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [lastPlacedOrder]);
 
-  // Validate Firestore server connectivity strictly when entering Admin Dashboard (human sessions only)
+  const getAdminAuthHeaders = useCallback(async (extraHeaders?: Record<string, string>) => {
+    const headers: Record<string, string> = { ...(extraHeaders || {}) };
+    if (auth?.currentUser) {
+      try {
+        const token = await auth.currentUser.getIdToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch {
+        // Proceed without bearer token
+      }
+    }
+    return headers;
+  }, []);
+
+  // Validate Firestore server connectivity strictly when authenticated Admin enters Admin Dashboard
   useEffect(() => {
-    if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) return;
+    if (
+      currentPage !== 'admin' ||
+      !IS_GOOGLE_CLOUD_CONNECTED ||
+      !db ||
+      isSearchCrawler() ||
+      auth?.currentUser?.email?.toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
+      !auth?.currentUser?.emailVerified
+    ) {
+      return;
+    }
     let cancelled = false;
     async function testConnection() {
       try {
@@ -1056,7 +975,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       cancelled = true;
     };
-  }, [currentPage]);
+  }, [currentPage, currentUser?.email]);
 
   // Public Storefront Products Loading: Uses embedded SSR catalog or clean /api/products REST endpoint
   // (Eliminates client-side Firestore Listen/channel WebChannel XHR streams during Googlebot indexing & public visits)
@@ -1242,25 +1161,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [currentPage]);
 
-  // Scoped Orders Synchronization: Syncs immediately on admin/account/tracking/confirmation routes
-  const needsLiveOrderSync =
-    currentPage === 'admin' ||
-    currentPage === 'account' ||
-    currentPage === 'tracking' ||
-    currentPage === 'confirmation';
-
+  // Scoped Orders Synchronization: Full list only inside authenticated Admin Dashboard
   useEffect(() => {
-    if (!needsLiveOrderSync || isSearchCrawler()) return;
+    if (currentPage !== 'admin' || isSearchCrawler()) return;
+    if (
+      currentUser?.email?.trim().toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
+      !currentUser?.emailVerified
+    ) {
+      return;
+    }
     let isMounted = true;
     let lastSig = '';
 
     const syncOrdersWithServer = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       try {
-        const res = await fetch('/api/orders');
+        const headers = await getAdminAuthHeaders();
+        const res = await fetch('/api/orders', { headers });
         if (!res.ok) return;
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMounted) {
+        if (json.success && Array.isArray(json.data) && isMounted && json.data.length > 0) {
           const sorted = (json.data as Order[]).sort(
             (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
           );
@@ -1269,7 +1189,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             .join('|');
           if (nextSig !== lastSig) {
             lastSig = nextSig;
-            setOrders(sorted);
+            setOrders((prev) => {
+              const mergedMap = new Map<string, Order>();
+              prev.forEach((o) => mergedMap.set(o.id, o));
+              sorted.forEach((o) => mergedMap.set(o.id, o));
+              return Array.from(mergedMap.values()).sort(
+                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              );
+            });
           }
         }
       } catch {
@@ -1282,7 +1209,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Real-time orders stream is scoped strictly to Admin Dashboard
     let firestoreUnsub: (() => void) | undefined;
-    if (currentPage === 'admin' && IS_GOOGLE_CLOUD_CONNECTED && db) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
       try {
         const ordersCol = collection(db, 'orders');
         firestoreUnsub = onSnapshot(
@@ -1319,7 +1246,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearInterval(interval);
       if (firestoreUnsub) firestoreUnsub();
     };
-  }, [needsLiveOrderSync, currentPage]);
+  }, [currentPage, currentUser?.email, currentUser?.emailVerified, getAdminAuthHeaders]);
 
   // Listen to Firebase Auth state changes (skipped for search crawlers and anonymous public landing)
   useEffect(() => {
@@ -1332,21 +1259,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!needsAuthSync || !IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser) {
+        const isSuperAdminAccount =
+          fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+          Boolean(fbUser.emailVerified);
         setCurrentUser((prev) => {
-          if (prev && prev.id === fbUser.uid) return prev;
+          if (
+            prev &&
+            prev.id === fbUser.uid &&
+            (!isSuperAdminAccount || prev.role === 'Super Admin')
+          ) {
+            return prev;
+          }
           const userObj: User = {
             id: fbUser.uid,
-            name: fbUser.displayName || prev?.name || 'VANTREL Member',
-            email: fbUser.email || prev?.email || 'customer@vantrel.com',
-            phone: fbUser.phoneNumber || prev?.phone || '01711234567',
-            role: prev?.role || 'customer',
+            name: fbUser.displayName || prev?.name || (isSuperAdminAccount ? 'Muhammad Yeamin (Super Admin)' : 'VANTREL Member'),
+            email: fbUser.email || prev?.email || '',
+            phone: fbUser.phoneNumber || prev?.phone || '',
+            role: isSuperAdminAccount ? 'Super Admin' : (prev?.role || 'customer'),
             joinedDate: prev?.joinedDate || new Date().toISOString().split('T')[0],
             totalOrders: prev?.totalOrders || 0,
             totalSpent: prev?.totalSpent || 0,
             status: 'Active',
             loyaltyPoints: prev?.loyaltyPoints || 100,
             referralCode: prev?.referralCode || `VT-REF-${Math.floor(1000 + Math.random() * 9000)}`,
-            isVerified: true,
+            isVerified: Boolean(fbUser.emailVerified || fbUser.phoneNumber),
             emailVerified: Boolean(fbUser.emailVerified),
             phoneVerified: Boolean(fbUser.phoneNumber),
             verificationMethod: 'google',
@@ -1963,14 +1899,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     } catch (e) {
       console.warn('Firestore addProduct error:', e);
-      handleFirestoreError(e, OperationType.WRITE, `products/${product.id}`);
+      showToast('Database Sync Notice', 'Google Admin login required for Firebase database sync.', 'error');
     }
 
     // Also synchronize to server backend and disk storage
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(product)
       }).catch((err) => console.warn('Server product sync error:', err));
     } catch (e) {
@@ -2009,14 +1946,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     } catch (e) {
       console.warn('Firestore updateProduct error:', e);
-      handleFirestoreError(e, OperationType.UPDATE, `products/${id}`);
+      showToast('Database Sync Notice', 'Google Admin login required to save product changes.', 'error');
     }
 
     // Also synchronize to server backend and disk storage
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       fetch(`/api/products/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(cleanUpdated)
       }).catch((err) => console.warn('Server product update error:', err));
     } catch (e) {
@@ -2051,14 +1989,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     } catch (e) {
       console.warn('Firestore duplicateProduct error:', e);
-      handleFirestoreError(e, OperationType.WRITE, `products/${duplicated.id}`);
+      showToast('Database Sync Notice', 'Google Admin login required for Firebase database sync.', 'error');
     }
 
     // Also synchronize to server backend
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(duplicated)
       }).catch((err) => console.warn('Server product duplicate error:', err));
     } catch (e) {
@@ -2088,14 +2027,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     } catch (e) {
       console.warn('Firestore soft delete error:', e);
-      handleFirestoreError(e, OperationType.UPDATE, `products/${id}`);
+      showToast('Database Sync Notice', 'Google Admin login required for database changes.', 'error');
     }
 
     // Also update server backend
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       fetch(`/api/products/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(archivePayload)
       }).catch((err) => console.warn('Server product archive error:', err));
     } catch (e) {
@@ -2125,14 +2065,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     } catch (e) {
       console.warn('Firestore restore error:', e);
-      handleFirestoreError(e, OperationType.UPDATE, `products/${id}`);
+      showToast('Database Sync Notice', 'Google Admin login required for database changes.', 'error');
     }
 
     // Also update server backend
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       fetch(`/api/products/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(restorePayload)
       }).catch((err) => console.warn('Server product restore error:', err));
     } catch (e) {
@@ -2155,13 +2096,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     } catch (e) {
       console.warn('Firestore deleteDoc error:', e);
-      handleFirestoreError(e, OperationType.DELETE, `products/${id}`);
+      showToast('Database Sync Notice', 'Google Admin login required for permanent deletion.', 'error');
     }
 
     // Delete from server backend disk and memory
     try {
+      const headers = await getAdminAuthHeaders();
       fetch(`/api/products/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       }).catch((err) => console.warn('Server product delete error:', err));
     } catch (e) {
       console.warn('Server product delete exception:', e);
@@ -2191,7 +2134,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     try {
-      await fetch('/api/products', { method: 'DELETE' });
+      const headers = await getAdminAuthHeaders();
+      await fetch('/api/products', { method: 'DELETE', headers });
     } catch (e) {
       console.warn('Server delete all products warning:', e);
     }
@@ -2240,12 +2184,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         }
       } catch (e) {
         console.warn('Firestore bulk price recalculation error:', e);
-        handleFirestoreError(e, OperationType.WRITE, 'products');
+        showToast('Database Sync Notice', 'Google Admin login required for price sync.', 'error');
       }
     }
 
     try {
-      await fetch('/api/products/recalculate-prices', { method: 'POST' });
+      const headers = await getAdminAuthHeaders();
+      await fetch('/api/products/recalculate-prices', { method: 'POST', headers });
     } catch (e) {
       console.warn('Server bulk price recalculation notice:', e);
     }
@@ -2397,6 +2342,37 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         ? `"${target.name}" এখন হোমপেজের টপ/পপুলার প্রোডাক্ট সেকশনে প্রদর্শিত হবে।`
         : `"${target.name}" হোমপেজ টপ প্রোডাক্ট তালিকা থেকে সরানো হয়েছে।`,
       'success'
+    );
+  };
+
+  const addProductReview = (
+    productId: string,
+    review: {
+      id: string;
+      author: string;
+      rating: number;
+      date: string;
+      comment: string;
+      verifiedPurchase?: boolean;
+      location?: string;
+      photos?: string[];
+    }
+  ) => {
+    const normalizedReview = {
+      ...review,
+      verifiedPurchase: Boolean(review.verifiedPurchase)
+    };
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== productId) return p;
+        const nextReviews = [normalizedReview, ...(p.reviews || [])];
+        const nextCount = (p.reviewCount || p.reviews?.length || 0) + 1;
+        return {
+          ...p,
+          reviews: nextReviews,
+          reviewCount: nextCount
+        };
+      })
     );
   };
 
@@ -2600,13 +2576,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     }
 
-    // Also mirror update to local backend if running Express dev server
-    affectedProducts.forEach(({ id, nextVal }) => {
-      fetch(`/api/products/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isCategoryShowcase: nextVal })
-      }).catch(() => {});
+    // Also mirror update to backend with admin credentials
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+      affectedProducts.forEach(({ id, nextVal }) => {
+        fetch(`/api/products/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ isCategoryShowcase: nextVal })
+        }).catch(() => {});
+      });
     });
 
     const chosen = productId ? products.find((p) => p.id === productId) : null;
@@ -2850,10 +2828,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     // 2. Sync to Google Cloud Firestore orders collection
     try {
       if (db) {
-        setDoc(doc(db, 'orders', newOrder.id), {
+        const cleanOrderPayload = sanitizeFirestoreData({
           ...newOrder,
           savedToFirestoreAt: new Date().toISOString()
-        }).catch((err) => {
+        });
+        setDoc(doc(db, 'orders', newOrder.id), cleanOrderPayload).catch((err) => {
           console.warn('Firestore order save background warning:', err);
         });
       }
@@ -3238,7 +3217,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // 1. Purge from Server backend and disk store
     try {
-      await fetch('/api/orders', { method: 'DELETE' });
+      const headers = await getAdminAuthHeaders();
+      await fetch('/api/orders', { method: 'DELETE', headers });
     } catch (e) {
       console.warn('Backend orders clear error:', e);
     }
@@ -3272,7 +3252,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // 1. Delete on server backend
     try {
-      await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+      const headers = await getAdminAuthHeaders();
+      await fetch(`/api/orders/${id}`, { method: 'DELETE', headers });
     } catch (e) {
       console.warn('Backend order delete error:', e);
     }
@@ -3296,29 +3277,30 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     if (clean.length < 11) {
       return { success: false, message: 'Please enter a valid 11-digit Bangladesh phone number.' };
     }
-    const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    // Record SMS log
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const log: SmsLog = {
       id: `sms-${Date.now()}`,
       phone,
-      message: `VANTREL Security: Your one-time verification code is ${mockOtp}. Valid for 5 minutes.`,
+      message: `VANTREL Security: Verification code ${otpCode} requested.`,
       template: 'otp_verification',
       status: 'Sent',
       timestamp: new Date().toISOString(),
       provider: 'Greenweb SMS Gateway BD'
     };
     setSmsLogs((prev) => [log, ...prev]);
-    showToast('OTP Sent', `Verification code sent to ${phone}. (Demo code: ${mockOtp})`, 'success');
-    return { success: true, code: mockOtp, message: `OTP sent to ${phone}` };
+    showToast('OTP Dispatched', `A verification code has been dispatched to ${phone}.`, 'success');
+    return { success: true, message: `OTP sent to ${phone}` };
   };
 
   const verifyOtp = (phone: string, otp: string, customerName?: string) => {
-    if (!otp || otp.length < 4) {
+    if (!otp || otp.trim().length < 4) {
       return { success: false, message: 'Please enter the verification code.' };
     }
     const cleanPhone = phone.replace(/[-+\s]/g, '');
     const certId = `VT-CERT-${Math.floor(100000 + Math.random() * 900000)}`;
-    const existing = customers.find((c) => c.phone.replace(/[-+\s]/g, '').endsWith(cleanPhone.slice(-10)));
+    const existing = customers.find(
+      (c) => c.phone && c.phone.replace(/[-+\s]/g, '').endsWith(cleanPhone.slice(-10))
+    );
 
     let verifiedUser: User;
 
@@ -3340,7 +3322,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         id: `usr-${Date.now()}`,
         name: customerName || 'VANTREL Member',
         phone: cleanPhone,
-        email: `${cleanPhone}@vantrel.com`,
+        email: '',
         role: 'customer',
         joinedDate: new Date().toISOString().split('T')[0],
         totalOrders: 0,
@@ -3368,124 +3350,126 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     return { success: true, user: verifiedUser, message: 'Successfully authenticated & verified.' };
   };
 
-  const socialLogin = (
+  const socialLogin = async (
     provider: 'google' | 'facebook',
     profileData?: { name?: string; email?: string; phone?: string }
-  ) => {
+  ): Promise<User | null> => {
     const certId = `VT-CERT-${Math.floor(100000 + Math.random() * 900000)}`;
-    const defaultEmail = provider === 'google' ? 'verified.google@gmail.com' : 'verified.facebook@fb.com';
-    const email = profileData?.email || defaultEmail;
-    const name = profileData?.name || (provider === 'google' ? 'Google Verified Customer' : 'Facebook Verified Customer');
-    const phone = profileData?.phone || '01711234567';
 
-    const existing = customers.find(
-      (c) => (c.email && c.email.toLowerCase() === email.toLowerCase()) || c.phone.endsWith(phone.slice(-10))
-    );
-
-    let verifiedUser: User;
-
-    if (existing) {
-      verifiedUser = {
-        ...existing,
-        name: name !== 'Google Verified Customer' && name !== 'Facebook Verified Customer' ? name : existing.name,
-        isVerified: true,
-        emailVerified: true,
-        verificationMethod: provider,
-        verifiedAt: new Date().toISOString(),
-        verificationCertificateId: existing.verificationCertificateId || certId
-      };
-      setCustomers((prev) =>
-        prev.map((c) => (c.id === existing.id ? verifiedUser : c))
-      );
-    } else {
-      verifiedUser = {
-        id: `usr-${provider}-${Date.now()}`,
-        name,
-        email,
-        phone,
-        role: 'customer',
-        joinedDate: new Date().toISOString().split('T')[0],
-        totalOrders: 0,
-        totalSpent: 0,
-        status: 'Active',
-        loyaltyPoints: 150,
-        referralCode: `VT-${provider.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
-        isVerified: true,
-        emailVerified: true,
-        phoneVerified: true,
-        verificationMethod: provider,
-        verifiedAt: new Date().toISOString(),
-        verificationCertificateId: certId,
-        savedAddresses: []
-      };
-      setCustomers((prev) => [verifiedUser, ...prev]);
-    }
-
-    if (provider === 'google' && !profileData && IS_GOOGLE_CLOUD_CONNECTED && auth) {
+    // Real Google Firebase Popup Authentication
+    if (provider === 'google' && !profileData) {
+      if (!IS_GOOGLE_CLOUD_CONNECTED || !auth) {
+        showToast('Authentication Unavailable', 'Firebase authentication is not connected.', 'error');
+        return null;
+      }
       try {
         const gProvider = new GoogleAuthProvider();
-        signInWithPopup(auth, gProvider)
-          .then(async (result) => {
-            const fbUser = result.user;
-            const updatedUser: User = {
-              id: fbUser.uid,
-              name: fbUser.displayName || 'Google Verified Customer',
-              email: fbUser.email || 'customer@gmail.com',
-              phone: fbUser.phoneNumber || '01711234567',
-              role: 'customer',
-              joinedDate: new Date().toISOString().split('T')[0],
-              totalOrders: 0,
-              totalSpent: 0,
-              status: 'Active',
-              loyaltyPoints: 150,
-              referralCode: `VT-GOOGLE-${Math.floor(100 + Math.random() * 900)}`,
-              isVerified: true,
-              emailVerified: true,
-              phoneVerified: Boolean(fbUser.phoneNumber),
-              verificationMethod: 'google',
-              verifiedAt: new Date().toISOString(),
-              verificationCertificateId: certId,
-              savedAddresses: []
-            };
-            setCurrentUser(updatedUser);
-            if (db) {
-              try {
-                await setDoc(
-                  doc(db, 'users', fbUser.uid),
-                  {
-                    id: fbUser.uid,
-                    name: updatedUser.name,
-                    email: updatedUser.email,
-                    phone: updatedUser.phone,
-                    role: updatedUser.role,
-                    loyaltyPoints: updatedUser.loyaltyPoints
-                  },
-                  { merge: true }
-                );
-              } catch (err) {
-                console.warn('Firestore user profile sync warning:', err);
-              }
-            }
-          })
-          .catch((err) => {
-            console.warn('Firebase popup sign-in fallback:', err.message);
-          });
-      } catch (err) {
-        console.warn('Google Auth Provider initialization:', err);
+        const result = await signInWithPopup(auth, gProvider);
+        const fbUser = result.user;
+        const isSuperAdminAccount =
+          fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+          Boolean(fbUser.emailVerified);
+
+        const authenticatedUser: User = {
+          id: fbUser.uid,
+          name: fbUser.displayName || 'VANTREL Member',
+          email: fbUser.email || '',
+          phone: fbUser.phoneNumber || '',
+          role: isSuperAdminAccount ? 'Super Admin' : 'customer',
+          joinedDate: new Date().toISOString().split('T')[0],
+          totalOrders: 0,
+          totalSpent: 0,
+          status: 'Active',
+          loyaltyPoints: 150,
+          referralCode: `VT-GOOGLE-${Math.floor(100 + Math.random() * 900)}`,
+          isVerified: Boolean(fbUser.emailVerified),
+          emailVerified: Boolean(fbUser.emailVerified),
+          phoneVerified: Boolean(fbUser.phoneNumber),
+          verificationMethod: 'google',
+          verifiedAt: new Date().toISOString(),
+          verificationCertificateId: certId,
+          savedAddresses: []
+        };
+
+        if (db) {
+          try {
+            await setDoc(
+              doc(db, 'users', fbUser.uid),
+              sanitizeFirestoreData({
+                id: fbUser.uid,
+                name: authenticatedUser.name,
+                email: authenticatedUser.email,
+                phone: authenticatedUser.phone,
+                role: authenticatedUser.role,
+                loyaltyPoints: authenticatedUser.loyaltyPoints
+              }),
+              { merge: true }
+            );
+          } catch (err) {
+            console.warn('Firestore user profile sync warning:', err);
+          }
+        }
+
+        setCurrentUser(authenticatedUser);
+        if (isSuperAdminAccount) setCurrentStaffRole('Super Admin');
+        setIsAuthModalOpen(false);
+        showToast(
+          'গুগল সাইন-ইন সম্পন্ন',
+          `স্বাগতম ${authenticatedUser.name}! আপনার গুগল অ্যাকাউন্ট ভেরিফাই হয়েছে।`,
+          'success'
+        );
+        return authenticatedUser;
+      } catch (err: any) {
+        showToast(
+          'Google Sign-In Cancelled',
+          err?.message || 'Unable to complete Google authentication.',
+          'error'
+        );
+        return null;
       }
     }
 
+    if (provider === 'facebook' && !profileData) {
+      showToast(
+        'Facebook Login Unavailable',
+        'Please sign in with Google or your 11-digit Mobile Phone OTP.',
+        'info'
+      );
+      return null;
+    }
+
+    // Verified checkout profile metadata sync
+    const email = (profileData?.email || '').trim();
+    const name = (profileData?.name || '').trim() || 'VANTREL Customer';
+    const phone = (profileData?.phone || '').trim();
+
+    const verifiedUser: User = {
+      id: auth?.currentUser?.uid || `usr-${provider}-${Date.now()}`,
+      name,
+      email,
+      phone,
+      role: 'customer',
+      joinedDate: new Date().toISOString().split('T')[0],
+      totalOrders: 0,
+      totalSpent: 0,
+      status: 'Active',
+      loyaltyPoints: 150,
+      referralCode: `VT-${provider.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      isVerified: Boolean(email || phone),
+      emailVerified: Boolean(email),
+      phoneVerified: Boolean(phone),
+      verificationMethod: provider,
+      verifiedAt: new Date().toISOString(),
+      verificationCertificateId: certId,
+      savedAddresses: []
+    };
+
     setCurrentUser(verifiedUser);
     setIsAuthModalOpen(false);
-    showToast(
-      'অ্যাকাউন্ট ভেরিফাইড',
-      `${provider === 'google' ? 'গুগল (Gmail)' : 'ফেসবুক'} দিয়ে আপনার অ্যাকাউন্ট সফলভাবে ভেরিফাই করা হয়েছে!`,
-      'success'
-    );
     return verifiedUser;
   };
 
-  const verifyAndLoginCustomer = (data: {
+  const verifyAndLoginCustomer = async (data: {
     method: 'phone_otp' | 'google' | 'facebook';
     name: string;
     phone: string;
@@ -3493,22 +3477,27 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     otp?: string;
   }) => {
     if (data.method === 'phone_otp') {
-      const res = verifyOtp(data.phone, data.otp || '884920', data.name);
+      if (!data.otp) {
+        return { success: false, message: 'Please enter the OTP code sent to your phone.' };
+      }
+      const res = verifyOtp(data.phone, data.otp, data.name);
       return {
         success: res.success,
-        user: res.user || currentUser!,
+        user: res.user,
         message: res.message
       };
     } else {
-      const user = socialLogin(data.method, {
+      const user = await socialLogin(data.method, {
         name: data.name,
         email: data.email,
         phone: data.phone
       });
       return {
-        success: true,
-        user,
-        message: `${data.method === 'google' ? 'Google Gmail' : 'Facebook'} verification completed.`
+        success: Boolean(user),
+        user: user || undefined,
+        message: user
+          ? `${data.method === 'google' ? 'Google Gmail' : 'Facebook'} verification completed.`
+          : 'Verification failed.'
       };
     }
   };
@@ -3555,14 +3544,18 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const loginAsCustomer = (emailOrPhone: string, name?: string) => {
+    const cleanInput = emailOrPhone.trim();
+    const isEmail = cleanInput.includes('@');
     const existing = customers.find(
-      (c) => c.phone.includes(emailOrPhone) || c.email.includes(emailOrPhone)
+      (c) =>
+        (c.phone && cleanInput && c.phone.includes(cleanInput)) ||
+        (c.email && cleanInput && c.email.toLowerCase() === cleanInput.toLowerCase())
     );
     const user: User = existing || {
       id: `usr-${Date.now()}`,
       name: name || 'Valued Customer',
-      email: emailOrPhone.includes('@') ? emailOrPhone : 'customer@vantrel.com',
-      phone: emailOrPhone.includes('@') ? '01700000000' : emailOrPhone,
+      email: isEmail ? cleanInput : '',
+      phone: isEmail ? '' : cleanInput,
       role: 'customer',
       loyaltyPoints: 200,
       referralCode: `VT-REF-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -3573,52 +3566,89 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     showToast('Welcome to VANTREL', `Signed in as ${user.name}`, 'success');
   };
 
-  const loginAsStaff = (role: StaffRole, name?: string) => {
-    const staffUser: User = {
-      id: `staff-${role.toLowerCase().replace(/\s+/g, '-')}`,
-      name: name || `Staff (${role})`,
-      email: `${role.toLowerCase().replace(/\s+/g, '')}@vantrel.com`,
-      phone: '01711234567',
-      role,
-      loyaltyPoints: 0,
-      referralCode: 'VT-STAFF',
-      savedAddresses: []
-    };
-    setCurrentUser(staffUser);
+  // Switch active UI permission preview without destroying the verified Google Admin identity
+  const loginAsStaff = (role: StaffRole, _name?: string) => {
     setCurrentStaffRole(role);
-    showToast(`${role} Active`, `Operating with ${role} permissions.`, 'info');
+    showToast(`${role} Active`, `Operating with ${role} permissions preview.`, 'info');
   };
 
-  const verifyAdminCredentials = (email: string, pin: string) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPin = pin.trim();
-    if (cleanEmail === 'muhammadeyamin0@gmail.com' && cleanPin === '2010') {
+  const signInAdminWithGoogle = async (): Promise<{ success: boolean; message?: string }> => {
+    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth) {
+      return {
+        success: false,
+        message: 'ফায়ারবেস অথেনটিকেশন কনফিগার করা নেই।'
+      };
+    }
+
+    try {
+      const gProvider = new GoogleAuthProvider();
+      gProvider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, gProvider);
+      const fbUser = result.user;
+      const verifiedEmail = fbUser.email?.trim().toLowerCase() || '';
+
+      if (verifiedEmail !== 'muhammadeyamin0@gmail.com' || !fbUser.emailVerified) {
+        await fbSignOut(auth).catch(() => {});
+        return {
+          success: false,
+          message: `'${verifiedEmail || 'Unknown'}' ইমেইলটি অ্যাডমিন হিসেবে অনুমোদিত নয়। শুধুমাত্র ভেরিফাইড muhammadeyamin0@gmail.com দিয়ে প্রবেশ করুন।`
+        };
+      }
+
       const adminUser: User = {
-        id: 'usr-admin-yeamin',
-        name: 'Muhammad Yeamin (Super Admin)',
-        email: 'muhammadeyamin0@gmail.com',
-        phone: '01711234567',
+        id: fbUser.uid,
+        name: fbUser.displayName || 'Muhammad Yeamin (Super Admin)',
+        email: verifiedEmail,
+        phone: fbUser.phoneNumber || '',
         role: 'Super Admin',
         loyaltyPoints: 0,
         referralCode: 'VT-ADMIN',
         savedAddresses: [],
         isVerified: true,
-        emailVerified: true
+        emailVerified: true,
+        phoneVerified: Boolean(fbUser.phoneNumber),
+        verificationMethod: 'google'
       };
+
+      if (db) {
+        try {
+          await setDoc(
+            doc(db, 'users', fbUser.uid),
+            sanitizeFirestoreData({
+              id: fbUser.uid,
+              name: adminUser.name,
+              email: adminUser.email,
+              phone: adminUser.phone,
+              role: 'Super Admin',
+              loyaltyPoints: 0
+            }),
+            { merge: true }
+          );
+        } catch (err) {
+          console.warn('Admin profile Firestore sync notice:', err);
+        }
+      }
+
       setCurrentUser(adminUser);
       setCurrentStaffRole('Super Admin');
-      showToast('Admin Authenticated', 'স্বাগতম Muhammad Yeamin! অ্যাডমিন প্যানেল আনলক হয়েছে।', 'success');
+      showToast('Admin Authenticated', 'স্বাগতম Muhammad Yeamin! গুগল ভেরিফিকেশনের মাধ্যমে অ্যাডমিন প্যানেল আনলক হয়েছে।', 'success');
       return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'গুগল সাইন-ইন বাতিল হয়েছে বা সম্পন্ন করা যায়নি।'
+      };
     }
-    return {
-      success: false,
-      message: 'ভুল জিমেইল অথবা ৪-ডিজিটের পাসওয়ার্ড! সঠিক তথ্য দিন।'
-    };
   };
 
   const loginAsAdmin = () => {
-    if (currentUser?.email === 'muhammadeyamin0@gmail.com') {
-      loginAsStaff('Super Admin', 'Muhammad Yeamin (Super Admin)');
+    if (
+      currentUser?.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+      currentUser?.emailVerified
+    ) {
+      setCurrentStaffRole('Super Admin');
+    } else {
+      signInAdminWithGoogle();
     }
   };
 
@@ -3661,15 +3691,12 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     updateUserProfile({ savedAddresses: newAddresses });
   };
 
-  const isAdmin =
-    currentUser?.role === 'Super Admin' ||
-    currentUser?.role === 'Admin' ||
-    currentUser?.role === 'Order Moderator' ||
-    currentUser?.role === 'Product Moderator' ||
-    currentUser?.role === 'Finance Moderator' ||
-    currentUser?.role === 'Content Moderator' ||
-    currentUser?.role === 'Customer Support' ||
-    currentStaffRole !== undefined;
+  const isAdmin = Boolean(
+    currentUser &&
+      currentUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+      currentUser.emailVerified &&
+      (currentUser.role === 'Super Admin' || currentUser.role === 'Admin')
+  );
 
   // Business Finance & Profit Management Handlers
   const addFinancialRecord = (rec: Omit<FinancialRecord, 'id' | 'createdAt'>) => {
@@ -3682,11 +3709,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     addAuditLog('FINANCE_RECORD_ADD', `Added ${newRecord.type} "${newRecord.title}" (৳${newRecord.amount.toLocaleString()})`);
     showToast('Finance Entry Recorded', `${newRecord.title} · ৳${newRecord.amount.toLocaleString()}`, 'success');
 
-    fetch('/api/finances', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRecord)
-    }).catch((err) => console.warn('REST finance sync skipped:', err));
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+      fetch('/api/finances', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(newRecord)
+      }).catch((err) => console.warn('REST finance sync skipped:', err));
+    });
   };
 
   const updateFinancialRecord = (id: string, updated: Partial<FinancialRecord>) => {
@@ -3696,11 +3725,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     addAuditLog('FINANCE_RECORD_UPDATE', `Updated financial record ${id}`);
     showToast('Record Updated', 'Finance changes saved.', 'success');
 
-    fetch(`/api/finances/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((err) => console.warn('REST finance update skipped:', err));
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+      fetch(`/api/finances/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updated)
+      }).catch((err) => console.warn('REST finance update skipped:', err));
+    });
   };
 
   const deleteFinancialRecord = (id: string) => {
@@ -3709,9 +3740,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     addAuditLog('FINANCE_RECORD_DELETE', `Deleted financial entry: ${target?.title || id}`);
     showToast('Entry Removed', 'Financial entry was removed.', 'info');
 
-    fetch(`/api/finances/${id}`, { method: 'DELETE' }).catch((err) =>
-      console.warn('REST finance delete skipped:', err)
-    );
+    getAdminAuthHeaders().then((headers) => {
+      fetch(`/api/finances/${id}`, { method: 'DELETE', headers }).catch((err) =>
+        console.warn('REST finance delete skipped:', err)
+      );
+    });
   };
 
   const clearAllFinances = () => {
@@ -3735,11 +3768,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     addAuditLog('MODERATOR_ADD', `Assigned ${newMod.name} as ${newMod.role}`);
     showToast('Staff Moderator Created', `${newMod.name} granted ${newMod.role} access.`, 'success');
 
-    fetch('/api/moderators', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newMod)
-    }).catch((err) => console.warn('REST moderator sync skipped:', err));
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+      fetch('/api/moderators', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(newMod)
+      }).catch((err) => console.warn('REST moderator sync skipped:', err));
+    });
   };
 
   const updateStaffModerator = (id: string, updated: Partial<StaffModerator>) => {
@@ -3749,11 +3784,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     addAuditLog('MODERATOR_UPDATE', `Updated permissions/status for moderator ${id}`);
     showToast('Permissions Updated', 'Staff moderator record modified.', 'success');
 
-    fetch(`/api/moderators/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch((err) => console.warn('REST moderator update skipped:', err));
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+      fetch(`/api/moderators/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updated)
+      }).catch((err) => console.warn('REST moderator update skipped:', err));
+    });
   };
 
   const deleteStaffModerator = (id: string) => {
@@ -3766,9 +3803,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     addAuditLog('MODERATOR_REMOVE', `Revoked moderator privileges for ${target?.name || id}`);
     showToast('Access Revoked', 'Staff moderator account removed.', 'info');
 
-    fetch(`/api/moderators/${id}`, { method: 'DELETE' }).catch((err) =>
-      console.warn('REST moderator delete skipped:', err)
-    );
+    getAdminAuthHeaders().then((headers) => {
+      fetch(`/api/moderators/${id}`, { method: 'DELETE', headers }).catch((err) =>
+        console.warn('REST moderator delete skipped:', err)
+      );
+    });
   };
 
   // Visual Themes Handlers
@@ -3864,22 +3903,26 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     if (config) {
       setThemeConfig((prev) => ({ ...prev, ...config }));
       showToast('Theme Changed', `Applied "${preset.replace('-', ' ').toUpperCase()}"`, 'success');
-      fetch('/api/theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...themeConfig, ...config })
-      }).catch((err) => console.warn('REST theme sync skipped:', err));
+      getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+        fetch('/api/theme', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ...themeConfig, ...config })
+        }).catch((err) => console.warn('REST theme sync skipped:', err));
+      });
     }
   };
 
   const updateThemeConfig = (cfg: Partial<ThemeConfig>) => {
     setThemeConfig((prev) => {
       const next = { ...prev, ...cfg };
-      fetch('/api/theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next)
-      }).catch((err) => console.warn('REST theme sync skipped:', err));
+      getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+        fetch('/api/theme', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(next)
+        }).catch((err) => console.warn('REST theme sync skipped:', err));
+      });
       return next;
     });
     showToast('Theme Saved', 'Visual styling customized.', 'success');
@@ -3967,6 +4010,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         pinProductToTop,
         toggleTopProduct,
         moveProductToTop,
+        addProductReview,
         getProductById,
         getProductBySlug,
         categories,
@@ -4010,7 +4054,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         loginAsCustomer,
         loginAsStaff,
         loginAsAdmin,
-        verifyAdminCredentials,
+        signInAdminWithGoogle,
         logout,
         customers,
         updateCustomerStatus,

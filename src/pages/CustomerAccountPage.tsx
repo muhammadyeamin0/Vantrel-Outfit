@@ -26,8 +26,6 @@ import {
 export const CustomerAccountPage: React.FC = () => {
   const {
     currentUser,
-    loginAsCustomer,
-    loginAsStaff,
     logout,
     orders,
     wishlist,
@@ -76,25 +74,20 @@ export const CustomerAccountPage: React.FC = () => {
             >
               Sign In with Google / Phone OTP / Email
             </button>
-            <button
-              onClick={() => loginAsCustomer('01711234567', 'Muhammad Yeamin')}
-              className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold rounded-xl border border-white/10 transition-colors"
-            >
-              Quick Test Sign In (Muhammad Yeamin)
-            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Filter orders for this customer
-  const myOrders = orders.filter(
-    (o) =>
-      o.customer.phone === currentUser.phone ||
-      o.userId === currentUser.id ||
-      orders.length <= 2
-  );
+  // Strictly filter orders belonging to this authenticated customer only
+  const cleanUserPhone = (currentUser.phone || '').replace(/\D/g, '').slice(-10);
+  const myOrders = orders.filter((o) => {
+    const matchUser = Boolean(currentUser.id) && o.userId === currentUser.id;
+    const cleanOrderPhone = (o.customer?.phone || '').replace(/\D/g, '').slice(-10);
+    const matchPhone = cleanUserPhone.length >= 10 && cleanUserPhone === cleanOrderPhone;
+    return matchUser || matchPhone;
+  });
 
   const wishlistProducts = products.filter((p) => wishlist.includes(p.id));
 
@@ -184,26 +177,25 @@ export const CustomerAccountPage: React.FC = () => {
         </div>
 
         {/* Account Tabs */}
-        <div className="flex overflow-x-auto border-b border-[#E5E1D5] gap-4 sm:gap-6 text-xs font-bold uppercase tracking-wider">
+        <div className="flex overflow-x-auto border-b border-white/10 gap-4 sm:gap-6 text-xs font-bold uppercase tracking-wider">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 ${
+            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'orders'
-                ? 'text-[#14221C] border-b-2 border-[#14221C]'
-                : 'text-[#202522]/60 hover:text-[#14221C]'
+                ? 'text-white border-b-2 border-[#FF762E]'
+                : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Package className="w-4 h-4 text-[#FF762E]" />
             <span>My Orders ({myOrders.length})</span>
           </button>
 
-
           <button
             onClick={() => setActiveTab('addresses')}
-            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 ${
+            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'addresses'
-                ? 'text-[#14221C] border-b-2 border-[#14221C]'
-                : 'text-[#202522]/60 hover:text-[#14221C]'
+                ? 'text-white border-b-2 border-[#FF762E]'
+                : 'text-neutral-400 hover:text-white'
             }`}
           >
             <MapPin className="w-4 h-4 text-[#FF762E]" />
@@ -212,10 +204,10 @@ export const CustomerAccountPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('wishlist')}
-            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 ${
+            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'wishlist'
-                ? 'text-[#14221C] border-b-2 border-[#14221C]'
-                : 'text-[#202522]/60 hover:text-[#14221C]'
+                ? 'text-white border-b-2 border-[#FF762E]'
+                : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Heart className="w-4 h-4 text-[#FF762E]" />
@@ -224,10 +216,10 @@ export const CustomerAccountPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('profile')}
-            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 ${
+            className={`pb-3 transition-colors relative flex items-center gap-1.5 shrink-0 cursor-pointer ${
               activeTab === 'profile'
-                ? 'text-[#14221C] border-b-2 border-[#14221C]'
-                : 'text-[#202522]/60 hover:text-[#14221C]'
+                ? 'text-white border-b-2 border-[#FF762E]'
+                : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Sliders className="w-4 h-4 text-[#FF762E]" />

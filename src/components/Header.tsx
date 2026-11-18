@@ -184,43 +184,49 @@ export const Header: React.FC = () => {
 
         {/* Expandable Search Input Bar */}
         {isSearchOpen && (
-          <div className="py-3 px-2 border-t border-[#E5E1D5] bg-white rounded-b-xl shadow-lg animate-fadeIn mb-2">
+          <div className="py-3 px-3 border-t border-white/10 bg-[#111413] text-white rounded-b-xl shadow-2xl animate-fadeIn mb-2">
             <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#202522]/50 ml-2" />
+              <Search className="w-4 h-4 text-neutral-400 ml-2 shrink-0" />
               <input
                 type="text"
                 placeholder="Search heavyweight hoodie, raw tee, selvedge denim, panjabi..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsSearchOpen(false);
+                  }
+                }}
                 autoFocus
-                className="flex-1 px-3 py-2 text-xs sm:text-sm text-neutral-900 font-semibold bg-stone-50 border border-stone-200 rounded-lg placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-[#14221C]"
+                className="flex-1 px-3 py-2 text-xs sm:text-sm text-white font-semibold bg-[#0D0D0D] border border-white/15 rounded-lg placeholder:text-neutral-500 focus:outline-none focus:border-[#FF762E]"
               />
               {searchInput && (
                 <button
                   type="button"
                   onClick={() => setSearchInput('')}
-                  className="text-xs text-[#202522]/40 hover:text-[#202522]"
+                  className="text-xs text-neutral-400 hover:text-white px-2 cursor-pointer"
                 >
                   Clear
                 </button>
               )}
               <button
                 type="submit"
-                className="px-4 py-1.5 bg-[#14221C] text-white text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-[#202522] transition-colors"
+                className="px-4 py-1.5 bg-[#FF762E] text-white text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-[#e8631c] transition-colors cursor-pointer"
               >
                 Search
               </button>
               <button
                 type="button"
                 onClick={() => setIsSearchOpen(false)}
-                className="p-1.5 text-[#202522]/60 hover:text-[#14221C]"
+                className="p-1.5 text-neutral-400 hover:text-white cursor-pointer"
+                aria-label="Close search"
               >
                 <X className="w-4 h-4" />
               </button>
             </form>
             {/* Quick search suggestions */}
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 text-[11px] text-[#202522]/60 px-2 overflow-x-auto">
-              <span className="font-semibold text-[#14221C] shrink-0">Popular:</span>
+            <div className="flex items-center gap-2.5 mt-2 pt-2 border-t border-white/10 text-[11px] text-neutral-400 px-2 overflow-x-auto">
+              <span className="font-semibold text-neutral-200 shrink-0">Popular:</span>
               {['Pine Hoodie', 'Artisan Tee', 'Selvedge Denim', 'Linen Panjabi', 'Cargo'].map((tag) => (
                 <button
                   key={tag}
@@ -232,7 +238,7 @@ export const Header: React.FC = () => {
                     setCurrentPage('shop');
                     setIsSearchOpen(false);
                   }}
-                  className="hover:text-[#FF762E] underline underline-offset-2 shrink-0"
+                  className="hover:text-[#FF762E] underline underline-offset-2 shrink-0 cursor-pointer"
                 >
                   {tag}
                 </button>

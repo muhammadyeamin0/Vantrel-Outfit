@@ -32,16 +32,17 @@ export const ShopPage: React.FC = () => {
     setVisibleCount(24);
   }, [selectedCategory, searchQuery, maxPrice, selectedSize, selectedColor, inStockOnly, discountOnly, sortBy]);
 
-  const availableSizes = ['All', 'M', 'L', 'XL', 'XXL'];
-  const availableColors = [
-    'All',
-    'Forest Pine',
-    'Charcoal Black',
-    'Raw Ivory Cream',
-    'Sage Olive Linen',
-    'Indigo / Charcoal Duo',
-    'Chalk White'
-  ];
+  const availableSizes = ['All', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '28', '30', '32', '34', '36', '38'];
+  const availableColors = useMemo(() => {
+    const colorSet = new Set<string>();
+    products.forEach((p) => {
+      if (p.isArchived || p.status === 'archived') return;
+      (p.colors || []).forEach((c) => {
+        if (c?.name?.trim()) colorSet.add(c.name.trim());
+      });
+    });
+    return ['All', ...Array.from(colorSet).sort((a, b) => a.localeCompare(b))];
+  }, [products]);
 
   // Filtering and sorting logic
   const filteredProducts = useMemo(() => {

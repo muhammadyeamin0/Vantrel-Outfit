@@ -26,6 +26,7 @@ export const ProductDetailPage: React.FC = () => {
   const {
     selectedProductId,
     getProductById,
+    addProductReview,
     setCurrentPage,
     addToCart,
     isInWishlist,
@@ -42,11 +43,11 @@ export const ProductDetailPage: React.FC = () => {
   // Fallback if product not found
   if (!product) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-[#14221C]">Product not found</h2>
+      <div className="bg-[#0A0A0A] text-white min-h-[60vh] max-w-7xl mx-auto px-4 py-20 text-center">
+        <h2 className="text-2xl font-bold text-white">Product not found</h2>
         <button
           onClick={() => setCurrentPage('shop')}
-          className="mt-4 px-6 py-2.5 bg-[#14221C] text-white rounded-lg font-semibold"
+          className="mt-4 px-6 py-2.5 bg-[#FF762E] text-white rounded-lg font-semibold cursor-pointer"
         >
           Return to Shop
         </button>
@@ -133,9 +134,7 @@ export const ProductDetailPage: React.FC = () => {
       photos: newReviewPhoto.trim() ? [newReviewPhoto.trim()] : undefined
     };
 
-    if (!product.reviews) product.reviews = [];
-    product.reviews.unshift(review);
-    product.reviewCount += 1;
+    addProductReview(product.id, review);
 
     setReviewSubmitted(true);
     setNewReviewAuthor('');
@@ -509,7 +508,7 @@ export const ProductDetailPage: React.FC = () => {
             </div>
 
             {/* Trust Markers */}
-            <div className="grid grid-cols-2 gap-3 pt-2 text-[11px] text-[#202522]/80 border-t border-[#E5E1D5]">
+            <div className="grid grid-cols-2 gap-3 pt-3 text-[11px] text-neutral-300 border-t border-white/10">
               <div className="flex items-center gap-2">
                 <RotateCcw className="w-4 h-4 text-[#FF762E] shrink-0" />
                 <span>7-Day Hassle-Free Size Exchange</span>
@@ -579,22 +578,22 @@ export const ProductDetailPage: React.FC = () => {
           </div>
 
           {/* Interactive Garment Measurement Chart */}
-          <div className="pt-6 border-t border-[#E5E1D5] space-y-4">
+          <div className="pt-6 border-t border-white/10 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Ruler className="w-4 h-4 text-[#FF762E]" />
-                <h4 className="text-sm font-bold uppercase tracking-wider text-[#14221C]">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-white">
                   Garment Exact Measurements Chart
                 </h4>
               </div>
 
               {/* Unit Switcher */}
-              <div className="flex items-center gap-1 p-1 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs font-bold">
+              <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/10 rounded-xl text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setMeasurementUnit('in')}
                   className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                    measurementUnit === 'in' ? 'bg-[#14221C] text-white' : 'text-[#202522]/60 hover:text-[#14221C]'
+                    measurementUnit === 'in' ? 'bg-[#FF762E] text-white' : 'text-neutral-400 hover:text-white'
                   }`}
                 >
                   Inches (in)
@@ -603,7 +602,7 @@ export const ProductDetailPage: React.FC = () => {
                   type="button"
                   onClick={() => setMeasurementUnit('cm')}
                   className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                    measurementUnit === 'cm' ? 'bg-[#14221C] text-white' : 'text-[#202522]/60 hover:text-[#14221C]'
+                    measurementUnit === 'cm' ? 'bg-[#FF762E] text-white' : 'text-neutral-400 hover:text-white'
                   }`}
                 >
                   Centimeters (cm)
@@ -611,9 +610,9 @@ export const ProductDetailPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border border-[#E5E1D5]">
+            <div className="overflow-x-auto rounded-2xl border border-white/10">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#14221C] text-white text-[11px] uppercase tracking-wider font-semibold">
+                <thead className="bg-[#0D0D0D] text-neutral-300 text-[11px] uppercase tracking-wider font-semibold border-b border-white/10">
                   <tr>
                     <th className="px-4 py-3">Size</th>
                     <th className="px-4 py-3">Chest Width</th>
@@ -622,7 +621,7 @@ export const ProductDetailPage: React.FC = () => {
                     <th className="px-4 py-3">Shoulder</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E1D5] tabular-nums bg-white">
+                <tbody className="divide-y divide-white/10 tabular-nums bg-[#111111] text-neutral-300">
                   {product.sizes.map((sz) => {
                     const m = product.measurements?.[sz] || {
                       chest: sz === 'M' ? 42 : sz === 'L' ? 44 : sz === 'XL' ? 46 : 48,
@@ -636,11 +635,11 @@ export const ProductDetailPage: React.FC = () => {
                     return (
                       <tr
                         key={sz}
-                        className={`hover:bg-[#F7F5EF] transition-colors ${
-                          selectedSize === sz ? 'bg-amber-50/60 font-semibold text-[#14221C]' : ''
+                        className={`hover:bg-white/5 transition-colors ${
+                          selectedSize === sz ? 'bg-[#FF762E]/15 font-semibold text-white' : ''
                         }`}
                       >
-                        <td className="px-4 py-3 font-bold text-[#14221C]">{sz}</td>
+                        <td className="px-4 py-3 font-bold text-white">{sz}</td>
                         <td className="px-4 py-3">{fmt(m.chest)}</td>
                         <td className="px-4 py-3">{fmt(m.length)}</td>
                         <td className="px-4 py-3">{fmt(m.sleeve)}</td>
@@ -654,26 +653,26 @@ export const ProductDetailPage: React.FC = () => {
           </div>
 
           {/* Customer Reviews Section with Photo Review Support */}
-          <div className="pt-8 border-t border-[#E5E1D5] space-y-6">
+          <div className="pt-8 border-t border-white/10 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-[#14221C] tracking-tight">
+                <h3 className="text-lg font-bold text-white tracking-tight">
                   Verified Customer Reviews & Photos
                 </h3>
-                <p className="text-xs text-[#202522]/60 mt-0.5">
+                <p className="text-xs text-neutral-400 mt-0.5">
                   Real experiences and outfit photos from customers across Bangladesh.
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 bg-[#F7F5EF] px-4 py-2 rounded-xl border border-[#E5E1D5]">
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
                 <div className="flex items-center text-amber-400">
                   <Star className="w-5 h-5 fill-amber-400" />
                 </div>
                 <div className="text-left">
-                  <div className="text-sm font-bold text-[#14221C] tabular-nums">
+                  <div className="text-sm font-bold text-white tabular-nums">
                     {product.rating} out of 5
                   </div>
-                  <div className="text-[10px] text-[#202522]/60">
+                  <div className="text-[10px] text-neutral-400">
                     Based on {product.reviewCount} customer ratings
                   </div>
                 </div>
@@ -686,21 +685,21 @@ export const ProductDetailPage: React.FC = () => {
                 product.reviews.map((rev) => (
                   <div
                     key={rev.id}
-                    className="p-5 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-3"
+                    className="p-5 bg-white/5 rounded-2xl border border-white/10 space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#14221C]">{rev.author}</span>
+                        <span className="text-xs font-bold text-white">{rev.author}</span>
                         {rev.verifiedPurchase && (
-                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                          <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 rounded">
                             Verified Buyer
                           </span>
                         )}
                         {rev.location && (
-                          <span className="text-[11px] text-[#202522]/50">· {rev.location}</span>
+                          <span className="text-[11px] text-neutral-400">· {rev.location}</span>
                         )}
                       </div>
-                      <span className="text-[11px] text-[#202522]/40 tabular-nums">
+                      <span className="text-[11px] text-neutral-400 tabular-nums">
                         {rev.date}
                       </span>
                     </div>
@@ -710,13 +709,13 @@ export const ProductDetailPage: React.FC = () => {
                         <Star
                           key={i}
                           className={`w-3.5 h-3.5 ${
-                            i < rev.rating ? 'fill-amber-400' : 'text-stone-300'
+                            i < rev.rating ? 'fill-amber-400' : 'text-neutral-700'
                           }`}
                         />
                       ))}
                     </div>
 
-                    <p className="text-xs text-[#202522]/80 leading-relaxed font-sans">
+                    <p className="text-xs text-neutral-300 leading-relaxed font-sans">
                       "{rev.comment}"
                     </p>
 
@@ -726,7 +725,7 @@ export const ProductDetailPage: React.FC = () => {
                         {rev.photos.map((photo, pIdx) => (
                           <div
                             key={pIdx}
-                            className="relative w-16 h-20 rounded-xl overflow-hidden border border-[#E5E1D5] shadow-xs cursor-pointer group"
+                            className="relative w-16 h-20 rounded-xl overflow-hidden border border-white/15 shadow-xs cursor-pointer group"
                             onClick={() => {
                               showToast('Customer Photo', 'Authentic verified customer wearing this piece.', 'info');
                             }}
@@ -747,19 +746,19 @@ export const ProductDetailPage: React.FC = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-[#202522]/60 italic">
+                <p className="text-xs text-neutral-400 italic">
                   Be the first to leave an honest review for this piece!
                 </p>
               )}
             </div>
 
             {/* Write a Review Form with Photo Upload Option */}
-            <div className="p-6 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-4">
+            <div className="p-6 bg-white/5 rounded-2xl border border-white/10 space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#14221C]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
                   Leave Your Rating, Review & Outfit Photo
                 </h4>
-                <span className="text-[11px] text-[#202522]/60 flex items-center gap-1">
+                <span className="text-[11px] text-neutral-400 flex items-center gap-1">
                   <Camera className="w-3.5 h-3.5 text-[#FF762E]" />
                   <span>Photo Reviews Welcome</span>
                 </span>
@@ -768,26 +767,26 @@ export const ProductDetailPage: React.FC = () => {
               <form onSubmit={handleReviewSubmit} className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#14221C] mb-1">
-                      Your Full Name <span className="text-rose-500">*</span>
+                    <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                      Your Full Name <span className="text-rose-400">*</span>
                     </label>
                     <input
                       type="text"
                       placeholder="e.g. Tanvir Ahmed"
                       value={newReviewAuthor}
                       onChange={(e) => setNewReviewAuthor(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-white border border-[#E5E1D5] rounded-lg focus:outline-none focus:border-[#14221C]"
+                      className="w-full px-3 py-2 text-xs bg-[#0D0D0D] text-white placeholder:text-neutral-500 border border-white/15 rounded-lg focus:outline-none focus:border-[#FF762E]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#14221C] mb-1">
+                    <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
                       Rating
                     </label>
                     <select
                       value={newReviewRating}
                       onChange={(e) => setNewReviewRating(Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs bg-white border border-[#E5E1D5] rounded-lg focus:outline-none focus:border-[#14221C]"
+                      className="w-full px-3 py-2 text-xs bg-[#0D0D0D] text-white border border-white/15 rounded-lg focus:outline-none focus:border-[#FF762E]"
                     >
                       <option value={5}>5 Stars - Outstanding Fabric & Drape</option>
                       <option value={4}>4 Stars - Very Good Quality</option>
@@ -799,21 +798,21 @@ export const ProductDetailPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#14221C] mb-1">
-                    Your Review & Fit Experience <span className="text-rose-500">*</span>
+                  <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                    Your Review & Fit Experience <span className="text-rose-400">*</span>
                   </label>
                   <textarea
                     rows={3}
                     placeholder="Share details about the GSM fabric feel, stitching accuracy, and styling..."
                     value={newReviewComment}
                     onChange={(e) => setNewReviewComment(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-[#E5E1D5] rounded-lg focus:outline-none focus:border-[#14221C]"
+                    className="w-full px-3 py-2 text-xs bg-[#0D0D0D] text-white placeholder:text-neutral-500 border border-white/15 rounded-lg focus:outline-none focus:border-[#FF762E]"
                   />
                 </div>
 
                 {/* Photo attachment helper */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#14221C] mb-1">
+                  <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
                     Attach Customer Outfit Photo (Optional)
                   </label>
                   <div className="flex flex-wrap items-center gap-3">
@@ -822,12 +821,12 @@ export const ProductDetailPage: React.FC = () => {
                       placeholder="Paste image URL (e.g. /assets/images/... or web URL)"
                       value={newReviewPhoto}
                       onChange={(e) => setNewReviewPhoto(e.target.value)}
-                      className="flex-1 min-w-[200px] px-3 py-2 text-xs bg-white border border-[#E5E1D5] rounded-lg focus:outline-none focus:border-[#14221C]"
+                      className="flex-1 min-w-[200px] px-3 py-2 text-xs bg-[#0D0D0D] text-white placeholder:text-neutral-500 border border-white/15 rounded-lg focus:outline-none focus:border-[#FF762E]"
                     />
                     <button
                       type="button"
                       onClick={() => setNewReviewPhoto(product.images[0])}
-                      className="px-3 py-2 bg-white border border-[#E5E1D5] text-[11px] font-semibold text-[#14221C] rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                      className="px-3 py-2 bg-white/10 border border-white/15 text-[11px] font-semibold text-white rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
                     >
                       Use Product Fit Photo
                     </button>
@@ -837,9 +836,9 @@ export const ProductDetailPage: React.FC = () => {
                       <img
                         src={newReviewPhoto}
                         alt="Preview"
-                        className="w-10 h-12 object-cover rounded-md border border-[#E5E1D5]"
+                        className="w-10 h-12 object-cover rounded-md border border-white/15"
                       />
-                      <span className="text-[11px] text-emerald-700 font-semibold">Photo attached!</span>
+                      <span className="text-[11px] text-emerald-400 font-semibold">Photo attached!</span>
                     </div>
                   )}
                 </div>
@@ -847,7 +846,7 @@ export const ProductDetailPage: React.FC = () => {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer shadow-sm"
+                    className="px-6 py-2.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer shadow-sm"
                   >
                     Submit Review & Photos
                   </button>
@@ -862,10 +861,10 @@ export const ProductDetailPage: React.FC = () => {
           <div className="space-y-6 pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-heading text-xl font-extrabold text-[#14221C] tracking-tight">
+                <h3 className="font-heading text-xl font-extrabold text-white tracking-tight">
                   You May Also Like
                 </h3>
-                <p className="text-xs text-[#202522]/60 mt-0.5">
+                <p className="text-xs text-neutral-400 mt-0.5">
                   Pairs seamlessly with your selected aesthetic.
                 </p>
               </div>

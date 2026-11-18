@@ -1,43 +1,173 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Pillar 1: Global Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && 
-        (request.auth.token.role == 'admin' || 
-         request.auth.token.role == 'Super Admin' ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'Super Admin']));
+      return isAuthenticated() && (
+        (request.auth.token.email == 'muhammadeyamin0@gmail.com' &&
+         request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && !id.matches('.*[/\\\\.].*');
+    }
+
+    function isNonEmptyString(val, maxLen) {
+      return val is string && val.size() > 0 && val.size() <= maxLen;
+    }
+
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidProductWrite(data) {
+      return data.keys().hasAll(['name', 'sku', 'category', 'regularPrice', 'totalStock']) &&
+        (!('id' in data) || data.id == null || isNonEmptyString(data.id, 128)) &&
+        isNonEmptyString(data.name, 220) &&
+        isNonEmptyString(data.sku, 80) &&
+        isNonEmptyString(data.category, 80) &&
+        data.regularPrice is number && data.regularPrice >= 0 && data.regularPrice <= 1000000 &&
+        data.totalStock is number && data.totalStock >= 0 && data.totalStock <= 100000 &&
+        (!('discountPrice' in data) || data.discountPrice == null || (data.discountPrice is number && data.discountPrice >= 0 && data.discountPrice <= 1000000)) &&
+        (!('costPrice' in data) || data.costPrice == null || (data.costPrice is number && data.costPrice >= 0 && data.costPrice <= 1000000)) &&
+        (!('images' in data) || (data.images is list && data.images.size() <= 20)) &&
+        (!('sizes' in data) || (data.sizes is list && data.sizes.size() <= 20)) &&
+        (!('isArchived' in data) || data.isArchived is bool) &&
+        isOptionalString(data, 'slug', 220) &&
+        isOptionalString(data, 'status', 32);
+    }
+
+    function isValidOrderCreate(data) {
+      return data.keys().hasAll(['id', 'orderNumber', 'customer', 'items', 'subtotal', 'total', 'orderStatus', 'paymentMethod', 'createdAt']) &&
+        isNonEmptyString(data.id, 128) &&
+        data.orderNumber is string && data.orderNumber.matches('^VT-[A-Z0-9-]+$') && data.orderNumber.size() <= 40 &&
+        data.customer is map &&
+        data.customer.keys().hasAll(['fullName', 'phone', 'district', 'upazila', 'streetAddress']) &&
+        isNonEmptyString(data.customer.fullName, 120) &&
+        isNonEmptyString(data.customer.phone, 24) &&
+        isNonEmptyString(data.customer.district, 80) &&
+        isNonEmptyString(data.customer.upazila, 80) &&
+        isNonEmptyString(data.customer.streetAddress, 400) &&
+        data.items is list && data.items.size() >= 1 && data.items.size() <= 50 &&
+        data.subtotal is number && data.subtotal >= 0 && data.subtotal <= 5000000 &&
+        data.total is number && data.total >= 0 && data.total <= 5000000 &&
+        (!('deliveryFee' in data) || data.deliveryFee == null || (data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 5000)) &&
+        data.orderStatus in ['Pending Customer Confirmation', 'Customer Confirmed', 'Awaiting Staff Approval'] &&
+        (!('paymentStatus' in data) || data.paymentStatus == 'Pending' || data.paymentMethod != 'Cash on Delivery (COD)') &&
+        isNonEmptyString(data.paymentMethod, 80) &&
+        isNonEmptyString(data.createdAt, 64) &&
+        (!('userId' in data) || data.userId == null || (data.userId is string && data.userId.size() <= 128));
+    }
+
+    function isValidCoupon(data) {
+      return data.keys().hasAll(['code', 'type', 'value', 'minOrder', 'isActive']) &&
+        isNonEmptyString(data.code, 40) &&
+        data.type in ['percent', 'fixed'] &&
+        data.value is number && data.value >= 0 && data.value <= 100000 &&
+        data.minOrder is number && data.minOrder >= 0 &&
+        data.isActive is bool;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['id', 'name', 'role']) &&
+        data.id == userId &&
+        isNonEmptyString(data.name, 120) &&
+        isOptionalString(data, 'email', 160) &&
+        isOptionalString(data, 'phone', 24) &&
+        (!('loyaltyPoints' in data) || data.loyaltyPoints == null || (data.loyaltyPoints is number && data.loyaltyPoints >= 0));
+    }
+
+    function isValidWishlistItem(data, productId) {
+      return data.keys().hasAll(['productId', 'addedAt']) &&
+        data.productId == productId &&
+        isNonEmptyString(data.addedAt, 64) &&
+        isOptionalString(data, 'name', 220) &&
+        (!('price' in data) || data.price == null || (data.price is number && data.price >= 0));
+    }
+
+    // Admin Registry (read-only from client; provisioned out-of-band)
+    match /admins/{adminId} {
+      allow get: if isOwner(adminId) || isAdmin();
+      allow list, create, update, delete: if false;
+    }
+
+    // Storefront Health Check Doc (Admin only)
+    match /test/{docId} {
+      allow get: if isAdmin();
+      allow list, create, update, delete: if false;
+    }
+
+    // Products Catalog: Public read, strictly Admin-only validated writes
     match /products/{productId} {
-      allow read, write: if true;
+      allow get, list: if true;
+      allow create, update: if isAdmin() && isValidId(productId) && isValidProductWrite(request.resource.data);
+      allow delete: if isAdmin() && isValidId(productId);
     }
 
+    // Customer Orders: Strictly owner or Admin can read PII; validated creation
     match /orders/{orderId} {
-      allow read, write: if true;
+      allow get: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(orderId) &&
+        isValidOrderCreate(request.resource.data) &&
+        (isAdmin() || !isAuthenticated() || request.resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['orderStatus', 'cancellationReason', 'cancelledAt', 'returnReason', 'statusHistory']) &&
+        request.resource.data.orderStatus in ['Cancelled', 'Cancellation Requested', 'Return Requested']
+      );
+      allow delete: if isAdmin();
     }
 
+    // Promotional Coupons: Public read for validation, Admin-only write
     match /coupons/{couponId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get, list: if true;
+      allow create, update: if isAdmin() && isValidId(couponId) && isValidCoupon(request.resource.data);
+      allow delete: if isAdmin();
     }
 
+    // User Profiles & Saved Wishlists (Zero Self-Assigned Role Escalation)
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if true;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if (isOwner(userId) || isAdmin()) &&
+        isValidId(userId) &&
+        isValidUserProfile(request.resource.data, userId) &&
+        (isAdmin() || request.resource.data.role == 'customer');
+      allow update: if (isOwner(userId) || isAdmin()) &&
+        isValidUserProfile(request.resource.data, userId) &&
+        (isAdmin() || request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
 
       match /wishlist/{productId} {
-        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) &&
+          isValidId(productId) &&
+          isValidWishlistItem(request.resource.data, productId);
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
+    // Storefront Global Settings: Public read, Admin-only write
     match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

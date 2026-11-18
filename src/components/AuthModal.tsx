@@ -31,7 +31,6 @@ export const AuthModal: React.FC = () => {
   const [phoneInput, setPhoneInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [isOtpSent, setIsOtpSent] = useState(false);
-  const [demoOtpCode, setDemoOtpCode] = useState('');
 
   // Email form
   const [emailInput, setEmailInput] = useState('');
@@ -55,7 +54,6 @@ export const AuthModal: React.FC = () => {
     const res = sendOtp(phoneInput.trim());
     if (res.success) {
       setIsOtpSent(true);
-      if (res.code) setDemoOtpCode(res.code);
     } else {
       showToast('Failed to Send OTP', res.message, 'error');
     }
@@ -253,11 +251,6 @@ export const AuthModal: React.FC = () => {
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <div>
                       <span>৬ ডিজিটের ওটিপি পাঠানো হয়েছে: <strong>{phoneInput}</strong></span>
-                      {demoOtpCode && (
-                        <div className="mt-1 font-mono font-bold text-xs">
-                          সিমুলেশন ওটিপি কোড: <span className="bg-emerald-200 px-2 py-0.5 rounded text-emerald-950 font-mono tracking-widest">{demoOtpCode}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -266,15 +259,6 @@ export const AuthModal: React.FC = () => {
                       <label className="text-[11px] font-bold text-[#14221C]">
                         ৬ ডিজিটের সিকিউরিটি কোড দিন
                       </label>
-                      {demoOtpCode && (
-                        <button
-                          type="button"
-                          onClick={() => setOtpInput(demoOtpCode)}
-                          className="text-[10px] text-[#FF762E] font-bold hover:underline"
-                        >
-                          কোডটি অটো-ফিল করুন
-                        </button>
-                      )}
                     </div>
                     <input
                       type="text"
@@ -306,8 +290,7 @@ export const AuthModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const res = sendOtp(phoneInput.trim());
-                        if (res.code) setDemoOtpCode(res.code);
+                        sendOtp(phoneInput.trim());
                       }}
                       className="hover:text-[#14221C] text-[#FF762E] font-semibold cursor-pointer"
                     >
@@ -535,7 +518,10 @@ export const AuthModal: React.FC = () => {
           {/* Social Buttons */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <button
-              onClick={() => socialLogin('google')}
+              type="button"
+              onClick={() => {
+                void socialLogin('google');
+              }}
               className="py-2.5 px-3 border border-[#E5E1D5] hover:border-stone-400 bg-white rounded-xl font-semibold text-[#14221C] flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -560,7 +546,10 @@ export const AuthModal: React.FC = () => {
             </button>
 
             <button
-              onClick={() => socialLogin('facebook')}
+              type="button"
+              onClick={() => {
+                void socialLogin('facebook');
+              }}
               className="py-2.5 px-3 border border-[#E5E1D5] hover:border-stone-400 bg-white rounded-xl font-semibold text-[#14221C] flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <svg className="w-4 h-4 fill-[#1877F2]" viewBox="0 0 24 24">

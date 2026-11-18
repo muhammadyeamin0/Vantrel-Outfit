@@ -41,10 +41,11 @@ export const OrderTrackingPage: React.FC = () => {
     showToast
   } = useStore();
 
-  const [orderNumber, setOrderNumber] = useState(lastPlacedOrder ? lastPlacedOrder.orderNumber : 'VT-89241');
-  const [phone, setPhone] = useState(lastPlacedOrder ? lastPlacedOrder.customer.phone : '01711234567');
+  const [orderNumber, setOrderNumber] = useState(lastPlacedOrder ? lastPlacedOrder.orderNumber : '');
+  const [phone, setPhone] = useState(lastPlacedOrder ? lastPlacedOrder.customer.phone : '');
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(lastPlacedOrder || null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   // 15-min countdown timer state
@@ -87,7 +88,10 @@ export const OrderTrackingPage: React.FC = () => {
         if (diff <= 0 && isPending && !hasAutoConfirmed) {
           hasAutoConfirmed = true;
           fetch(`/api/orders/${searchedOrder.id}/auto-confirm`, { method: 'POST' })
-            .then((r) => r.json())
+            .then(async (r) => {
+              if (!r.ok) return null;
+              return r.json();
+            })
             .then((data) => {
               if (data?.success && data?.data) {
                 setSearchedOrder(data.data);
@@ -119,23 +123,55 @@ export const OrderTrackingPage: React.FC = () => {
     'Delivered'
   ];
 
-  const handleTrackSubmit = (e: React.FormEvent) => {
+  const handleTrackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setHasSearched(true);
 
-    if (!orderNumber.trim() && !phone.trim()) {
-      setErrorMessage('Please enter either your Order Number (e.g. VT-89241) or your Mobile Number.');
+    const trimmedOrder = orderNumber.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedOrder && !trimmedPhone) {
+      setErrorMessage('Please enter both your Order Number (e.g. VT-89241) and Mobile Number.');
       return;
     }
 
-    const order = trackOrderLookup(orderNumber.trim(), phone.trim());
-    if (order) {
-      setSearchedOrder(order);
-      showToast('Order Located', `Current Status: ${order.orderStatus}`, 'info');
-    } else {
+    // 1. Check current session/local orders first
+    const localOrder = trackOrderLookup(trimmedOrder, trimmedPhone);
+    if (localOrder) {
+      setSearchedOrder(localOrder);
+      showToast('Order Located', `Current Status: ${localOrder.orderStatus}`, 'info');
+      return;
+    }
+
+    // 2. Fallback to live serverless lookup for cross-device / post-refresh tracking
+    if (!trimmedOrder || !trimmedPhone) {
       setSearchedOrder(null);
-      setErrorMessage('No order found matching this inquiry. Please verify your Order Number or Mobile Number.');
+      setErrorMessage('Please enter both your Order Number and Mobile Number to verify and track your order.');
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `/api/orders?orderNumber=${encodeURIComponent(trimmedOrder)}&phone=${encodeURIComponent(trimmedPhone)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const foundOrder = Array.isArray(data?.data) ? data.data[0] : data?.data;
+        if (data?.success && foundOrder && foundOrder.orderNumber) {
+          setSearchedOrder(foundOrder);
+          showToast('Order Located', `Current Status: ${foundOrder.orderStatus}`, 'info');
+          return;
+        }
+      }
+      setSearchedOrder(null);
+      setErrorMessage('No order found matching this Order Number and Mobile Number. Please double-check your details.');
+    } catch {
+      setSearchedOrder(null);
+      setErrorMessage('Unable to verify order right now. Please try again in a moment.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -149,7 +185,7 @@ export const OrderTrackingPage: React.FC = () => {
     return 'upcoming';
   };
 
-  const handleCancelSubmit = () => {
+  const handleCancelSubmit = async () => {
     if (!searchedOrder) return;
     if (!cancelReason) {
       showToast('কারণ নির্বাচন করুন', 'অনুগ্রহ করে অর্ডার বাতিলের কারণ নির্বাচন করুন।', 'error');
@@ -168,6 +204,32 @@ export const OrderTrackingPage: React.FC = () => {
         setSearchedOrder({ ...searchedOrder, orderStatus: 'Cancelled', cancellationReason: finalReason });
       }
       showToast('অর্ডার বাতিল সম্পন্ন', 'অর্ডারটি সফলভাবে বাতিল করা হয়েছে।', 'success');
+      return;
+    }
+
+    // Cross-device order loaded directly from server: cancel via API directly
+    try {
+      const apiRes = await fetch(`/api/orders/${encodeURIComponent(searchedOrder.id)}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: finalReason,
+          phone: searchedOrder.customer?.phone || phone.trim()
+        })
+      });
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        if (apiData?.success) {
+          setSearchedOrder(
+            apiData.data || { ...searchedOrder, orderStatus: 'Cancelled', cancellationReason: finalReason }
+          );
+          showToast('অর্ডার বাতিল সম্পন্ন', 'অর্ডারটি সফলভাবে বাতিল করা হয়েছে।', 'success');
+          return;
+        }
+      }
+      showToast('বাতিল ব্যর্থ হয়েছে', res.message || 'নির্ধারিত ১৫ মিনিট সময় অতিক্রান্ত হয়েছে।', 'error');
+    } catch {
+      showToast('বাতিল ব্যর্থ হয়েছে', res.message || 'সার্ভারের সাথে সংযোগ ব্যর্থ হয়েছে।', 'error');
     }
   };
 
@@ -256,41 +318,14 @@ export const OrderTrackingPage: React.FC = () => {
             <div className="sm:col-span-2">
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                disabled={isSearching}
+                className="w-full py-2.5 px-4 bg-[#14221C] hover:bg-[#202522] disabled:opacity-60 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Search className="w-4 h-4 text-[#FF762E]" />
-                <span>Track</span>
+                <span>{isSearching ? 'Finding...' : 'Track'}</span>
               </button>
             </div>
           </form>
-
-          {/* Demo helper */}
-          <div className="flex items-center justify-between text-[11px] text-[#202522]/60 pt-2 border-t border-slate-100">
-            <span>Demo Test Orders:</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setOrderNumber('VT-89241');
-                  setPhone('01711234567');
-                }}
-                className="text-[#14221C] font-semibold hover:text-[#FF762E] underline cursor-pointer"
-              >
-                VT-89241 (Shipped)
-              </button>
-              <span>·</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setOrderNumber('VT-89190');
-                  setPhone('01819998877');
-                }}
-                className="text-[#14221C] font-semibold hover:text-[#FF762E] underline cursor-pointer"
-              >
-                VT-89190 (Awaiting Staff Approval)
-              </button>
-            </div>
-          </div>
 
           {errorMessage && (
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-xs text-rose-700">
