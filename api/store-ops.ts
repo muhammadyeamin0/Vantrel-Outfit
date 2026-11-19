@@ -39,16 +39,22 @@ function formatBdPhoneForWhatsApp(phone: string): string {
   return digits;
 }
 
+function sanitizeEnvCred(raw: string | undefined): string {
+  if (!raw) return '';
+  return raw.trim().replace(/^["']+|["']+$/g, '').trim();
+}
+
 async function dispatchOrderEmail(order: OrderLike) {
-  const recipient = process.env.ORDER_NOTIFICATION_EMAIL || 'muhammadeyamin0@gmail.com';
-  const senderUser = process.env.GMAIL_USER || 'muhammadeyamin0@gmail.com';
-  const appPassword = process.env.GMAIL_APP_PASSWORD;
+  const recipient = sanitizeEnvCred(process.env.ORDER_NOTIFICATION_EMAIL) || 'muhammadeyamin0@gmail.com';
+  const senderUser = sanitizeEnvCred(process.env.GMAIL_USER) || 'muhammadeyamin0@gmail.com';
+  const appPassword = sanitizeEnvCred(process.env.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
 
   if (!appPassword) {
     return {
       success: true,
       delivered: false,
       recipient,
+      senderUser,
       note: 'Email payload validated; set GMAIL_APP_PASSWORD environment variable on server for live SMTP delivery'
     };
   }
@@ -65,28 +71,46 @@ async function dispatchOrderEmail(order: OrderLike) {
     )
     .join('');
 
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: senderUser,
-      pass: appPassword.replace(/\s+/g, '')
-    }
-  });
+  try {
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: senderUser,
+        pass: appPassword
+      }
+    });
 
-  const info = await transporter.sendMail({
-    from: `"VANTREL OUTFIT" <${senderUser}>`,
-    to: recipient,
-    subject: `[VANTREL ORDER] #${order.orderNumber || 'N/A'} - ৳${Number(order.total || 0).toLocaleString()} BDT`,
-    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e5e1d5;border-radius:12px;">
-      <h2 style="margin:0 0 8px;">VANTREL OUTFIT — New Order #${order.orderNumber || 'N/A'}</h2>
-      <p><strong>Customer:</strong> ${order.customer?.fullName || 'N/A'} (${order.customer?.phone || 'N/A'})</p>
-      <p><strong>Address:</strong> ${order.customer?.streetAddress || ''}, ${order.customer?.upazila || ''}, ${order.customer?.district || ''}</p>
-      <table style="width:100%;border-collapse:collapse;margin:16px 0;">${itemsHtml}</table>
-      <p style="font-size:16px;font-weight:bold;">Total: ৳${Number(order.total || 0).toLocaleString()} BDT (${order.paymentMethod || 'COD'})</p>
-    </div>`
-  });
+    const info = await transporter.sendMail({
+      from: `"VANTREL OUTFIT" <${senderUser}>`,
+      to: recipient,
+      subject: `[VANTREL ORDER] #${order.orderNumber || 'N/A'} - ৳${Number(order.total || 0).toLocaleString()} BDT`,
+      html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e5e1d5;border-radius:12px;">
+        <h2 style="margin:0 0 8px;">VANTREL OUTFIT — New Order #${order.orderNumber || 'N/A'}</h2>
+        <p><strong>Customer:</strong> ${order.customer?.fullName || 'N/A'} (${order.customer?.phone || 'N/A'})</p>
+        <p><strong>Address:</strong> ${order.customer?.streetAddress || ''}, ${order.customer?.upazila || ''}, ${order.customer?.district || ''}</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">${itemsHtml}</table>
+        <p style="font-size:16px;font-weight:bold;">Total: ৳${Number(order.total || 0).toLocaleString()} BDT (${order.paymentMethod || 'COD'})</p>
+      </div>`
+    });
 
-  return { success: true, delivered: true, recipient, messageId: info.messageId };
+    return { success: true, delivered: true, recipient, senderUser, messageId: info.messageId };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err || 'SMTP error');
+    const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
+    console.warn(`[VANTREL SMTP] Dispatch notice: ${errMsg}`);
+    return {
+      success: true,
+      delivered: false,
+      authFailed,
+      recipient,
+      senderUser,
+      error: authFailed
+        ? `Gmail SMTP rejected login for ${senderUser} (535). Generate a 16-character Google App Password (with 2-Step Verification enabled) for GMAIL_APP_PASSWORD.`
+        : errMsg
+    };
+  }
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

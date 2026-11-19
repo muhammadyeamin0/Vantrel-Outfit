@@ -374,52 +374,7 @@ export const INITIAL_FINANCIAL_RECORDS: FinancialRecord[] = [
   }
 ];
 
-export const INITIAL_MODERATORS: StaffModerator[] = [
-  {
-    id: 'mod-001',
-    name: 'Muhammad Yeamin',
-    email: 'muhammadeyamin0@gmail.com',
-    phone: '',
-    role: 'Super Admin',
-    status: 'Active',
-    assignedDate: '2026-01-01',
-    lastActive: 'Just now',
-    canManageFinances: true
-  },
-  {
-    id: 'mod-002',
-    name: 'Rafiqul Islam',
-    email: 'rafiqul@vantrel.com',
-    phone: '01811223344',
-    role: 'Order Moderator',
-    status: 'Active',
-    assignedDate: '2026-08-15',
-    lastActive: '10 mins ago',
-    canManageFinances: false
-  },
-  {
-    id: 'mod-003',
-    name: 'Kamrul Hasan',
-    email: 'kamrul@vantrel.com',
-    phone: '01922334455',
-    role: 'Product Moderator',
-    status: 'Active',
-    assignedDate: '2026-09-01',
-    lastActive: '1 hour ago',
-    canManageFinances: false
-  },
-  {
-    id: 'mod-004',
-    name: 'Nusrat Jahan',
-    email: 'nusrat@vantrel.com',
-    phone: '01633445566',
-    role: 'Finance Moderator',
-    status: 'Active',
-    assignedDate: '2026-09-20',
-    lastActive: 'Yesterday',
-    canManageFinances: true
-  }
-];
+export const INITIAL_MODERATORS: StaffModerator[] = [];
 
 export const INITIAL_THEME: ThemeConfig = {
   preset: 'minimal-luxury',

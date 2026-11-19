@@ -59,9 +59,8 @@ export const ProductDetailPage: React.FC = () => {
   const defaultInitialColor = product.colors?.[0]?.name || 'Standard';
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [selectedSize, setSelectedSize] = useState<string>(
-    product.sizes.includes('M') ? 'M' : product.sizes[0] || 'M'
-  );
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [sizeError, setSizeError] = useState<boolean>(false);
   const [selectedColor, setSelectedColor] = useState<string>(defaultInitialColor);
   const [quantity, setQuantity] = useState<number>(1);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -81,9 +80,11 @@ export const ProductDetailPage: React.FC = () => {
   const effectiveColor = selectedColor || defaultInitialColor;
 
   // Variant matching
-  const matchedVariant = product.variants.find(
-    (v) => v.size === selectedSize && (v.color === effectiveColor || v.color === selectedColor)
-  );
+  const matchedVariant = selectedSize
+    ? product.variants.find(
+        (v) => v.size === selectedSize && (v.color === effectiveColor || v.color === selectedColor)
+      )
+    : undefined;
   const currentStock = matchedVariant ? matchedVariant.stock : product.totalStock;
 
   const price = product.discountPrice ?? product.regularPrice;
@@ -93,23 +94,28 @@ export const ProductDetailPage: React.FC = () => {
   // Structured Data (JSON-LD Product Schema), title, and OpenGraph tags are managed centrally by DynamicMetaTags.tsx
   useEffect(() => {
     setActiveImageIndex(0);
-    setSelectedSize(product.sizes.includes('M') ? 'M' : product.sizes[0] || 'M');
+    setSelectedSize('');
+    setSizeError(false);
     setSelectedColor(product.colors?.[0]?.name || 'Standard');
   }, [product?.id]);
 
   const handleAddToCart = () => {
     if (!selectedSize) {
-      showToast('সাইজ নির্বাচন করুন', 'অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
+      setSizeError(true);
+      showToast('সাইজ নির্বাচন করুন', 'কার্টে যোগ করতে অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
       return;
     }
+    setSizeError(false);
     addToCart(product, selectedSize, effectiveColor, quantity);
   };
 
   const handleBuyNow = () => {
     if (!selectedSize) {
-      showToast('সাইজ নির্বাচন করুন', 'অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
+      setSizeError(true);
+      showToast('সাইজ নির্বাচন করুন', 'অর্ডার করতে অনুগ্রহ করে আগে আপনার সাইজ নির্বাচন করুন।', 'error');
       return;
     }
+    setSizeError(false);
     const success = addToCart(product, selectedSize, effectiveColor, quantity);
     if (success) {
       setCurrentPage('checkout');
@@ -402,10 +408,23 @@ export const ProductDetailPage: React.FC = () => {
             )}
 
             {/* Size Selector + Size Guide Button */}
-            <div className="space-y-2">
+            <div
+              className={`space-y-2 rounded-2xl transition-all ${
+                sizeError && !selectedSize
+                  ? 'p-3 border border-rose-500/80 bg-rose-500/10'
+                  : ''
+              }`}
+            >
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-neutral-300 uppercase tracking-wider">
-                  Size: <span className="font-normal text-white">{selectedSize}</span>
+                  Size:{' '}
+                  {selectedSize ? (
+                    <span className="font-semibold text-white">{selectedSize}</span>
+                  ) : (
+                    <span className={`font-semibold normal-case ${sizeError ? 'text-rose-400' : 'text-[#FF762E]'}`}>
+                      * সাইজ সিলেক্ট করুন
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -429,7 +448,10 @@ export const ProductDetailPage: React.FC = () => {
                       key={sz}
                       type="button"
                       disabled={isOutOfStock}
-                      onClick={() => setSelectedSize(sz)}
+                      onClick={() => {
+                        setSelectedSize(sz);
+                        setSizeError(false);
+                      }}
                       className={`py-2.5 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all relative cursor-pointer ${
                         isOutOfStock
                           ? 'opacity-30 line-through cursor-not-allowed bg-neutral-900 border-white/5'
@@ -443,6 +465,12 @@ export const ProductDetailPage: React.FC = () => {
                   );
                 })}
               </div>
+
+              {sizeError && !selectedSize && (
+                <p className="text-[11px] font-semibold text-rose-400 pt-1">
+                  অর্ডার বা কার্টে যোগ করার আগে অনুগ্রহ করে উপরে থেকে আপনার সাইজ নির্বাচন করুন।
+                </p>
+              )}
             </div>
 
             {/* Quantity Selector */}

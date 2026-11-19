@@ -218,6 +218,7 @@ export const AdminDashboard: React.FC = () => {
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const productImageInputRef = useRef<HTMLInputElement | null>(null);
   const [prodSizes, setProdSizes] = useState<string[]>(['M', 'L', 'XL', 'XXL']);
+  const [showPantSizes, setShowPantSizes] = useState<boolean>(false);
   const [prodColors, setProdColors] = useState<{ name: string; hex: string }[]>([]);
   const [newColorName, setNewColorName] = useState('');
   const [newColorHex, setNewColorHex] = useState('#14221C');
@@ -630,6 +631,7 @@ export const AdminDashboard: React.FC = () => {
     setProdTagline('Premium heavyweight streetwear essential.');
     setProdImages([]);
     setProdSizes(['M', 'L', 'XL', 'XXL']);
+    setShowPantSizes(false);
     setProdColors([]);
     setIsProductModalOpen(true);
   };
@@ -660,11 +662,13 @@ export const AdminDashboard: React.FC = () => {
     const isPant = /pant|trouser|cargo|jogger|bottom|jeans/i.test(p.category || '');
     const allowed = [
       '28', '29', '30', '31', '32', '33', '34', '36', '38',
-      'S', 'M', 'L', 'XL', 'XXL', '3XL'
+      'M', 'L', 'XL', 'XXL'
     ];
     const filteredSizes = (p.sizes || []).filter((s) => allowed.includes(s));
     const fallbackSizes = isPant ? ['28', '30', '32', '34', '36'] : ['M', 'L', 'XL', 'XXL'];
-    setProdSizes(filteredSizes.length > 0 ? filteredSizes : fallbackSizes);
+    const finalSizes = filteredSizes.length > 0 ? filteredSizes : fallbackSizes;
+    setProdSizes(finalSizes);
+    setShowPantSizes(isPant || finalSizes.some((s) => /^\d+$/.test(s)));
     setProdImages(p.images || []);
     setProdColors(p.colors || []);
     setIsProductModalOpen(true);
@@ -1091,6 +1095,12 @@ export const AdminDashboard: React.FC = () => {
         showToast('Email Delivered!', `Test email sent to ${data.details.recipient}`, 'success');
       } else if (!res.ok) {
         showToast('Unauthorized / Error', data?.error || 'Admin verification failed.', 'error');
+      } else if (data.details?.authFailed) {
+        showToast(
+          'Gmail App Password Invalid (535)',
+          `SMTP login rejected for ${data.details?.senderUser || 'muhammadeyamin0@gmail.com'}. Regular Gmail password কাজ করবে না—myaccount.google.com/apppasswords থেকে ১৬-অক্ষরের App Password তৈরি করে GMAIL_APP_PASSWORD-এ সেট করুন।`,
+          'error'
+        );
       } else {
         showToast('Notification Ready', `Target: ${data.details?.recipient || 'muhammadeyamin0@gmail.com'}. Set GMAIL_APP_PASSWORD in Vercel Env Vars for live delivery.`, 'info');
       }
@@ -4919,7 +4929,7 @@ service cloud.firestore {
                     <input
                       type="text"
                       readOnly
-                      value="Managed securely via GMAIL_APP_PASSWORD environment variable"
+                      value="16-char Google App Password via GMAIL_APP_PASSWORD env var"
                       className="w-full px-3 py-2 bg-stone-100 border border-[#E5E1D5] rounded-xl font-mono text-[11px] text-[#202522]/70"
                     />
                   </div>
@@ -5136,39 +5146,33 @@ service cloud.firestore {
                 </div>
 
                 {/* FIELD 5: SIZES & COLORS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
-                        সাইজ নির্বাচন করুন ({prodSizes.join(', ') || 'কোনোটি নয়'})
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-[#F7F5EF] rounded-xl border border-[#E5E1D5]">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[10px]">
+                        সাইজ ({prodSizes.join(', ') || 'কোনোটি নয়'})
                       </label>
-                      <div className="flex items-center gap-1.5 text-[10px]">
-                        <button
-                          type="button"
-                          onClick={() => setProdSizes(['28', '30', '32', '34', '36'])}
-                          className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-bold transition-colors cursor-pointer"
-                          title="প্যান্টের স্ট্যান্ডার্ড কোমর সাইজ প্রিসেট"
-                        >
-                          প্যান্ট (২৮-৩৬)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProdSizes(['M', 'L', 'XL', 'XXL'])}
-                          className="px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded font-bold transition-colors cursor-pointer"
-                          title="টি-শার্ট / হুডি সাইজ প্রিসেট"
-                        >
-                          টি-শার্ট/হুডি (M-XXL)
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPantSizes((prev) => !prev)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer shrink-0 ${
+                          showPantSizes
+                            ? 'bg-amber-200 text-amber-950 border-amber-300'
+                            : 'bg-white hover:bg-amber-50 text-amber-900 border-amber-200'
+                        }`}
+                        title="প্যান্ট / ট্রাউজারের কোমর সাইজ (ঐচ্ছিক)"
+                      >
+                        {showPantSizes ? '− প্যান্ট সাইজ' : '+ প্যান্ট (ঐচ্ছিক)'}
+                      </button>
                     </div>
 
-                    {/* Waist Sizes (28 to 36) */}
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                        প্যান্ট / ট্রাউজার কোমর সাইজ (Waist Sizes):
+                    {/* Always-visible T-Shirt & Hoodie Sizes (M to XXL only; S & 3XL removed) */}
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-stone-500">
+                        টি-শার্ট / হুডি সাইজ (সবসময় সক্রিয়):
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {['28', '29', '30', '31', '32', '34', '36'].map((sz) => {
+                        {['M', 'L', 'XL', 'XXL'].map((sz) => {
                           const isSelected = prodSizes.includes(sz);
                           return (
                             <button
@@ -5181,37 +5185,7 @@ service cloud.firestore {
                                   setProdSizes([...prodSizes, sz]);
                                 }
                               }}
-                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-[#14221C] text-white border-[#14221C] shadow-xs'
-                                  : 'bg-white text-[#202522] border-[#E5E1D5] hover:border-neutral-400'
-                              }`}
-                            >
-                              {sz}"
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Standard Alpha Sizes */}
-                      <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider pt-1.5">
-                        স্ট্যান্ডার্ড সাইজ (Standard Sizes):
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map((sz) => {
-                          const isSelected = prodSizes.includes(sz);
-                          return (
-                            <button
-                              key={sz}
-                              type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setProdSizes(prodSizes.filter((s) => s !== sz));
-                                } else {
-                                  setProdSizes([...prodSizes, sz]);
-                                }
-                              }}
-                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
                                 isSelected
                                   ? 'bg-[#14221C] text-white border-[#14221C] shadow-xs'
                                   : 'bg-white text-[#202522] border-[#E5E1D5] hover:border-neutral-400'
@@ -5223,38 +5197,80 @@ service cloud.firestore {
                         })}
                       </div>
                     </div>
+
+                    {/* Optional Collapsible Pant Waist Sizes */}
+                    {showPantSizes && (
+                      <div className="pt-1.5 border-t border-[#E5E1D5] space-y-1 animate-fadeIn">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-stone-500">
+                            প্যান্ট কোমর সাইজ (Waist):
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setProdSizes(['28', '30', '32', '34', '36'])}
+                            className="text-[10px] font-bold text-amber-800 hover:underline cursor-pointer"
+                          >
+                            ২৮-৩৬ সেট করুন
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {['28', '29', '30', '31', '32', '34', '36'].map((sz) => {
+                            const isSelected = prodSizes.includes(sz);
+                            return (
+                              <button
+                                key={sz}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setProdSizes(prodSizes.filter((s) => s !== sz));
+                                  } else {
+                                    setProdSizes([...prodSizes, sz]);
+                                  }
+                                }}
+                                className={`px-2 py-0.5 text-[11px] font-bold rounded-md border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#14221C] text-white border-[#14221C] shadow-xs'
+                                    : 'bg-white text-[#202522] border-[#E5E1D5] hover:border-neutral-400'
+                                }`}
+                              >
+                                {sz}"
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
                       <div>
-                        <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
-                          কালার / রঙের ভ্যারিয়েন্ট ({prodColors.length}টি যুক্ত আছে)
+                        <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[10px]">
+                          কালার ভ্যারিয়েন্ট ({prodColors.length}টি)
                         </label>
                         <p className="text-[10px] text-[#202522]/60">
-                          কালার দেওয়া বাধ্যতামূলক নয়। অ্যাডমিন নিজের পছন্দমতো কালার সিলেক্ট করতে পারেন অথবা খালি রাখতে পারেন।
+                          ঐচ্ছিক—প্রয়োজনে নিচের কালার যোগ করুন বা খালি রাখুন।
                         </p>
                       </div>
                     </div>
 
                     {prodColors.length > 0 ? (
-                      <div className="flex items-center gap-2 mb-2.5 flex-wrap p-2.5 bg-[#F7F5EF] rounded-xl border border-[#E5E1D5]">
+                      <div className="flex items-center gap-1.5 mb-2 flex-wrap p-2 bg-white rounded-lg border border-[#E5E1D5]">
                         {prodColors.map((c, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-[#E5E1D5] rounded-xl text-xs font-bold shadow-2xs group hover:border-[#14221C] transition-colors"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-lg text-[11px] font-bold group hover:border-[#14221C] transition-colors"
                           >
                             <span
-                              className="w-3.5 h-3.5 rounded-full border border-black/25 shadow-xs shrink-0"
+                              className="w-3 h-3 rounded-full border border-black/25 shrink-0"
                               style={{ backgroundColor: c.hex }}
                               title={c.hex}
                             />
                             <span className="text-[#14221C]">{c.name}</span>
-                            <span className="text-[10px] text-stone-400 font-mono">{c.hex}</span>
                             <button
                               type="button"
                               onClick={() => setProdColors(prodColors.filter((_, idx) => idx !== i))}
-                              className="text-stone-400 hover:text-rose-600 font-bold ml-1 p-0.5 rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                              className="text-stone-400 hover:text-rose-600 font-bold ml-0.5 cursor-pointer"
                               title="Remove color"
                             >
                               ×
@@ -5263,14 +5279,13 @@ service cloud.firestore {
                         ))}
                       </div>
                     ) : (
-                      <div className="p-3 bg-stone-50 border border-dashed border-[#E5E1D5] rounded-xl text-xs text-[#202522]/70 mb-2.5">
-                        <span>কোনো কালার সিলেক্ট করা হয়নি (কালার দেওয়া বাধ্যতামূলক নয়)। অ্যাডমিন চাইলে নিচের কালার পিকার বা কুইক চয়েস দিয়ে নিজের পছন্দের কালার যোগ করতে পারেন।</span>
+                      <div className="p-2 bg-white/70 border border-dashed border-[#E5E1D5] rounded-lg text-[10px] text-[#202522]/70 mb-2">
+                        <span>কোনো কালার সিলেক্ট করা হয়নি (বাধ্যতামূলক নয়)।</span>
                       </div>
                     )}
 
                     {/* Quick Add Palette Chips (Optional shortcuts for Admin) */}
-                    <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
-                      <span className="text-[10px] font-bold text-[#14221C]/70">কুইক কালার যুক্ত করুন:</span>
+                    <div className="flex items-center gap-1 flex-wrap mb-2">
                       {[
                         { name: 'Black', hex: '#000000' },
                         { name: 'White', hex: '#FFFFFF' },
@@ -5293,14 +5308,14 @@ service cloud.firestore {
                                 setProdColors([...prodColors, chip]);
                               }
                             }}
-                            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
                               exists
                                 ? 'bg-[#14221C] text-white border-[#14221C]'
                                 : 'bg-white text-[#14221C] border-[#E5E1D5] hover:border-[#14221C]'
                             }`}
                           >
                             <span
-                              className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0"
+                              className="w-2 h-2 rounded-full border border-black/20 shrink-0"
                               style={{ backgroundColor: chip.hex }}
                             />
                             <span>{chip.name}</span>

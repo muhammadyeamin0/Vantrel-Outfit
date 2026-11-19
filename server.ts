@@ -23,6 +23,7 @@ import {
   getCategorySlug,
   findCategoryBySlug
 } from './src/utils/seoSlug.ts';
+import { verifyAdminRequest } from './api/_lib/httpUtils.ts';
 import {
   INITIAL_ORDERS,
   INITIAL_COUPONS,
@@ -303,11 +304,30 @@ function dispatchSms(phone: string, templateKey: string, message: string) {
   return log;
 }
 
+function sanitizeEnvCredential(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.trim().replace(/^["']+|["']+$/g, '').trim();
+}
+
+function getGmailSmtpConfig() {
+  const recipient =
+    sanitizeEnvCredential(settings.orderNotificationEmail) ||
+    sanitizeEnvCredential(process.env.ORDER_NOTIFICATION_EMAIL) ||
+    'muhammadeyamin0@gmail.com';
+  const senderUser =
+    sanitizeEnvCredential(settings.gmailNotificationUser) ||
+    sanitizeEnvCredential(process.env.GMAIL_USER) ||
+    'muhammadeyamin0@gmail.com';
+  const rawPassword =
+    sanitizeEnvCredential(settings.gmailNotificationAppPassword) ||
+    sanitizeEnvCredential(process.env.GMAIL_APP_PASSWORD);
+  const appPassword = rawPassword.replace(/\s+/g, '');
+  return { recipient, senderUser, appPassword };
+}
+
 // Helper: Send High-Priority Order Notification to Gmail (muhammadeyamin0@gmail.com)
 async function sendGmailOrderNotification(order: any) {
-  const recipient = settings.orderNotificationEmail || process.env.ORDER_NOTIFICATION_EMAIL || 'muhammadeyamin0@gmail.com';
-  const senderUser = settings.gmailNotificationUser || process.env.GMAIL_USER || 'muhammadeyamin0@gmail.com';
-  const appPassword = settings.gmailNotificationAppPassword || process.env.GMAIL_APP_PASSWORD;
+  const { recipient, senderUser, appPassword } = getGmailSmtpConfig();
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemsHtml = itemsList
@@ -469,10 +489,12 @@ async function sendGmailOrderNotification(order: any) {
   if (appPassword) {
     try {
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
           user: senderUser,
-          pass: appPassword.replace(/\s+/g, '')
+          pass: appPassword
         }
       });
 
@@ -485,23 +507,32 @@ async function sendGmailOrderNotification(order: any) {
 
       console.log(`✅ Order notification successfully sent to ${recipient}. MessageId: ${info.messageId}`);
       recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_SENT', `Notification for #${order.orderNumber} sent to ${recipient}`);
-      return { success: true, messageId: info.messageId, delivered: true, recipient };
+      return { success: true, messageId: info.messageId, delivered: true, recipient, senderUser };
     } catch (err: any) {
-      console.error(`⚠️ Failed to send Gmail via SMTP:`, err.message);
-      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_ERROR', `SMTP error: ${err.message}`);
-      return { success: false, error: err.message, delivered: false, recipient };
+      const errMsg = String(err?.message || 'SMTP error');
+      const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
+      console.warn(`[VANTREL SMTP] Gmail dispatch skipped (${authFailed ? 'Invalid App Password / 535' : errMsg})`);
+      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_SKIPPED', `SMTP notice: ${errMsg}`);
+      return {
+        success: true,
+        delivered: false,
+        authFailed,
+        recipient,
+        senderUser,
+        error: authFailed
+          ? `Gmail SMTP rejected login for ${senderUser} (535). Use a fresh 16-character Google App Password in GMAIL_APP_PASSWORD.`
+          : errMsg
+      };
     }
   } else {
     recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_PREPARED', `Order #${order.orderNumber} prepared for ${recipient} (App Password pending).`);
-    return { success: true, delivered: false, note: 'Notification prepared; configure GMAIL_APP_PASSWORD for direct live delivery', recipient };
+    return { success: true, delivered: false, note: 'Notification prepared; configure GMAIL_APP_PASSWORD for direct live delivery', recipient, senderUser };
   }
 }
 
 // Helper: Send High-Priority Auto-Confirmation Notification to muhammadeyamin0@gmail.com
 async function sendGmailAutoConfirmNotification(order: any) {
-  const recipient = settings.orderNotificationEmail || process.env.ORDER_NOTIFICATION_EMAIL || 'muhammadeyamin0@gmail.com';
-  const senderUser = settings.gmailNotificationUser || process.env.GMAIL_USER || 'muhammadeyamin0@gmail.com';
-  const appPassword = settings.gmailNotificationAppPassword || process.env.GMAIL_APP_PASSWORD;
+  const { recipient, senderUser, appPassword } = getGmailSmtpConfig();
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemsHtml = itemsList
@@ -652,10 +683,12 @@ async function sendGmailAutoConfirmNotification(order: any) {
   if (appPassword) {
     try {
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
           user: senderUser,
-          pass: appPassword.replace(/\s+/g, '')
+          pass: appPassword
         }
       });
 
@@ -668,15 +701,26 @@ async function sendGmailAutoConfirmNotification(order: any) {
 
       console.log(`✅ Order auto-confirmation email successfully sent to ${recipient}. MessageId: ${info.messageId}`);
       recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_SENT', `Auto-confirmed order #${order.orderNumber} sent to ${recipient}`);
-      return { success: true, messageId: info.messageId, delivered: true, recipient };
+      return { success: true, messageId: info.messageId, delivered: true, recipient, senderUser };
     } catch (err: any) {
-      console.error(`⚠️ Failed to send Gmail via SMTP:`, err.message);
-      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_ERROR', `SMTP error: ${err.message}`);
-      return { success: false, error: err.message, delivered: false, recipient };
+      const errMsg = String(err?.message || 'SMTP error');
+      const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
+      console.warn(`[VANTREL SMTP] Auto-confirm Gmail skipped (${authFailed ? 'Invalid App Password / 535' : errMsg})`);
+      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_SKIPPED', `SMTP notice: ${errMsg}`);
+      return {
+        success: true,
+        delivered: false,
+        authFailed,
+        recipient,
+        senderUser,
+        error: authFailed
+          ? `Gmail SMTP rejected login for ${senderUser} (535). Use a fresh 16-character Google App Password in GMAIL_APP_PASSWORD.`
+          : errMsg
+      };
     }
   } else {
     recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_PREPARED', `Auto-confirmed order #${order.orderNumber} prepared for ${recipient}`);
-    return { success: true, delivered: false, note: 'Notification prepared for muhammadeyamin0@gmail.com', recipient };
+    return { success: true, delivered: false, note: 'Notification prepared for muhammadeyamin0@gmail.com', recipient, senderUser };
   }
 }
 
@@ -1912,12 +1956,20 @@ app.delete('/api/finances/:id', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Record deleted successfully' });
 });
 
-// 8. Staff & Moderator Management Endpoints
-app.get('/api/moderators', (_req: Request, res: Response) => {
+// 8. Staff & Moderator Management Endpoints (Strictly Super Admin Only)
+app.get('/api/moderators', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(403).json({ success: false, error: 'Super Admin authentication required.' });
+  }
   res.json({ success: true, count: staffModerators.length, data: staffModerators });
 });
 
-app.post('/api/moderators', (req: Request, res: Response) => {
+app.post('/api/moderators', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(403).json({ success: false, error: 'Only Super Admin can add moderators.' });
+  }
   const { name, email, phone, role, canManageFinances } = req.body;
   if (!name || !email || !role) {
     return res.status(400).json({ success: false, error: 'Name, email, and role are required' });
@@ -1927,7 +1979,7 @@ app.post('/api/moderators', (req: Request, res: Response) => {
     id: `mod-${Date.now()}`,
     name: String(name).trim(),
     email: String(email).trim().toLowerCase(),
-    phone: phone ? String(phone).trim() : '01700000000',
+    phone: phone ? String(phone).trim() : '',
     role,
     status: 'Active',
     assignedDate: new Date().toISOString().split('T')[0],
@@ -1940,7 +1992,11 @@ app.post('/api/moderators', (req: Request, res: Response) => {
   res.status(201).json({ success: true, moderator: newMod });
 });
 
-app.put('/api/moderators/:id', (req: Request, res: Response) => {
+app.put('/api/moderators/:id', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(403).json({ success: false, error: 'Only Super Admin can modify moderators.' });
+  }
   const { id } = req.params;
   const index = staffModerators.findIndex((m) => m.id === id);
   if (index === -1) {
@@ -1956,12 +2012,13 @@ app.put('/api/moderators/:id', (req: Request, res: Response) => {
   res.json({ success: true, moderator: staffModerators[index] });
 });
 
-app.delete('/api/moderators/:id', (req: Request, res: Response) => {
+app.delete('/api/moderators/:id', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(403).json({ success: false, error: 'Only Super Admin can remove moderators.' });
+  }
   const { id } = req.params;
   const target = staffModerators.find((m) => m.id === id);
-  if (target?.role === 'Super Admin') {
-    return res.status(403).json({ success: false, error: 'Primary Super Admin account cannot be revoked.' });
-  }
 
   staffModerators = staffModerators.filter((m) => m.id !== id);
   recordAudit('Owner / Super Admin', 'Super Admin', 'MODERATOR_REVOKE', `Revoked moderator account for ${target?.name || id}`);

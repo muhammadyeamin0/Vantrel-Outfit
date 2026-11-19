@@ -25,13 +25,19 @@ export const ModeratorsTab: React.FC = () => {
     addStaffModerator,
     updateStaffModerator,
     deleteStaffModerator,
+    currentUser,
     currentStaffRole,
     setCurrentStaffRole,
-    auditLogs,
     showToast
   } = useStore();
 
-  const isSuperAdmin = currentStaffRole === 'Super Admin';
+  const isGoogleSuperAdmin = Boolean(
+    currentUser &&
+      currentUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+      currentUser.emailVerified &&
+      currentUser.role === 'Super Admin'
+  );
+  const isSuperAdmin = isGoogleSuperAdmin && currentStaffRole === 'Super Admin';
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingModId, setEditingModId] = useState<string | null>(null);
@@ -39,23 +45,31 @@ export const ModeratorsTab: React.FC = () => {
     name: '',
     role: 'Order Moderator' as StaffRole,
     email: '',
-    phone: '01',
+    phone: '',
     status: 'Active' as 'Active' | 'Suspended'
   });
 
   const handleOpenAdd = () => {
+    if (!isSuperAdmin) {
+      showToast('Super Admin Only', 'শুধুমাত্র Super Admin নতুন মডারেটর যুক্ত করতে পারবেন।', 'error');
+      return;
+    }
     setEditingModId(null);
     setFormData({
       name: '',
       role: 'Order Moderator',
       email: '',
-      phone: '01',
+      phone: '',
       status: 'Active'
     });
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (mod: StaffModerator) => {
+    if (!isSuperAdmin) {
+      showToast('Super Admin Only', 'শুধুমাত্র Super Admin মডারেটর তথ্য পরিবর্তন করতে পারবেন।', 'error');
+      return;
+    }
     setEditingModId(mod.id);
     setFormData({
       name: mod.name,
@@ -69,6 +83,10 @@ export const ModeratorsTab: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSuperAdmin) {
+      showToast('Super Admin Only', 'শুধুমাত্র Super Admin নতুন মডারেটর যুক্ত বা আপডেট করতে পারবেন।', 'error');
+      return;
+    }
     if (!formData.name.trim() || !formData.email.trim()) {
       showToast('Validation Error', 'Name and email are required.', 'error');
       return;
@@ -136,18 +154,20 @@ export const ModeratorsTab: React.FC = () => {
           Super Admin Privileges Required
         </h3>
         <p className="text-xs text-[#202522]/70 leading-relaxed">
-          Staff and moderator management is strictly restricted to the <strong>Super Admin</strong>.
+          Staff and moderator management is strictly restricted to the verified <strong>Super Admin</strong>.
           Your current operating identity is <strong>{currentStaffRole}</strong>.
         </p>
-        <button
-          onClick={() => {
-            setCurrentStaffRole('Super Admin');
-            showToast('Role Switched', 'Switched to Super Admin for administration.', 'success');
-          }}
-          className="mt-2 px-5 py-2.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase rounded-xl transition-colors"
-        >
-          Switch to Super Admin
-        </button>
+        {isGoogleSuperAdmin && (
+          <button
+            onClick={() => {
+              setCurrentStaffRole('Super Admin');
+              showToast('Role Switched', 'Switched back to Super Admin for administration.', 'success');
+            }}
+            className="mt-2 px-5 py-2.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase rounded-xl transition-colors"
+          >
+            Switch Back to Super Admin
+          </button>
+        )}
       </div>
     );
   }
@@ -182,85 +202,110 @@ export const ModeratorsTab: React.FC = () => {
 
       {/* Staff Accounts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {staffModerators.map((mod) => (
-          <div
-            key={mod.id}
-            className="bg-white p-5 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-4 hover:border-stone-400 transition-colors"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#14221C] text-[#FF762E] flex items-center justify-center font-bold text-sm">
-                  {mod.name.charAt(0)}
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-[#14221C]">{mod.name}</h4>
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-0.5 ${
-                      mod.role === 'Super Admin'
-                        ? 'bg-purple-100 text-purple-800'
-                        : mod.role === 'Order Moderator'
-                        ? 'bg-blue-100 text-blue-800'
-                        : mod.role === 'Product Moderator'
-                        ? 'bg-amber-100 text-amber-800'
-                        : mod.role === 'Finance Moderator'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-stone-100 text-stone-800'
-                    }`}
-                  >
-                    {mod.role}
-                  </span>
-                </div>
-              </div>
-
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                  mod.status === 'Active'
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-rose-50 text-rose-700'
-                }`}
-              >
-                {mod.status}
-              </span>
+        {staffModerators.length === 0 ? (
+          <div className="col-span-full bg-white p-8 sm:p-10 rounded-3xl border border-dashed border-[#E5E1D5] text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#F7F5EF] text-[#14221C] mx-auto flex items-center justify-center">
+              <Users className="w-6 h-6 text-[#FF762E]" />
             </div>
-
-            <div className="text-xs text-[#202522]/70 space-y-1.5 pt-2 border-t border-[#E5E1D5]">
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-[#202522]/40" />
-                <span>{mod.email}</span>
-              </div>
-              <div className="flex items-center gap-2 font-mono">
-                <Phone className="w-3.5 h-3.5 text-[#202522]/40" />
-                <span>{mod.phone}</span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-[#202522]/50">
-                <Clock className="w-3.5 h-3.5 text-[#202522]/40" />
-                <span>Active since {new Date(mod.assignedDate).toLocaleDateString('en-GB')}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-[#E5E1D5]">
-              <button
-                onClick={() => {
-                  updateStaffModerator(mod.id, {
-                    status: mod.status === 'Active' ? 'Suspended' : 'Active'
-                  });
-                }}
-                className={`text-[11px] font-bold underline cursor-pointer ${
-                  mod.status === 'Active' ? 'text-amber-700 hover:text-amber-800' : 'text-emerald-700 hover:text-emerald-800'
-                }`}
-              >
-                {mod.status === 'Active' ? 'Suspend Account' : 'Reactivate'}
-              </button>
-
-              <div className="flex items-center gap-1.5">
+            <h4 className="font-heading text-base font-bold text-[#14221C] uppercase tracking-tight">
+              কোনো মডারেটর যুক্ত করা হয়নি
+            </h4>
+            <p className="text-xs text-[#202522]/65 max-w-lg mx-auto leading-relaxed">
+              এখানে স্বয়ংক্রিয়ভাবে কোনো প্রাইমারি বা ডিফল্ট মডারেটর থাকে না। শুধুমাত্র Super Admin প্রয়োজন অনুযায়ী নতুন মডারেটর যুক্ত করতে পারবেন।
+            </p>
+            {isSuperAdmin && (
+              <div className="pt-2">
                 <button
-                  onClick={() => handleOpenEdit(mod)}
-                  className="p-1.5 hover:bg-stone-100 text-[#202522]/70 hover:text-[#14221C] rounded-lg"
-                  title="Edit Role / Info"
+                  onClick={handleOpenAdd}
+                  className="px-5 py-2.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold uppercase rounded-xl inline-flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 >
-                  <Edit3 className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4 text-[#FF762E]" />
+                  <span>Add Moderator</span>
                 </button>
-                {mod.role !== 'Super Admin' && (
+              </div>
+            )}
+          </div>
+        ) : (
+          staffModerators.map((mod) => (
+            <div
+              key={mod.id}
+              className="bg-white p-5 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-4 hover:border-stone-400 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#14221C] text-[#FF762E] flex items-center justify-center font-bold text-sm">
+                    {mod.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-[#14221C]">{mod.name}</h4>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-0.5 ${
+                        mod.role === 'Super Admin'
+                          ? 'bg-purple-100 text-purple-800'
+                          : mod.role === 'Order Moderator'
+                          ? 'bg-blue-100 text-blue-800'
+                          : mod.role === 'Product Moderator'
+                          ? 'bg-amber-100 text-amber-800'
+                          : mod.role === 'Finance Moderator'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      {mod.role}
+                    </span>
+                  </div>
+                </div>
+
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    mod.status === 'Active'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-rose-50 text-rose-700'
+                  }`}
+                >
+                  {mod.status}
+                </span>
+              </div>
+
+              <div className="text-xs text-[#202522]/70 space-y-1.5 pt-2 border-t border-[#E5E1D5]">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-[#202522]/40" />
+                  <span>{mod.email}</span>
+                </div>
+                {mod.phone && (
+                  <div className="flex items-center gap-2 font-mono">
+                    <Phone className="w-3.5 h-3.5 text-[#202522]/40" />
+                    <span>{mod.phone}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-[11px] text-[#202522]/50">
+                  <Clock className="w-3.5 h-3.5 text-[#202522]/40" />
+                  <span>Active since {new Date(mod.assignedDate).toLocaleDateString('en-GB')}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#E5E1D5]">
+                <button
+                  onClick={() => {
+                    updateStaffModerator(mod.id, {
+                      status: mod.status === 'Active' ? 'Suspended' : 'Active'
+                    });
+                  }}
+                  className={`text-[11px] font-bold underline cursor-pointer ${
+                    mod.status === 'Active' ? 'text-amber-700 hover:text-amber-800' : 'text-emerald-700 hover:text-emerald-800'
+                  }`}
+                >
+                  {mod.status === 'Active' ? 'Suspend Account' : 'Reactivate'}
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleOpenEdit(mod)}
+                    className="p-1.5 hover:bg-stone-100 text-[#202522]/70 hover:text-[#14221C] rounded-lg cursor-pointer"
+                    title="Edit Role / Info"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => {
                       deleteStaffModerator(mod.id);
@@ -270,11 +315,11 @@ export const ModeratorsTab: React.FC = () => {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Permissions Matrix Table */}

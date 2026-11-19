@@ -793,16 +793,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return [];
   });
 
-  // Staff & Moderator Management
+  // Staff & Moderator Management (no primary or automatic moderators; Super Admin adds manually)
   const [staffModerators, setStaffModerators] = useState<StaffModerator[]>(() => {
+    const legacyAutoModIds = new Set(['mod-001', 'mod-002', 'mod-003', 'mod-004']);
     const saved = localStorage.getItem('vt_moderators');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          if (localStorage.getItem('vt_mods_manual_only_v1') !== '1') {
+            const cleaned = parsed.filter(
+              (m: StaffModerator) => m && m.id && !legacyAutoModIds.has(m.id)
+            );
+            localStorage.setItem('vt_mods_manual_only_v1', '1');
+            localStorage.setItem('vt_moderators', JSON.stringify(cleaned));
+            return cleaned;
+          }
+          return parsed;
+        }
+        return [];
       } catch {
-        return INITIAL_MODERATORS;
+        return [];
       }
     }
+    localStorage.setItem('vt_mods_manual_only_v1', '1');
     return INITIAL_MODERATORS;
   });
 
@@ -1587,6 +1601,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     quantity: number,
     openDrawer: boolean = true
   ): boolean => {
+    if (!selectedSize || !selectedSize.trim()) {
+      showToast('সাইজ নির্বাচন করুন', 'অর্ডার করতে অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
+      return false;
+    }
+
     const matchedVariant = product.variants.find(
       (v) => v.size === selectedSize && v.color === selectedColor
     );
@@ -3755,13 +3774,26 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     showToast('Finances Cleared', 'All earnings and expense records removed.', 'info');
   };
 
-  // Moderator & Staff Handlers
+  // Moderator & Staff Handlers (Strictly Super Admin Only)
+  const isVerifiedSuperAdmin = (): boolean =>
+    Boolean(
+      currentUser &&
+        currentUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        currentUser.emailVerified &&
+        currentUser.role === 'Super Admin' &&
+        currentStaffRole === 'Super Admin'
+    );
+
   const addStaffModerator = (mod: Omit<StaffModerator, 'id' | 'assignedDate'>) => {
+    if (!isVerifiedSuperAdmin()) {
+      showToast('Super Admin Only', 'শুধুমাত্র Super Admin নতুন মডারেটর যুক্ত করতে পারবেন।', 'error');
+      return;
+    }
     const newMod: StaffModerator = {
       ...mod,
       id: `mod-${Date.now()}`,
       assignedDate: new Date().toISOString().split('T')[0],
-      status: 'Active',
+      status: mod.status || 'Active',
       lastActive: 'Never'
     };
     setStaffModerators((prev) => [...prev, newMod]);
@@ -3778,6 +3810,10 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const updateStaffModerator = (id: string, updated: Partial<StaffModerator>) => {
+    if (!isVerifiedSuperAdmin()) {
+      showToast('Super Admin Only', 'শুধুমাত্র Super Admin মডারেটরের অনুমতি বা তথ্য পরিবর্তন করতে পারবেন।', 'error');
+      return;
+    }
     setStaffModerators((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...updated } : m))
     );
@@ -3794,11 +3830,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const deleteStaffModerator = (id: string) => {
-    const target = staffModerators.find((m) => m.id === id);
-    if (target?.role === 'Super Admin') {
-      showToast('Action Denied', 'The primary owner / Super Admin cannot be removed.', 'error');
+    if (!isVerifiedSuperAdmin()) {
+      showToast('Super Admin Only', 'শুধুমাত্র Super Admin মডারেটর রিমুভ করতে পারবেন।', 'error');
       return;
     }
+    const target = staffModerators.find((m) => m.id === id);
     setStaffModerators((prev) => prev.filter((m) => m.id !== id));
     addAuditLog('MODERATOR_REMOVE', `Revoked moderator privileges for ${target?.name || id}`);
     showToast('Access Revoked', 'Staff moderator account removed.', 'info');
