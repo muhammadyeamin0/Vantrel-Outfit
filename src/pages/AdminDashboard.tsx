@@ -259,6 +259,9 @@ export const AdminDashboard: React.FC = () => {
 
   // Settings local state
   const [localSettings, setLocalSettings] = useState(settings);
+  React.useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
   // Developer & API Hub State
   const [selectedApiLang, setSelectedApiLang] = useState<'express' | 'prisma' | 'mongodb' | 'firebase' | 'roadmap'>('express');
@@ -1093,23 +1096,34 @@ export const AdminDashboard: React.FC = () => {
     try {
       const cleanedPass = (localSettings.gmailNotificationAppPassword || '').replace(/\s+/g, '');
       const cleanRecipient = (localSettings.orderNotificationEmail || 'muhammadeyamin0@gmail.com').trim();
-      if (cleanedPass !== (settings.gmailNotificationAppPassword || '')) {
+      const cleanSender = (localSettings.gmailNotificationUser || 'muhammadeyamin0@gmail.com').trim();
+      if (
+        cleanedPass !== (settings.gmailNotificationAppPassword || '') ||
+        cleanRecipient !== (settings.orderNotificationEmail || '')
+      ) {
         updateSettings({
           ...localSettings,
           orderNotificationEmail: cleanRecipient,
+          gmailNotificationUser: cleanSender,
           gmailNotificationAppPassword: cleanedPass
         });
       }
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const token = await auth?.currentUser?.getIdToken().catch(() => '');
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
+      if (auth) {
+        if (typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+          await (auth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
+        }
+        const token = await auth.currentUser?.getIdToken().catch(() => '');
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
       }
       const res = await fetch('/api/test-email-notification', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           recipientEmail: cleanRecipient,
+          senderUser: cleanSender,
           appPassword: cleanedPass
         })
       });
@@ -1117,7 +1131,7 @@ export const AdminDashboard: React.FC = () => {
       if (res.ok && data.details?.delivered) {
         showToast('Email Delivered!', `Test email sent to ${data.details.recipient}`, 'success');
       } else if (!res.ok) {
-        showToast('Unauthorized / Error', data?.error || 'Admin verification failed.', 'error');
+        showToast('Unauthorized / Error', data?.error || 'Google Admin verification required. Sign in again via Google.', 'error');
       } else if (data.details?.authFailed) {
         showToast(
           'Gmail App Password Invalid (535)',

@@ -979,11 +979,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getAdminAuthHeaders = useCallback(async (extraHeaders?: Record<string, string>) => {
     const headers: Record<string, string> = { ...(extraHeaders || {}) };
-    if (auth?.currentUser) {
+    if (auth) {
       try {
-        const token = await auth.currentUser.getIdToken();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+        if (typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+          await (auth as { authStateReady: () => Promise<void> }).authStateReady();
+        }
+        if (auth.currentUser) {
+          const token = await auth.currentUser.getIdToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
         }
       } catch {
         // Proceed without bearer token
@@ -991,6 +996,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return headers;
   }, []);
+
+  // Rehydrate in-memory backend SMTP fallback from verified AdminDashboard session without creating disk files
+  useEffect(() => {
+    const cleanedPass = (settings.gmailNotificationAppPassword || '').replace(/\s+/g, '');
+    if (currentPage !== 'admin' || !cleanedPass || currentUser?.email?.toLowerCase() !== 'muhammadeyamin0@gmail.com') {
+      return;
+    }
+    let cancelled = false;
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+      if (cancelled || !headers.Authorization) return;
+      fetch('/api/settings/smtp', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          orderNotificationEmail: settings.orderNotificationEmail,
+          gmailNotificationUser: settings.gmailNotificationUser,
+          gmailNotificationAppPassword: cleanedPass
+        })
+      }).catch(() => {
+        // Non-critical in-memory hydration notice
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, currentUser?.email, settings.gmailNotificationAppPassword, settings.orderNotificationEmail, settings.gmailNotificationUser, getAdminAuthHeaders]);
 
   // Validate Firestore server connectivity strictly when authenticated Admin enters Admin Dashboard
   useEffect(() => {
@@ -3028,7 +3059,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder)
+        body: JSON.stringify({ ...newOrder, skipEmailNotification: true })
       }).catch((err) => {
         console.warn('Server backend order sync warning:', err);
       });

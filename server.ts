@@ -180,45 +180,6 @@ let customers: User[] = [...INITIAL_CUSTOMERS];
 let smsLogs: SmsLog[] = [...INITIAL_SMS_LOGS];
 let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
 let settings = { ...INITIAL_SETTINGS };
-const SMTP_FALLBACK_FILE = path.resolve(__dirname, 'data', '.smtp_fallback.json');
-function saveSmtpFallbackToDisk() {
-  try {
-    const dir = path.dirname(SMTP_FALLBACK_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(
-      SMTP_FALLBACK_FILE,
-      JSON.stringify(
-        {
-          orderNotificationEmail: settings.orderNotificationEmail || 'muhammadeyamin0@gmail.com',
-          gmailNotificationUser: settings.gmailNotificationUser || 'muhammadeyamin0@gmail.com',
-          gmailNotificationAppPassword: String(settings.gmailNotificationAppPassword || '').replace(/\s+/g, '')
-        },
-        null,
-        2
-      ),
-      'utf-8'
-    );
-  } catch (e) {
-    console.warn('SMTP fallback save warning:', e);
-  }
-}
-function loadSmtpFallbackFromDisk() {
-  try {
-    if (fs.existsSync(SMTP_FALLBACK_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(SMTP_FALLBACK_FILE, 'utf-8'));
-      if (parsed && typeof parsed === 'object') {
-        if (parsed.orderNotificationEmail) settings.orderNotificationEmail = String(parsed.orderNotificationEmail).trim();
-        if (parsed.gmailNotificationUser) settings.gmailNotificationUser = String(parsed.gmailNotificationUser).trim();
-        if (parsed.gmailNotificationAppPassword) {
-          settings.gmailNotificationAppPassword = String(parsed.gmailNotificationAppPassword).replace(/\s+/g, '');
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('SMTP fallback load warning:', e);
-  }
-}
-loadSmtpFallbackFromDisk();
 let financialRecords: FinancialRecord[] = [...INITIAL_FINANCIAL_RECORDS];
 let staffModerators: StaffModerator[] = [...INITIAL_MODERATORS];
 let themeConfig: ThemeConfig = { ...INITIAL_THEME };
@@ -348,29 +309,100 @@ function sanitizeEnvCredential(raw: unknown): string {
   return raw.trim().replace(/^["']+|["']+$/g, '').trim();
 }
 
+function sanitizeEmailAddress(raw: unknown): string {
+  const val = sanitizeEnvCredential(raw);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? val : '';
+}
+
+function readLocalDotEnv(): Record<string, string> {
+  try {
+    const envPath = path.resolve(__dirname, '.env');
+    if (fs.existsSync(envPath)) {
+      return dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
+    }
+  } catch {
+    // ignore missing or unreadable .env
+  }
+  return {};
+}
+
 function getGmailSmtpConfig(fallbackOverride?: {
   recipientEmail?: string;
   senderUser?: string;
   appPassword?: string;
 }) {
+  const localDotEnv = readLocalDotEnv();
   const recipient =
-    sanitizeEnvCredential(fallbackOverride?.recipientEmail) ||
-    sanitizeEnvCredential(process.env.ORDER_NOTIFICATION_EMAIL) ||
-    sanitizeEnvCredential(settings.orderNotificationEmail) ||
+    sanitizeEmailAddress(fallbackOverride?.recipientEmail) ||
+    sanitizeEmailAddress(settings.orderNotificationEmail) ||
+    sanitizeEmailAddress(process.env.ORDER_NOTIFICATION_EMAIL) ||
+    sanitizeEmailAddress(localDotEnv.ORDER_NOTIFICATION_EMAIL) ||
     'muhammadeyamin0@gmail.com';
   const senderUser =
-    sanitizeEnvCredential(process.env.GMAIL_USER) ||
-    sanitizeEnvCredential(fallbackOverride?.senderUser) ||
-    sanitizeEnvCredential(settings.gmailNotificationUser) ||
+    sanitizeEmailAddress(fallbackOverride?.senderUser) ||
+    sanitizeEmailAddress(settings.gmailNotificationUser) ||
+    sanitizeEmailAddress(process.env.GMAIL_USER) ||
+    sanitizeEmailAddress(localDotEnv.GMAIL_USER) ||
     'muhammadeyamin0@gmail.com';
   const envPassword = sanitizeEnvCredential(process.env.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
+  const dotEnvPassword = sanitizeEnvCredential(localDotEnv.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
   const fallbackPassword = (
     sanitizeEnvCredential(fallbackOverride?.appPassword) ||
     sanitizeEnvCredential(settings.gmailNotificationAppPassword)
   ).replace(/\s+/g, '');
-  const appPassword = envPassword || fallbackPassword;
-  const credentialSource = envPassword ? 'env' : fallbackPassword ? 'admin_fallback' : 'none';
-  return { recipient, senderUser, appPassword, credentialSource };
+  const candidates = Array.from(new Set([envPassword, dotEnvPassword, fallbackPassword].filter(Boolean)));
+  const appPassword = candidates[0] || '';
+  const credentialSource = envPassword
+    ? 'env'
+    : dotEnvPassword
+      ? 'dotenv'
+      : fallbackPassword
+        ? 'admin_fallback'
+        : 'none';
+  return { recipient, senderUser, appPassword, envPassword, fallbackPassword, candidates, credentialSource };
+}
+
+async function sendWithGmailSmtpFallback(params: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  senderUser: string;
+  candidates: string[];
+}) {
+  let lastErr: any = null;
+  for (let i = 0; i < params.candidates.length; i++) {
+    const pass = params.candidates[i];
+    try {
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+          user: params.senderUser,
+          pass
+        }
+      });
+      const info = await transporter.sendMail({
+        from: params.from,
+        to: params.to,
+        subject: params.subject,
+        html: params.html
+      });
+      return { ok: true as const, info, usedFallbackIndex: i };
+    } catch (err: any) {
+      lastErr = err;
+      const errMsg = String(err?.message || 'SMTP error');
+      const isAuthErr = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
+      // If first credential (e.g. env) rejected with 535 and a fallback credential exists, retry with fallback
+      if (isAuthErr && i + 1 < params.candidates.length) {
+        console.warn(`[VANTREL SMTP] Primary credential rejected (535); retrying with AdminDashboard fallback credential...`);
+        continue;
+      }
+      return { ok: false as const, err };
+    }
+  }
+  return { ok: false as const, err: lastErr };
 }
 
 // Helper: Send High-Priority Order Notification to Gmail (muhammadeyamin0@gmail.com)
@@ -382,7 +414,7 @@ async function sendGmailOrderNotification(
     appPassword?: string;
   }
 ) {
-  const { recipient, senderUser, appPassword } = getGmailSmtpConfig(fallbackOverride);
+  const { recipient, senderUser, candidates } = getGmailSmtpConfig(fallbackOverride);
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemsHtml = itemsList
@@ -541,53 +573,45 @@ async function sendGmailOrderNotification(
   console.log(` Total: ৳${order.total} BDT | Items: ${itemsList.length}`);
   console.log(`======================================================\n`);
 
-  if (appPassword) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-          user: senderUser,
-          pass: appPassword
-        }
-      });
+  if (candidates.length > 0) {
+    const attempt = await sendWithGmailSmtpFallback({
+      from: `"VANTREL Clothing" <${senderUser}>`,
+      to: recipient,
+      subject: `[VANTREL NEW ORDER] #${order.orderNumber} - ৳${Number(order.total || 0).toLocaleString()} BDT (${order.customer?.fullName})`,
+      html: htmlContent,
+      senderUser,
+      candidates
+    });
 
-      const info = await transporter.sendMail({
-        from: `"VANTREL Clothing" <${senderUser}>`,
-        to: recipient,
-        subject: `[VANTREL NEW ORDER] #${order.orderNumber} - ৳${Number(order.total || 0).toLocaleString()} BDT (${order.customer?.fullName})`,
-        html: htmlContent
-      });
-
-      console.log(`✅ Order notification successfully sent to ${recipient}. MessageId: ${info.messageId}`);
+    if (attempt.ok) {
+      console.log(`✅ Order notification successfully sent to ${recipient}. MessageId: ${attempt.info.messageId}`);
       recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_SENT', `Notification for #${order.orderNumber} sent to ${recipient}`);
-      return { success: true, messageId: info.messageId, delivered: true, recipient, senderUser };
-    } catch (err: any) {
-      const errMsg = String(err?.message || 'SMTP error');
-      const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
-      console.warn(`[VANTREL SMTP] Gmail dispatch skipped (${authFailed ? 'Invalid App Password / 535' : errMsg})`);
-      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_SKIPPED', `SMTP notice: ${errMsg}`);
-      return {
-        success: true,
-        delivered: false,
-        authFailed,
-        recipient,
-        senderUser,
-        error: authFailed
-          ? `Gmail SMTP rejected login for ${senderUser} (535). Use a fresh 16-character Google App Password in GMAIL_APP_PASSWORD.`
-          : errMsg
-      };
+      return { success: true, messageId: attempt.info.messageId, delivered: true, recipient, senderUser };
     }
+
+    const errMsg = String(attempt.err?.message || 'SMTP error');
+    const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
+    console.warn(`[VANTREL SMTP] Gmail dispatch skipped (${authFailed ? 'Invalid App Password / 535' : errMsg})`);
+    recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_SKIPPED', `SMTP notice: ${errMsg}`);
+    return {
+      success: true,
+      delivered: false,
+      authFailed,
+      recipient,
+      senderUser,
+      error: authFailed
+        ? `Gmail SMTP rejected login for ${senderUser} (535). Use a fresh 16-character Google App Password in GMAIL_APP_PASSWORD or Admin Settings.`
+        : errMsg
+    };
   } else {
     recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_ORDER_PREPARED', `Order #${order.orderNumber} prepared for ${recipient} (App Password pending).`);
-    return { success: true, delivered: false, note: 'Notification prepared; configure GMAIL_APP_PASSWORD for direct live delivery', recipient, senderUser };
+    return { success: true, delivered: false, note: 'Notification prepared; configure GMAIL_APP_PASSWORD or Admin Settings Server SMTP Credential for live delivery', recipient, senderUser };
   }
 }
 
 // Helper: Send High-Priority Auto-Confirmation Notification to muhammadeyamin0@gmail.com
 async function sendGmailAutoConfirmNotification(order: any) {
-  const { recipient, senderUser, appPassword } = getGmailSmtpConfig();
+  const { recipient, senderUser, candidates } = getGmailSmtpConfig();
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemsHtml = itemsList
@@ -735,44 +759,36 @@ async function sendGmailAutoConfirmNotification(order: any) {
   console.log(` Total: ৳${order.total} BDT | Customer: ${order.customer?.fullName} (${order.customer?.phone})`);
   console.log(`======================================================\n`);
 
-  if (appPassword) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-          user: senderUser,
-          pass: appPassword
-        }
-      });
+  if (candidates.length > 0) {
+    const attempt = await sendWithGmailSmtpFallback({
+      from: `"VANTREL OUTFIT" <${senderUser}>`,
+      to: recipient,
+      subject: `[অর্ডার কনফার্মড] #${order.orderNumber} - গ্রাহক ১৫ মিনিটে বাতিল না করায় স্বয়ংক্রিয়ভাবে কনফার্ম হয়েছে (৳${Number(order.total || 0).toLocaleString()} BDT)`,
+      html: htmlContent,
+      senderUser,
+      candidates
+    });
 
-      const info = await transporter.sendMail({
-        from: `"VANTREL OUTFIT" <${senderUser}>`,
-        to: recipient,
-        subject: `[অর্ডার কনফার্মড] #${order.orderNumber} - গ্রাহক ১৫ মিনিটে বাতিল না করায় স্বয়ংক্রিয়ভাবে কনফার্ম হয়েছে (৳${Number(order.total || 0).toLocaleString()} BDT)`,
-        html: htmlContent
-      });
-
-      console.log(`✅ Order auto-confirmation email successfully sent to ${recipient}. MessageId: ${info.messageId}`);
+    if (attempt.ok) {
+      console.log(`✅ Order auto-confirmation email successfully sent to ${recipient}. MessageId: ${attempt.info.messageId}`);
       recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_SENT', `Auto-confirmed order #${order.orderNumber} sent to ${recipient}`);
-      return { success: true, messageId: info.messageId, delivered: true, recipient, senderUser };
-    } catch (err: any) {
-      const errMsg = String(err?.message || 'SMTP error');
-      const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
-      console.warn(`[VANTREL SMTP] Auto-confirm Gmail skipped (${authFailed ? 'Invalid App Password / 535' : errMsg})`);
-      recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_SKIPPED', `SMTP notice: ${errMsg}`);
-      return {
-        success: true,
-        delivered: false,
-        authFailed,
-        recipient,
-        senderUser,
-        error: authFailed
-          ? `Gmail SMTP rejected login for ${senderUser} (535). Use a fresh 16-character Google App Password in GMAIL_APP_PASSWORD.`
-          : errMsg
-      };
+      return { success: true, messageId: attempt.info.messageId, delivered: true, recipient, senderUser };
     }
+
+    const errMsg = String(attempt.err?.message || 'SMTP error');
+    const authFailed = /535|Invalid login|Username and Password not accepted/i.test(errMsg);
+    console.warn(`[VANTREL SMTP] Auto-confirm Gmail skipped (${authFailed ? 'Invalid App Password / 535' : errMsg})`);
+    recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_SKIPPED', `SMTP notice: ${errMsg}`);
+    return {
+      success: true,
+      delivered: false,
+      authFailed,
+      recipient,
+      senderUser,
+      error: authFailed
+        ? `Gmail SMTP rejected login for ${senderUser} (535). Use a fresh 16-character Google App Password in GMAIL_APP_PASSWORD or Admin Settings.`
+        : errMsg
+    };
   } else {
     recordAudit('System Email Engine', 'Automated Dispatch', 'GMAIL_CONFIRMATION_PREPARED', `Auto-confirmed order #${order.orderNumber} prepared for ${recipient}`);
     return { success: true, delivered: false, note: 'Notification prepared for muhammadeyamin0@gmail.com', recipient, senderUser };
@@ -1309,7 +1325,8 @@ app.get('/api/orders/:id', (req: Request, res: Response) => {
 app.post('/api/orders', (req: Request, res: Response) => {
   // If an entire pre-constructed order object is received from frontend client
   if (req.body.id && req.body.orderNumber && req.body.customer && req.body.items) {
-    const incomingOrder: Order = req.body;
+    const { skipEmailNotification, smtpFallback, ...rawIncomingOrder } = req.body;
+    const incomingOrder: Order = rawIncomingOrder;
     const deadlineVal =
       incomingOrder.confirmationDeadline ||
       incomingOrder.canCancelUntil ||
@@ -1352,10 +1369,12 @@ app.post('/api/orders', (req: Request, res: Response) => {
     // Prepare & dispatch automated WhatsApp confirmation
     const waLog = dispatchWhatsAppConfirmation(incomingOrder);
 
-    // Send Gmail notification asynchronously
-    sendGmailOrderNotification(incomingOrder).catch((err) => {
-      console.warn('Gmail order notification dispatch error:', err);
-    });
+    // Send Gmail notification asynchronously unless client delegates directly to /api/send-order-notification
+    if (!skipEmailNotification) {
+      sendGmailOrderNotification(incomingOrder, smtpFallback).catch((err) => {
+        console.warn('Gmail order notification dispatch error:', err);
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -1746,7 +1765,6 @@ app.post('/api/settings/smtp', async (req: Request, res: Response) => {
   if (typeof gmailNotificationAppPassword === 'string') {
     settings.gmailNotificationAppPassword = gmailNotificationAppPassword.replace(/\s+/g, '');
   }
-  saveSmtpFallbackToDisk();
   res.json({
     success: true,
     hasFallbackPassword: Boolean(settings.gmailNotificationAppPassword),
@@ -1774,12 +1792,14 @@ app.post('/api/test-email-notification', async (req: Request, res: Response) => 
     return res.status(401).json({ success: false, error: 'Admin verification required.' });
   }
   const { recipientEmail, senderUser, appPassword } = req.body || {};
+  if (typeof recipientEmail === 'string' && recipientEmail.trim()) {
+    settings.orderNotificationEmail = recipientEmail.trim();
+  }
+  if (typeof senderUser === 'string' && senderUser.trim()) {
+    settings.gmailNotificationUser = senderUser.trim();
+  }
   if (typeof appPassword === 'string' && appPassword.replace(/\s+/g, '')) {
     settings.gmailNotificationAppPassword = appPassword.replace(/\s+/g, '');
-    if (typeof recipientEmail === 'string' && recipientEmail.trim()) {
-      settings.orderNotificationEmail = recipientEmail.trim();
-    }
-    saveSmtpFallbackToDisk();
   }
 
   const dummyOrder: any = {
