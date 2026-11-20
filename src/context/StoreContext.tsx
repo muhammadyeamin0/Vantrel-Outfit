@@ -310,8 +310,13 @@ export interface StoreContextType {
   products: Product[];
   activeProducts: Product[];
   archivedProducts: Product[];
-  addProduct: (product: Omit<Product, 'id' | 'createdDate'>) => void;
-  updateProduct: (id: string, updated: Partial<Product>) => void;
+  addProduct: (
+    product: Omit<Product, 'id' | 'createdDate'>
+  ) => Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }>;
+  updateProduct: (
+    id: string,
+    updated: Partial<Product>
+  ) => Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }>;
   deleteProduct: (id: string) => void;
   restoreProduct: (id: string) => void;
   permanentlyDeleteProduct: (id: string) => void;
@@ -417,6 +422,8 @@ export interface StoreContextType {
   loginAsStaff: (role: StaffRole, name?: string) => void;
   loginAsAdmin: () => void;
   signInAdminWithGoogle: () => Promise<{ success: boolean; message?: string }>;
+  isFirebaseAdminAuthenticated: boolean;
+  firebaseAuthLoaded: boolean;
   logout: () => void;
   customers: User[];
   updateCustomerStatus: (userId: string, status: 'Active' | 'Inactive') => void;
@@ -757,6 +764,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [currentStaffRole, setCurrentStaffRole] = useState<StaffRole>('Super Admin');
+  const [firebaseAuthLoaded, setFirebaseAuthLoaded] = useState(false);
+  const [isFirebaseAdminAuthenticated, setIsFirebaseAdminAuthenticated] = useState(false);
 
   // SMS Logs & Templates
   const [smsLogs, setSmsLogs] = useState<SmsLog[]>(() => {
@@ -1140,8 +1149,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 2. Clean single-shot HTTP fetch to /api/products (never aborted prematurely by short client timer)
     const loadFromProductsApi = async () => {
       try {
-        const res = await fetch('/api/products', {
-          headers: { Accept: 'application/json' }
+        const res = await fetch(`/api/products${currentPage === 'admin' ? '?fresh=1' : ''}`, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store'
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -1378,10 +1388,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       Boolean(currentUser);
     if (!needsAuthSync || !IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      if (fbUser) {
-        const isSuperAdminAccount =
+      setFirebaseAuthLoaded(true);
+      const isSuperAdminAccount = Boolean(
+        fbUser &&
           fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-          Boolean(fbUser.emailVerified);
+          fbUser.emailVerified
+      );
+      setIsFirebaseAdminAuthenticated(isSuperAdminAccount);
+
+      if (fbUser) {
         setCurrentUser((prev) => {
           if (
             prev &&
@@ -1995,18 +2010,166 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     [products]
   );
 
-  // Product Actions (Direct Real-time Sync to Firebase Firestore)
-  const addProduct = async (newProd: Omit<Product, 'id' | 'createdDate'>) => {
+  const logFirestoreErrorInfo = useCallback(
+    (error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo => {
+      const errInfo: FirestoreErrorInfo = {
+        error: error instanceof Error ? error.message : String(error),
+        authInfo: {
+          userId: auth?.currentUser?.uid ?? null,
+          email: auth?.currentUser?.email ?? null,
+          emailVerified: auth?.currentUser?.emailVerified ?? null,
+          isAnonymous: auth?.currentUser?.isAnonymous ?? null,
+          tenantId: auth?.currentUser?.tenantId ?? null,
+          providerInfo:
+            auth?.currentUser?.providerData?.map((provider) => ({
+              providerId: provider.providerId,
+              email: provider.email
+            })) || []
+        },
+        operationType,
+        path
+      };
+      console.error('Firestore Error: ', JSON.stringify(errInfo));
+      return errInfo;
+    },
+    []
+  );
+
+  const formatFirestoreWriteError = (error: unknown): string => {
+    const raw = error instanceof Error ? error.message : String(error || '');
+    const lower = raw.toLowerCase();
+    if (
+      lower.includes('exceeds the maximum allowed size') ||
+      lower.includes('longer than') ||
+      lower.includes('resource-exhausted') ||
+      lower.includes('too large')
+    ) {
+      return 'প্রোডাক্ট ও ছবির মোট সাইজ Firestore-এর ১MB সীমার চেয়ে বেশি। কম সাইজের ছবি দিন অথবা Image URL ব্যবহার করুন।';
+    }
+    if (lower.includes('quota exceeded')) {
+      return 'Firestore দৈনিক ফ্রি কোটা শেষ হয়েছে। অনুগ্রহ করে পরে আবার চেষ্টা করুন।';
+    }
+    if (lower.includes('permission') || lower.includes('insufficient')) {
+      return 'Firebase অ্যাডমিন সেশন যাচাই হয়নি — অনুগ্রহ করে পুনরায় Google Admin (muhammadeyamin0@gmail.com) দিয়ে লগইন করুন।';
+    }
+    return raw || 'Firebase ডাটাবেজে সেভ করা যায়নি।';
+  };
+
+  // Product Actions (Direct Real-time Sync to Firebase Firestore + Backend API)
+  const addProduct = async (
+    newProd: Omit<Product, 'id' | 'createdDate'>
+  ): Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }> => {
+    if (auth && typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+      await (auth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
+    }
+
     const id = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const cleanName = String(newProd.name || '').trim().slice(0, 220);
+    const cleanCategory = String(newProd.category || '').trim();
+    const safeCategory = (
+      cleanCategory && cleanCategory.toLowerCase() !== 'all' ? cleanCategory : 'Hoodies'
+    ).slice(0, 80);
+    const cleanSku = (String(newProd.sku || '').trim() || `VT-${Date.now().toString().slice(-5)}`).slice(0, 80);
+    const safeRegularPrice = Number.isFinite(Number(newProd.regularPrice))
+      ? Math.max(0, Math.min(1000000, Math.round(Number(newProd.regularPrice))))
+      : 0;
+    const rawDiscount =
+      newProd.discountPrice !== undefined && newProd.discountPrice !== null
+        ? Number(newProd.discountPrice)
+        : undefined;
+    const safeDiscountPrice =
+      rawDiscount !== undefined && Number.isFinite(rawDiscount) && rawDiscount >= 0 && rawDiscount < safeRegularPrice
+        ? Math.round(rawDiscount)
+        : undefined;
+    const rawCost =
+      newProd.costPrice !== undefined && newProd.costPrice !== null ? Number(newProd.costPrice) : undefined;
+    const safeCostPrice =
+      rawCost !== undefined && Number.isFinite(rawCost) && rawCost >= 0
+        ? Math.min(1000000, Math.round(rawCost))
+        : undefined;
+    const safeStock = Number.isFinite(Number(newProd.totalStock))
+      ? Math.max(0, Math.min(100000, Math.round(Number(newProd.totalStock))))
+      : 0;
+    const asciiSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const rawSlug = String(newProd.slug || '')
+      .trim()
+      .replace(/^-+|-+$/g, '');
+    const safeSlug = (rawSlug || (asciiSlug ? `${asciiSlug}-${Date.now().toString(36).slice(-4)}` : `vantrel-${Date.now().toString(36)}`)).slice(0, 220);
+    const safeImages = rewriteProductImagesToProxy(Array.isArray(newProd.images) ? newProd.images : []).slice(0, 20);
+    const resolvedStatus: 'published' | 'draft' | 'archived' =
+      newProd.status === 'draft' || newProd.status === 'archived' || newProd.isArchived
+        ? newProd.isArchived
+          ? 'archived'
+          : newProd.status || 'published'
+        : 'published';
+
     const product: Product = sanitizeProductSizes({
       ...newProd,
       id,
-      status: 'published',
-      isArchived: false,
+      name: cleanName,
+      slug: safeSlug,
+      sku: cleanSku,
+      category: safeCategory,
+      regularPrice: safeRegularPrice,
+      discountPrice: safeDiscountPrice,
+      costPrice: safeCostPrice,
+      totalStock: safeStock,
+      images: safeImages,
+      status: resolvedStatus,
+      isArchived: Boolean(newProd.isArchived || resolvedStatus === 'archived'),
       sortOrder: -1,
       createdDate: new Date().toISOString().split('T')[0]
     });
-    // Optimistic local update
+
+    const payload = sanitizeFirestoreData(product);
+    const payloadBytes = new Blob([JSON.stringify(payload)]).size;
+    if (payloadBytes > 950_000) {
+      const sizeErr = `প্রোডাক্ট ও ছবির মোট সাইজ (${Math.round(payloadBytes / 1024)}KB) Firestore ১MB সীমার বেশি হয়ে গেছে। কম ছবি দিন অথবা ইমেজ URL ব্যবহার করুন।`;
+      showToast('ছবির সাইজ বেশি হয়েছে', sizeErr, 'error');
+      return { success: false, firestoreSynced: false, apiSynced: false, error: sizeErr };
+    }
+
+    let firestoreSynced = false;
+    let firestoreErrMsg = '';
+    if (db) {
+      try {
+        await setDoc(doc(db, 'products', product.id), payload);
+        firestoreSynced = true;
+      } catch (e) {
+        logFirestoreErrorInfo(e, OperationType.CREATE, `products/${product.id}`);
+        firestoreErrMsg = formatFirestoreWriteError(e);
+      }
+    }
+
+    let apiSynced = false;
+    let apiErrMsg = '';
+    try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(product)
+      });
+      if (res.ok) {
+        apiSynced = true;
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        apiErrMsg = errJson?.error || `Server HTTP ${res.status}`;
+      }
+    } catch (e) {
+      apiErrMsg = e instanceof Error ? e.message : 'Server sync failed';
+    }
+
+    if (!firestoreSynced && !apiSynced) {
+      const combinedErr = firestoreErrMsg || apiErrMsg || 'প্রোডাক্ট ডাটাবেজ বা সার্ভারে সেভ করা যায়নি।';
+      showToast('প্রোডাক্ট সেভ ব্যর্থ হয়েছে', combinedErr, 'error');
+      return { success: false, firestoreSynced: false, apiSynced: false, error: combinedErr };
+    }
+
+    // Update local state & categories after backend/Firestore persistence succeeds
     setProducts((prev) => [product, ...prev]);
     if (product.category?.trim()) {
       setCategories((prev) =>
@@ -2016,78 +2179,124 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       );
     }
 
-    // Save directly to Firebase Firestore
-    try {
-      if (db) {
-        const payload = sanitizeFirestoreData(product);
-        await setDoc(doc(db, 'products', product.id), payload);
-      }
-    } catch (e) {
-      console.warn('Firestore addProduct error:', e);
-      showToast('Database Sync Notice', 'Google Admin login required for Firebase database sync.', 'error');
-    }
-
-    // Also synchronize to server backend and disk storage
-    try {
-      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
-      fetch('/api/products', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(product)
-      }).catch((err) => console.warn('Server product sync error:', err));
-    } catch (e) {
-      console.warn('Server product sync exception:', e);
-    }
-
     addAuditLog('PRODUCT_CREATE', `Added garment "${product.name}" with SKU ${product.sku}`);
-    showToast('Product Created & Synced', `${product.name} is saved to Firebase and live on all devices.`, 'success');
+    if (firestoreSynced) {
+      showToast('Product Created & Synced', `${product.name} সফলভাবে Firebase-এ সেভ এবং লাইভ হয়েছে।`, 'success');
+    } else {
+      showToast(
+        'লোকাল ও সার্ভারে সেভ হয়েছে (Firebase বাকি)',
+        firestoreErrMsg || 'সব ডিভাইসে স্থায়ী সিঙ্কের জন্য Google Admin দিয়ে পুনরায় সাইন-ইন করুন।',
+        'info'
+      );
+    }
+    return { success: true, firestoreSynced, apiSynced };
   };
 
-  const updateProduct = async (id: string, updated: Partial<Product>) => {
-    const cleanUpdated = { ...updated };
+  const updateProduct = async (
+    id: string,
+    updated: Partial<Product>
+  ): Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }> => {
+    if (auth && typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+      await (auth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
+    }
+
+    const existingProduct = products.find((p) => p.id === id);
+    const cleanUpdated: Partial<Product> = { ...updated };
+    if (typeof cleanUpdated.name === 'string') {
+      cleanUpdated.name = cleanUpdated.name.trim().slice(0, 220);
+    }
+    if (typeof cleanUpdated.sku === 'string') {
+      cleanUpdated.sku = (cleanUpdated.sku.trim() || existingProduct?.sku || `VT-${Date.now().toString().slice(-5)}`).slice(0, 80);
+    }
+    if (typeof cleanUpdated.category === 'string') {
+      const cat = cleanUpdated.category.trim();
+      cleanUpdated.category = (cat && cat.toLowerCase() !== 'all' ? cat : existingProduct?.category || 'Hoodies').slice(0, 80);
+    }
+    if (typeof cleanUpdated.slug === 'string') {
+      cleanUpdated.slug = cleanUpdated.slug.trim().slice(0, 220);
+    }
+    if (cleanUpdated.regularPrice !== undefined) {
+      cleanUpdated.regularPrice = Math.max(0, Math.min(1000000, Math.round(Number(cleanUpdated.regularPrice) || 0)));
+    }
+    if (cleanUpdated.totalStock !== undefined) {
+      cleanUpdated.totalStock = Math.max(0, Math.min(100000, Math.round(Number(cleanUpdated.totalStock) || 0)));
+    }
     if (Array.isArray(cleanUpdated.images)) {
-      cleanUpdated.images = rewriteProductImagesToProxy(cleanUpdated.images);
+      cleanUpdated.images = rewriteProductImagesToProxy(cleanUpdated.images).slice(0, 20);
     }
     if (Array.isArray(cleanUpdated.sizes)) {
       const allowed = ALLOWED_SIZES as readonly string[];
       const filtered = cleanUpdated.sizes.filter((s) => allowed.includes(s));
       if (filtered.length > 0) {
-        cleanUpdated.sizes = filtered;
+        cleanUpdated.sizes = filtered.slice(0, 20);
       } else {
         delete cleanUpdated.sizes;
       }
     }
 
-    // Optimistic local update
+    const mergedProduct = existingProduct
+      ? sanitizeProductSizes({ ...existingProduct, ...cleanUpdated })
+      : null;
+    const firestoreDocPayload = sanitizeFirestoreData(mergedProduct || cleanUpdated);
+    const payloadBytes = new Blob([JSON.stringify(firestoreDocPayload)]).size;
+    if (payloadBytes > 950_000) {
+      const sizeErr = `প্রোডাক্ট ও ছবির মোট সাইজ (${Math.round(payloadBytes / 1024)}KB) Firestore ১MB সীমার বেশি হয়ে গেছে।`;
+      showToast('ছবির সাইজ বেশি হয়েছে', sizeErr, 'error');
+      return { success: false, firestoreSynced: false, apiSynced: false, error: sizeErr };
+    }
+
+    let firestoreSynced = false;
+    let firestoreErrMsg = '';
+    if (db) {
+      try {
+        await setDoc(doc(db, 'products', id), firestoreDocPayload, { merge: true });
+        firestoreSynced = true;
+      } catch (e) {
+        logFirestoreErrorInfo(e, OperationType.UPDATE, `products/${id}`);
+        firestoreErrMsg = formatFirestoreWriteError(e);
+      }
+    }
+
+    let apiSynced = false;
+    let apiErrMsg = '';
+    try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(cleanUpdated)
+      });
+      if (res.ok) {
+        apiSynced = true;
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        apiErrMsg = errJson?.error || `Server HTTP ${res.status}`;
+      }
+    } catch (e) {
+      apiErrMsg = e instanceof Error ? e.message : 'Server update failed';
+    }
+
+    if (!firestoreSynced && !apiSynced) {
+      const combinedErr = firestoreErrMsg || apiErrMsg || 'প্রোডাক্ট আপডেট করা যায়নি।';
+      showToast('আপডেট ব্যর্থ হয়েছে', combinedErr, 'error');
+      return { success: false, firestoreSynced: false, apiSynced: false, error: combinedErr };
+    }
+
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? sanitizeProductSizes({ ...p, ...cleanUpdated }) : p))
     );
 
-    // Save directly to Firebase Firestore
-    try {
-      if (db) {
-        const payload = sanitizeFirestoreData(cleanUpdated);
-        await setDoc(doc(db, 'products', id), payload, { merge: true });
-      }
-    } catch (e) {
-      console.warn('Firestore updateProduct error:', e);
-      showToast('Database Sync Notice', 'Google Admin login required to save product changes.', 'error');
-    }
-
-    // Also synchronize to server backend and disk storage
-    try {
-      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
-      fetch(`/api/products/${id}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(cleanUpdated)
-      }).catch((err) => console.warn('Server product update error:', err));
-    } catch (e) {
-      console.warn('Server product update exception:', e);
-    }
-
     addAuditLog('PRODUCT_UPDATE', `Updated garment ID ${id}`);
-    showToast('Product Updated', 'Changes synced across all devices.', 'success');
+    if (firestoreSynced) {
+      showToast('Product Updated', 'সকল ডিভাইসে পরিবর্তন সফলভাবে সেভ হয়েছে।', 'success');
+    } else {
+      showToast(
+        'লোকাল/সার্ভারে আপডেট হয়েছে (Firebase বাকি)',
+        firestoreErrMsg || 'Firebase-এ সিঙ্ক করতে Google Admin রি-লগইন করুন।',
+        'info'
+      );
+    }
+    return { success: true, firestoreSynced, apiSynced };
   };
 
   const duplicateProduct = async (id: string) => {
@@ -4323,6 +4532,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         loginAsStaff,
         loginAsAdmin,
         signInAdminWithGoogle,
+        isFirebaseAdminAuthenticated,
+        firebaseAuthLoaded,
         logout,
         customers,
         updateCustomerStatus,

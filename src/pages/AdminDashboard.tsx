@@ -120,6 +120,8 @@ export const AdminDashboard: React.FC = () => {
     updateSettings,
     currentUser,
     signInAdminWithGoogle,
+    isFirebaseAdminAuthenticated,
+    firebaseAuthLoaded,
     logout,
     currentStaffRole,
     setCurrentStaffRole,
@@ -193,6 +195,7 @@ export const AdminDashboard: React.FC = () => {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showAdvancedSpecs, setShowAdvancedSpecs] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // Category Management & Product Reordering state
   const [newCategoryInput, setNewCategoryInput] = useState('');
@@ -614,9 +617,12 @@ export const AdminDashboard: React.FC = () => {
 
   // Product Modal Open for Create
   const handleOpenCreateProduct = () => {
+    const firstValidCategory = categories.find((c) => c && c.toLowerCase() !== 'all') || 'Hoodies';
     setEditingProductId(null);
     setProdName('');
-    setProdCategory('Hoodies');
+    setProdCategory(firstValidCategory);
+    setIsCustomCategory(false);
+    setCustomCategoryText('');
     setProdSubCategory('Heavyweight Streetwear');
     setProdCost(0);
     setProdDiscountPrice(0);
@@ -636,9 +642,12 @@ export const AdminDashboard: React.FC = () => {
     setProdDesc('Engineered in limited quantities with architectural boxy drape.');
     setProdTagline('Premium heavyweight streetwear essential.');
     setProdImages([]);
+    setNewImageUrl('');
     setProdSizes(['M', 'L', 'XL', 'XXL']);
     setShowPantSizes(false);
     setProdColors([]);
+    setNewColorName('');
+    setShowAdvancedSpecs(false);
     setIsProductModalOpen(true);
   };
 
@@ -766,28 +775,35 @@ export const AdminDashboard: React.FC = () => {
         };
         img.onload = () => {
           try {
-            const maxDim = 1100;
-            let width = img.naturalWidth || img.width;
-            let height = img.naturalHeight || img.height;
-            if (width > maxDim || height > maxDim) {
-              const ratio = Math.min(maxDim / width, maxDim / height);
-              width = Math.max(1, Math.round(width * ratio));
-              height = Math.max(1, Math.round(height * ratio));
+            const renderAtSize = (maxDim: number, quality: number): string => {
+              let width = img.naturalWidth || img.width;
+              let height = img.naturalHeight || img.height;
+              if (width > maxDim || height > maxDim) {
+                const ratio = Math.min(maxDim / width, maxDim / height);
+                width = Math.max(1, Math.round(width * ratio));
+                height = Math.max(1, Math.round(height * ratio));
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return rawDataUrl;
+              ctx.drawImage(img, 0, 0, width, height);
+              let out = canvas.toDataURL('image/webp', quality);
+              if (!out.startsWith('data:image/webp')) {
+                out = canvas.toDataURL('image/jpeg', quality);
+              }
+              return out;
+            };
+
+            let compressed = renderAtSize(900, 0.8);
+            if (compressed.length > 220_000) {
+              compressed = renderAtSize(800, 0.65);
             }
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              resolve(rawDataUrl);
-              return;
+            if (compressed.length > 220_000) {
+              compressed = renderAtSize(680, 0.5);
             }
-            ctx.drawImage(img, 0, 0, width, height);
-            let compressed = canvas.toDataURL('image/webp', 0.84);
-            if (!compressed.startsWith('data:image/webp')) {
-              compressed = canvas.toDataURL('image/jpeg', 0.84);
-            }
-            // Keep smaller result so Firestore 1MB limit is never exceeded
+            // Keep smaller result so Firestore 1MB limit is never exceeded when multiple images are uploaded
             resolve(compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
           } catch {
             resolve(rawDataUrl);
@@ -857,115 +873,200 @@ export const AdminDashboard: React.FC = () => {
     setProdPrice(regularPrice);
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prodName.trim()) {
-      showToast('Validation Error', 'Product title is required.', 'error');
+    if (isSavingProduct) return;
+
+    const cleanName = prodName.trim();
+    if (!cleanName) {
+      showToast('ভ্যালিডেশন এরর', 'প্রোডাক্টের নাম লিখুন।', 'error');
       return;
     }
 
+    let finalCategoryRaw = isCustomCategory ? customCategoryText.trim() : String(prodCategory || '').trim();
+    if (isCustomCategory && !finalCategoryRaw) {
+      showToast('ভ্যালিডেশন এরর', 'নতুন ক্যাটাগরির নাম লিখুন অথবা তালিকার ক্যাটাগরি সিলেক্ট করুন।', 'error');
+      return;
+    }
+    if (!finalCategoryRaw || finalCategoryRaw.toLowerCase() === 'all') {
+      finalCategoryRaw = categories.find((c) => c && c.toLowerCase() !== 'all') || 'Hoodies';
+    }
+    const finalCategory = finalCategoryRaw.slice(0, 80) as ProductCategory;
+
+    const cleanSellPrice = Number.isFinite(Number(prodDiscountPrice)) ? Math.max(0, Math.round(Number(prodDiscountPrice))) : 0;
+    const cleanRegPrice = Number.isFinite(Number(prodPrice)) ? Math.max(0, Math.round(Number(prodPrice))) : 0;
+    let resolvedRegularPrice = cleanRegPrice;
+    let resolvedDiscountPrice: number | undefined = undefined;
+
+    if (cleanSellPrice <= 0 && cleanRegPrice <= 0) {
+      showToast('ভ্যালিডেশন এরর', 'সঠিক বিক্রয় মূল্য বা Regular Price (৳) লিখুন।', 'error');
+      return;
+    }
+    if (cleanSellPrice > 0 && cleanRegPrice <= 0) {
+      resolvedRegularPrice = cleanSellPrice;
+    } else if (cleanSellPrice > 0 && cleanSellPrice < cleanRegPrice) {
+      resolvedRegularPrice = cleanRegPrice;
+      resolvedDiscountPrice = cleanSellPrice;
+    } else if (cleanSellPrice > cleanRegPrice && cleanRegPrice > 0) {
+      resolvedRegularPrice = cleanSellPrice;
+      resolvedDiscountPrice = undefined;
+    } else {
+      resolvedRegularPrice = cleanRegPrice;
+    }
+
     const discountPct =
-      prodDiscountPrice < prodPrice
-        ? Math.round(((prodPrice - prodDiscountPrice) / prodPrice) * 100)
+      resolvedDiscountPrice !== undefined && resolvedRegularPrice > 0
+        ? Math.round(((resolvedRegularPrice - resolvedDiscountPrice) / resolvedRegularPrice) * 100)
         : 0;
 
-    const variants = prodColors.length > 0
-      ? prodSizes.flatMap((sz) =>
-          prodColors.map((c) => ({
-            id: `v-${Date.now()}-${sz}-${c.name.replace(/\s+/g, '')}`,
+    // Auto-flush pending image URL or color name if admin forgot to click + Add
+    let finalImages = [...prodImages];
+    if (newImageUrl.trim()) {
+      const normalizedPending = normalizeImageUrl(newImageUrl.trim());
+      if (
+        normalizedPending.startsWith('https://') ||
+        normalizedPending.startsWith('http://') ||
+        normalizedPending.startsWith('/') ||
+        normalizedPending.startsWith('data:image/')
+      ) {
+        if (!finalImages.includes(normalizedPending)) {
+          finalImages.push(normalizedPending);
+        }
+        setProdImages(finalImages);
+        setNewImageUrl('');
+      }
+    }
+    if (finalImages.length > 20) {
+      showToast('ছবি সীমা অতিক্রম', 'একটি প্রোডাক্টে সর্বোচ্চ ২০টি ছবি যুক্ত করা যাবে।', 'error');
+      return;
+    }
+
+    let finalColors = [...prodColors];
+    if (newColorName.trim()) {
+      const pendingColor = { name: newColorName.trim(), hex: newColorHex };
+      if (!finalColors.some((c) => c.name.toLowerCase() === pendingColor.name.toLowerCase())) {
+        finalColors.push(pendingColor);
+        setProdColors(finalColors);
+      }
+      setNewColorName('');
+    }
+
+    const cleanSku = (prodSku.trim() || `VT-DROP-${Math.floor(1000 + Math.random() * 9000)}`).slice(0, 80);
+    const cleanStock = Number.isFinite(Number(prodStock))
+      ? Math.max(0, Math.min(100000, Math.round(Number(prodStock))))
+      : 0;
+    const cleanCost = Number.isFinite(Number(prodCost)) ? Math.max(0, Math.min(1000000, Math.round(Number(prodCost)))) : 0;
+    const cleanDesc = prodDesc.trim() || prodTagline.trim() || `${cleanName} — VANTREL OUTFIT premium collection.`;
+    const isPantCategory = /pant|trouser|cargo|jogger|bottom|jeans/i.test(finalCategory);
+    const effectiveSizes =
+      prodSizes.length > 0 ? prodSizes : isPantCategory ? ['28', '30', '32', '34', '36'] : ['M', 'L', 'XL', 'XXL'];
+
+    const variants =
+      finalColors.length > 0
+        ? effectiveSizes.flatMap((sz) =>
+            finalColors.map((c) => ({
+              id: `v-${Date.now()}-${sz}-${c.name.replace(/\s+/g, '')}`,
+              size: sz,
+              color: c.name,
+              colorHex: c.hex,
+              stock: Math.max(1, Math.floor(cleanStock / Math.max(1, effectiveSizes.length * finalColors.length))),
+              sku: `${cleanSku}-${sz}-${c.name.slice(0, 2).toUpperCase()}`
+            }))
+          )
+        : effectiveSizes.map((sz) => ({
+            id: `v-${Date.now()}-${sz}`,
             size: sz,
-            color: c.name,
-            colorHex: c.hex,
-            stock: Math.max(1, Math.floor(prodStock / Math.max(1, prodSizes.length * prodColors.length))),
-            sku: `${prodSku}-${sz}-${c.name.slice(0, 2).toUpperCase()}`
-          }))
-        )
-      : prodSizes.map((sz) => ({
-          id: `v-${Date.now()}-${sz}`,
-          size: sz,
-          color: 'Standard',
-          colorHex: '#14221C',
-          stock: Math.max(1, Math.floor(prodStock / Math.max(1, prodSizes.length))),
-          sku: `${prodSku}-${sz}`
-        }));
+            color: 'Standard',
+            colorHex: '#14221C',
+            stock: Math.max(1, Math.floor(cleanStock / Math.max(1, effectiveSizes.length))),
+            sku: `${cleanSku}-${sz}`
+          }));
 
-    const finalCategory = (isCustomCategory && customCategoryText.trim()
-      ? customCategoryText.trim()
-      : prodCategory) as ProductCategory;
-
-    if (finalCategory && !categories.includes(finalCategory)) {
+    if (finalCategory && !categories.some((c) => c.toLowerCase() === finalCategory.toLowerCase())) {
       addCategory(finalCategory);
     }
 
     const isArchived = prodStatus === 'archived';
+    const asciiSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const generatedSlug = (
+      asciiSlug ? `${asciiSlug}-${Date.now().toString(36).slice(-4)}` : `vantrel-${Date.now().toString(36)}`
+    ).slice(0, 220);
 
-    if (editingProductId) {
-      updateProduct(editingProductId, {
-        name: prodName.trim(),
-        category: finalCategory,
-        subCategory: prodSubCategory.trim(),
-        regularPrice: prodPrice,
-        discountPrice: prodDiscountPrice < prodPrice ? prodDiscountPrice : undefined,
-        discountPercent: discountPct > 0 ? discountPct : undefined,
-        costPrice: prodCost,
-        status: prodStatus,
-        isArchived,
-        isFeatured: prodIsFeatured,
-        isNewArrival: prodIsNewArrival,
-        isBestSeller: prodIsBestSeller,
-        isPinned: prodIsPinned,
-        isTopProduct: prodIsTopProduct,
-        sku: prodSku.trim(),
-        totalStock: prodStock,
-        fabric: prodFabric.trim(),
-        gsm: prodGsm,
-        videoUrl: prodVideoUrl.trim() || undefined,
-        fit: prodFit.trim(),
-        description: prodDesc.trim(),
-        tagline: prodTagline.trim(),
-        images: rewriteProductImagesToProxy(prodImages),
-        sizes: prodSizes,
-        colors: prodColors,
-        variants
-      });
-    } else {
-      addProduct({
-        slug: prodName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        name: prodName.trim(),
-        tagline: prodTagline.trim() || 'Modern lifestyle garment.',
-        description: prodDesc.trim(),
-        category: finalCategory,
-        subCategory: prodSubCategory.trim() || 'Streetwear',
-        brand: 'VANTREL OUTFIT',
-        sku: prodSku.trim(),
-        regularPrice: prodPrice,
-        discountPrice: prodDiscountPrice < prodPrice ? prodDiscountPrice : undefined,
-        discountPercent: discountPct > 0 ? discountPct : undefined,
-        costPrice: prodCost,
-        status: prodStatus,
-        isArchived,
-        images: rewriteProductImagesToProxy(prodImages),
-        videoUrl: prodVideoUrl.trim() || undefined,
-        sizes: prodSizes,
-        colors: prodColors,
-        variants,
-        fabric: prodFabric.trim(),
-        gsm: prodGsm,
-        fit: prodFit.trim(),
-        care: ['Machine wash cold inside-out', 'Wash with like colors', 'Dry flat in shade'],
-        tags: ['VANTREL', 'Drop', 'Streetwear'],
-        isFeatured: prodIsFeatured,
-        isNewArrival: prodIsNewArrival,
-        isBestSeller: prodIsBestSeller,
-        isPinned: prodIsPinned,
-        isTopProduct: prodIsTopProduct,
-        rating: 5.0,
-        reviewCount: 0,
-        totalStock: prodStock
-      });
+    setIsSavingProduct(true);
+    try {
+      const saveResult = editingProductId
+        ? await updateProduct(editingProductId, {
+            name: cleanName.slice(0, 220),
+            category: finalCategory,
+            subCategory: prodSubCategory.trim() || 'Streetwear',
+            regularPrice: resolvedRegularPrice,
+            discountPrice: resolvedDiscountPrice,
+            discountPercent: discountPct > 0 ? discountPct : undefined,
+            costPrice: cleanCost,
+            status: prodStatus,
+            isArchived,
+            isFeatured: prodIsFeatured,
+            isNewArrival: prodIsNewArrival,
+            isBestSeller: prodIsBestSeller,
+            isPinned: prodIsPinned,
+            isTopProduct: prodIsTopProduct,
+            sku: cleanSku,
+            totalStock: cleanStock,
+            fabric: prodFabric.trim(),
+            gsm: Number.isFinite(Number(prodGsm)) ? Number(prodGsm) : 420,
+            videoUrl: prodVideoUrl.trim() || undefined,
+            fit: prodFit.trim(),
+            description: cleanDesc,
+            tagline: prodTagline.trim(),
+            images: rewriteProductImagesToProxy(finalImages),
+            sizes: effectiveSizes,
+            colors: finalColors,
+            variants
+          })
+        : await addProduct({
+            slug: generatedSlug,
+            name: cleanName.slice(0, 220),
+            tagline: prodTagline.trim() || 'Modern lifestyle garment.',
+            description: cleanDesc,
+            category: finalCategory,
+            subCategory: prodSubCategory.trim() || 'Streetwear',
+            brand: 'VANTREL OUTFIT',
+            sku: cleanSku,
+            regularPrice: resolvedRegularPrice,
+            discountPrice: resolvedDiscountPrice,
+            discountPercent: discountPct > 0 ? discountPct : undefined,
+            costPrice: cleanCost,
+            status: prodStatus,
+            isArchived,
+            images: rewriteProductImagesToProxy(finalImages),
+            videoUrl: prodVideoUrl.trim() || undefined,
+            sizes: effectiveSizes,
+            colors: finalColors,
+            variants,
+            fabric: prodFabric.trim(),
+            gsm: Number.isFinite(Number(prodGsm)) ? Number(prodGsm) : 420,
+            fit: prodFit.trim(),
+            care: ['Machine wash cold inside-out', 'Wash with like colors', 'Dry flat in shade'],
+            tags: ['VANTREL', 'Drop', 'Streetwear'],
+            isFeatured: prodIsFeatured,
+            isNewArrival: prodIsNewArrival,
+            isBestSeller: prodIsBestSeller,
+            isPinned: prodIsPinned,
+            isTopProduct: prodIsTopProduct,
+            rating: 5.0,
+            reviewCount: 0,
+            totalStock: cleanStock
+          });
+
+      if (saveResult?.success) {
+        setIsProductModalOpen(false);
+      }
+    } finally {
+      setIsSavingProduct(false);
     }
-
-    setIsProductModalOpen(false);
   };
 
   // Products Table Filter Logic
@@ -1309,6 +1410,34 @@ export const AdminDashboard: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {firebaseAuthLoaded && !isFirebaseAdminAuthenticated && (
+          <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-2.5 text-xs text-amber-950">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-extrabold block">
+                  Firebase Google Admin সেশন কানেক্টেড নেই
+                </span>
+                <span className="text-amber-900/80">
+                  প্রোডাক্ট যোগ/আপডেট সব ডিভাইসে স্থায়ীভাবে সেভ করতে Google Admin (muhammadeyamin0@gmail.com) পুনরায় কানেক্ট করুন।
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await signInAdminWithGoogle();
+                if (!res.success && res.message) {
+                  showToast('Google Verify Error', res.message, 'error');
+                }
+              }}
+              className="px-4 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold rounded-xl transition-colors shrink-0 cursor-pointer"
+            >
+              Google Admin কানেক্ট করুন
+            </button>
+          </div>
+        )}
 
         {/* RBAC Staff Role Selector & Active Privileges Banner */}
         <div className="p-4 bg-white rounded-2xl border border-[#E5E1D5] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
@@ -1956,11 +2085,15 @@ export const AdminDashboard: React.FC = () => {
                       key={tp.id}
                       className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/90 border border-amber-300 rounded-xl shadow-2xs text-xs text-[#14221C]"
                     >
-                      <img
-                        src={tp.images[0]}
-                        alt=""
-                        className="w-5 h-5 rounded object-cover bg-stone-100 shrink-0"
-                      />
+                      {tp.images?.[0] ? (
+                        <img
+                          src={toDisplayImageUrl(tp.images[0])}
+                          alt=""
+                          className="w-5 h-5 rounded object-cover bg-stone-100 shrink-0"
+                        />
+                      ) : (
+                        <ImageIcon className="w-4 h-4 text-stone-400 shrink-0" />
+                      )}
                       <span className="font-bold truncate max-w-[140px] sm:max-w-[180px]">
                         {tp.name}
                       </span>
@@ -2276,11 +2409,17 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-4 py-3 font-semibold text-[#14221C] flex items-center gap-3">
-                          <img
-                            src={p.images[0]}
-                            alt=""
-                            className="w-10 h-12 object-cover rounded bg-stone-100 shrink-0"
-                          />
+                          {p.images?.[0] ? (
+                            <img
+                              src={toDisplayImageUrl(p.images[0])}
+                              alt=""
+                              className="w-10 h-12 object-cover rounded bg-stone-100 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-12 rounded bg-stone-100 border border-[#E5E1D5] flex items-center justify-center shrink-0">
+                              <ImageIcon className="w-4 h-4 text-stone-400" />
+                            </div>
+                          )}
                           <div>
                             <div className="flex items-center gap-2">
                               <span>{p.name}</span>
@@ -5087,7 +5226,7 @@ service cloud.firestore {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveProduct} className="space-y-6 text-xs">
+              <form onSubmit={handleSaveProduct} noValidate className="space-y-6 text-xs">
                 {/* Notice banner highlighting the 4 essential fields */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold shrink-0">
@@ -5142,11 +5281,20 @@ service cloud.firestore {
                       onChange={(e) => setProdCategory(e.target.value as any)}
                       className="w-full px-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-xs text-[#14221C] focus:outline-none focus:border-[#FF762E]"
                     >
-                      {categories.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
+                      {(() => {
+                        const selectableCategories = categories.filter((c) => c && c.toLowerCase() !== 'all');
+                        const hasCurrent = selectableCategories.some(
+                          (c) => c.toLowerCase() === String(prodCategory || '').toLowerCase()
+                        );
+                        const list = hasCurrent || !prodCategory || prodCategory === 'All'
+                          ? selectableCategories
+                          : [prodCategory, ...selectableCategories];
+                        return list.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   )}
                 </div>
@@ -5679,82 +5827,18 @@ service cloud.firestore {
 
                   {showAdvancedSpecs && (
                     <div className="mt-4 p-5 bg-white rounded-2xl border border-[#E5E1D5] space-y-4">
-                      {/* Tagline & Subcategory */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Subcategory, SKU & Stock Details */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="block font-bold text-[#14221C] mb-1">
-                            Tagline / Short Marketing Hook
+                            Sub-Category / ধরন
                           </label>
                           <input
                             type="text"
-                            placeholder="e.g. 420 GSM custom loopback French terry"
-                            value={prodTagline}
-                            onChange={(e) => setProdTagline(e.target.value)}
+                            placeholder="e.g. Heavyweight Streetwear"
+                            value={prodSubCategory}
+                            onChange={(e) => setProdSubCategory(e.target.value)}
                             className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-[#14221C] mb-1">Category</label>
-                          <select
-                            value={prodCategory}
-                            onChange={(e) => setProdCategory(e.target.value as any)}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-semibold"
-                          >
-                            <option value="Men">Men</option>
-                            <option value="Women">Women</option>
-                            <option value="Panjabi">Panjabi</option>
-                            <option value="Kids">Kids</option>
-                            <option value="New Arrivals">New Arrivals</option>
-                            <option value="Winter Collection">Winter Collection</option>
-                            <option value="Hoodies">Hoodies</option>
-                            <option value="T-Shirts">T-Shirts</option>
-                            <option value="Jeans">Jeans</option>
-                            <option value="Traditional Wear">Traditional Wear</option>
-                            <option value="Shirts">Shirts</option>
-                            <option value="Polo Shirts">Polo Shirts</option>
-                            <option value="Jackets">Jackets</option>
-                            <option value="Pants">Pants</option>
-                            <option value="Accessories">Accessories</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Pricing & Stock Details */}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        <div>
-                          <label className="block font-bold text-[#14221C] mb-1">
-                            Cost Price (৳)
-                          </label>
-                          <input
-                            type="number"
-                            value={prodCost || ''}
-                            onChange={(e) => handleCostPriceChange(e.target.value)}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-stone-700 tabular-nums"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-[#14221C] mb-1">
-                            বিক্রয় মূল্য (৳)
-                          </label>
-                          <input
-                            type="number"
-                            value={prodDiscountPrice || ''}
-                            onChange={(e) => setProdDiscountPrice(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#FF762E] tabular-nums"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-bold text-[#14221C] mb-1">
-                            Regular Price (৳)
-                          </label>
-                          <input
-                            type="number"
-                            value={prodPrice || ''}
-                            onChange={(e) => setProdPrice(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C] tabular-nums"
                           />
                         </div>
 
@@ -5774,8 +5858,9 @@ service cloud.firestore {
                           </label>
                           <input
                             type="number"
+                            min="0"
                             value={prodStock}
-                            onChange={(e) => setProdStock(Number(e.target.value))}
+                            onChange={(e) => setProdStock(Math.max(0, Number(e.target.value) || 0))}
                             className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold tabular-nums"
                           />
                         </div>
@@ -5799,7 +5884,7 @@ service cloud.firestore {
                             type="number"
                             placeholder="e.g. 420"
                             value={prodGsm}
-                            onChange={(e) => setProdGsm(Number(e.target.value))}
+                            onChange={(e) => setProdGsm(Number(e.target.value) || 0)}
                             className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C]"
                           />
                         </div>
@@ -5813,87 +5898,6 @@ service cloud.firestore {
                             onChange={(e) => setProdVideoUrl(e.target.value)}
                             className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-mono text-[11px]"
                           />
-                        </div>
-                      </div>
-
-                      {/* Available Sizes */}
-                      <div>
-                        <label className="block font-bold text-[#14221C] mb-1">
-                          Available Sizes
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {['28', '29', '30', '31', '32', '34', '36', 'S', 'M', 'L', 'XL', 'XXL'].map((sz) => (
-                            <button
-                              key={sz}
-                              type="button"
-                              onClick={() => {
-                                if (prodSizes.includes(sz)) {
-                                  setProdSizes(prodSizes.filter((s) => s !== sz));
-                                } else {
-                                  setProdSizes([...prodSizes, sz]);
-                                }
-                              }}
-                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${
-                                prodSizes.includes(sz)
-                                  ? 'bg-[#14221C] text-white border-[#14221C]'
-                                  : 'bg-[#F7F5EF] text-[#202522] border-[#E5E1D5]'
-                              }`}
-                            >
-                              {sz}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Colors Palette */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="block font-bold text-[#14221C] text-xs">Color Palette ({prodColors.length})</label>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          {prodColors.map((c, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#F7F5EF] border border-[#E5E1D5] rounded-lg text-xs"
-                            >
-                              <span
-                                className="w-3.5 h-3.5 rounded-full border border-white"
-                                style={{ backgroundColor: c.hex }}
-                              />
-                              <span>{c.name}</span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setProdColors(prodColors.filter((_, idx) => idx !== i))
-                                }
-                                className="text-[#202522]/40 hover:text-rose-600"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Color Name (e.g. Forest Pine)"
-                            value={newColorName}
-                            onChange={(e) => setNewColorName(e.target.value)}
-                            className="flex-1 px-3 py-1.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-lg"
-                          />
-                          <input
-                            type="color"
-                            value={newColorHex}
-                            onChange={(e) => setNewColorHex(e.target.value)}
-                            className="w-10 h-8 rounded-lg cursor-pointer bg-transparent border-0"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddColor}
-                            className="px-3 py-1.5 bg-[#14221C] text-white text-xs font-semibold rounded-lg"
-                          >
-                            Add Color
-                          </button>
                         </div>
                       </div>
 
@@ -5983,9 +5987,14 @@ service cloud.firestore {
                   </button>
                   <button
                     type="submit"
-                    className="px-8 py-2.5 bg-[#14221C] hover:bg-[#202522] text-white font-bold uppercase tracking-wider rounded-xl transition-colors shadow-md"
+                    disabled={isSavingProduct || isUploadingImages}
+                    className="px-8 py-2.5 bg-[#14221C] hover:bg-[#202522] disabled:opacity-50 text-white font-bold uppercase tracking-wider rounded-xl transition-colors shadow-md cursor-pointer"
                   >
-                    {editingProductId ? 'Update Garment Piece' : 'Save & Publish Product'}
+                    {isSavingProduct
+                      ? 'সংরক্ষণ হচ্ছে...'
+                      : editingProductId
+                        ? 'Update Garment Piece'
+                        : 'Save & Publish Product'}
                   </button>
                 </div>
               </form>

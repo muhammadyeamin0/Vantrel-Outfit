@@ -21,7 +21,7 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
 ]);
 
-const CACHE_TTL_MS = 120 * 1000;
+const CACHE_TTL_MS = 15 * 1000;
 let cachedProducts: ProductRecord[] | null = null;
 let cachedAt = 0;
 

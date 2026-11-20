@@ -1152,7 +1152,7 @@ app.get('/api/products/:id', (req: Request, res: Response) => {
 
 app.post('/api/products', (req: Request, res: Response) => {
   const body = req.body;
-  if (!body.name || !body.regularPrice || !body.sku) {
+  if (!body.name || body.regularPrice === undefined || body.regularPrice === null || !body.sku) {
     return res.status(400).json({ success: false, error: 'Name, regularPrice, and SKU are required' });
   }
 
@@ -1167,23 +1167,30 @@ app.post('/api/products', (req: Request, res: Response) => {
     brand: body.brand || 'VANTREL OUTFIT',
     sku: body.sku,
     regularPrice: Number(body.regularPrice),
-    discountPrice: body.discountPrice ? Number(body.discountPrice) : undefined,
-    discountPercent: body.discountPercent ? Number(body.discountPercent) : undefined,
-    costPrice: body.costPrice !== undefined ? Number(body.costPrice) : undefined,
+    discountPrice: body.discountPrice !== undefined && body.discountPrice !== null ? Number(body.discountPrice) : undefined,
+    discountPercent: body.discountPercent !== undefined && body.discountPercent !== null ? Number(body.discountPercent) : undefined,
+    costPrice: body.costPrice !== undefined && body.costPrice !== null ? Number(body.costPrice) : undefined,
+    status: body.status || 'published',
+    isArchived: Boolean(body.isArchived || body.status === 'archived'),
     images: rewriteProductImagesToProxy(Array.isArray(body.images) ? body.images : []),
+    videoUrl: body.videoUrl || undefined,
     sizes: Array.isArray(body.sizes) && body.sizes.length > 0 ? body.sizes : ['M', 'L', 'XL', 'XXL'],
     colors: Array.isArray(body.colors) ? body.colors : [],
     variants: body.variants || [],
     fabric: body.fabric || '420 GSM 100% Cotton',
+    gsm: body.gsm !== undefined && body.gsm !== null ? Number(body.gsm) : undefined,
     fit: body.fit || 'Relaxed Oversized Fit',
     care: body.care || ['Machine wash cold', 'Dry flat in shade'],
     tags: body.tags || ['VANTREL', 'Streetwear'],
     isFeatured: body.isFeatured ?? true,
     isNewArrival: body.isNewArrival ?? true,
     isBestSeller: body.isBestSeller ?? false,
+    isPinned: Boolean(body.isPinned),
+    isTopProduct: Boolean(body.isTopProduct),
+    sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : -1,
     rating: body.rating || 5.0,
     reviewCount: body.reviewCount || 0,
-    totalStock: Number(body.totalStock || 50),
+    totalStock: Number(body.totalStock ?? 50),
     createdDate: body.createdDate || new Date().toISOString()
   };
 

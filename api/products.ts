@@ -21,11 +21,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const url = getRequestUrl(req);
   const idParam = (url.searchParams.get('id') || '').trim();
   const actionParam = (url.searchParams.get('action') || '').trim();
+  const forceFresh = url.searchParams.get('fresh') === '1' || url.searchParams.get('refresh') === '1';
   const pathname = url.pathname.replace(/\/+$/, '');
 
   // Handle single GET or list GET/HEAD (preserving crawler & public storefront contract)
   if (req.method === 'GET' || req.method === 'HEAD') {
     try {
+      if (forceFresh) {
+        runtimeProductsOverlay = await getLiveProducts(true);
+      }
       const allProducts = await loadProductsSnapshot();
 
       if (idParam) {
