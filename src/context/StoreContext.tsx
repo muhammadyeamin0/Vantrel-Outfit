@@ -2785,7 +2785,40 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
   // Settings
   const updateSettings = (newSettings: Partial<StoreSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    const cleanedPatch: Partial<StoreSettings> = { ...newSettings };
+    if (typeof cleanedPatch.gmailNotificationAppPassword === 'string') {
+      cleanedPatch.gmailNotificationAppPassword = cleanedPatch.gmailNotificationAppPassword.replace(/\s+/g, '');
+    }
+    if (typeof cleanedPatch.orderNotificationEmail === 'string') {
+      cleanedPatch.orderNotificationEmail = cleanedPatch.orderNotificationEmail.trim();
+    }
+    if (typeof cleanedPatch.gmailNotificationUser === 'string') {
+      cleanedPatch.gmailNotificationUser = cleanedPatch.gmailNotificationUser.trim();
+    }
+
+    setSettings((prev) => {
+      const merged = { ...prev, ...cleanedPatch };
+      if (
+        cleanedPatch.gmailNotificationAppPassword !== undefined ||
+        cleanedPatch.orderNotificationEmail !== undefined ||
+        cleanedPatch.gmailNotificationUser !== undefined
+      ) {
+        getAdminAuthHeaders({ 'Content-Type': 'application/json' }).then((headers) => {
+          if (!headers.Authorization) return;
+          fetch('/api/settings/smtp', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              orderNotificationEmail: merged.orderNotificationEmail,
+              gmailNotificationUser: merged.gmailNotificationUser,
+              gmailNotificationAppPassword: (merged.gmailNotificationAppPassword || '').replace(/\s+/g, '')
+            })
+          }).catch((err) => console.warn('SMTP fallback sync skipped:', err));
+        });
+      }
+      return merged;
+    });
+
     addAuditLog('SETTINGS_UPDATE', 'Updated global store logistics & promotional configuration');
     showToast('Settings Saved', 'Store configuration updated.', 'success');
   };
@@ -3020,10 +3053,18 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // 3. Automatically dispatch order notification to Gmail (muhammadeyamin0@gmail.com)
     try {
+      const cleanedFallbackPass = (settings.gmailNotificationAppPassword || '').replace(/\s+/g, '');
+      const smtpFallback = cleanedFallbackPass
+        ? {
+            recipientEmail: settings.orderNotificationEmail,
+            senderUser: settings.gmailNotificationUser,
+            appPassword: cleanedFallbackPass
+          }
+        : undefined;
       fetch('/api/send-order-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: newOrder })
+        body: JSON.stringify({ order: newOrder, smtpFallback })
       }).catch((err) => {
         console.warn('Gmail order notification dispatch error:', err);
       });

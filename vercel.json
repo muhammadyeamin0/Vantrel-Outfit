@@ -50,6 +50,10 @@
       "destination": "/api/orders?id=:id"
     },
     {
+      "source": "/api/settings/smtp",
+      "destination": "/api/store-ops?op=save-smtp-config"
+    },
+    {
       "source": "/api/send-order-notification",
       "destination": "/api/store-ops?op=send-order-notification"
     },

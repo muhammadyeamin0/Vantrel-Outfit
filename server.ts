@@ -180,6 +180,45 @@ let customers: User[] = [...INITIAL_CUSTOMERS];
 let smsLogs: SmsLog[] = [...INITIAL_SMS_LOGS];
 let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
 let settings = { ...INITIAL_SETTINGS };
+const SMTP_FALLBACK_FILE = path.resolve(__dirname, 'data', '.smtp_fallback.json');
+function saveSmtpFallbackToDisk() {
+  try {
+    const dir = path.dirname(SMTP_FALLBACK_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      SMTP_FALLBACK_FILE,
+      JSON.stringify(
+        {
+          orderNotificationEmail: settings.orderNotificationEmail || 'muhammadeyamin0@gmail.com',
+          gmailNotificationUser: settings.gmailNotificationUser || 'muhammadeyamin0@gmail.com',
+          gmailNotificationAppPassword: String(settings.gmailNotificationAppPassword || '').replace(/\s+/g, '')
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
+  } catch (e) {
+    console.warn('SMTP fallback save warning:', e);
+  }
+}
+function loadSmtpFallbackFromDisk() {
+  try {
+    if (fs.existsSync(SMTP_FALLBACK_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(SMTP_FALLBACK_FILE, 'utf-8'));
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.orderNotificationEmail) settings.orderNotificationEmail = String(parsed.orderNotificationEmail).trim();
+        if (parsed.gmailNotificationUser) settings.gmailNotificationUser = String(parsed.gmailNotificationUser).trim();
+        if (parsed.gmailNotificationAppPassword) {
+          settings.gmailNotificationAppPassword = String(parsed.gmailNotificationAppPassword).replace(/\s+/g, '');
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('SMTP fallback load warning:', e);
+  }
+}
+loadSmtpFallbackFromDisk();
 let financialRecords: FinancialRecord[] = [...INITIAL_FINANCIAL_RECORDS];
 let staffModerators: StaffModerator[] = [...INITIAL_MODERATORS];
 let themeConfig: ThemeConfig = { ...INITIAL_THEME };
@@ -309,25 +348,41 @@ function sanitizeEnvCredential(raw: unknown): string {
   return raw.trim().replace(/^["']+|["']+$/g, '').trim();
 }
 
-function getGmailSmtpConfig() {
+function getGmailSmtpConfig(fallbackOverride?: {
+  recipientEmail?: string;
+  senderUser?: string;
+  appPassword?: string;
+}) {
   const recipient =
-    sanitizeEnvCredential(settings.orderNotificationEmail) ||
+    sanitizeEnvCredential(fallbackOverride?.recipientEmail) ||
     sanitizeEnvCredential(process.env.ORDER_NOTIFICATION_EMAIL) ||
+    sanitizeEnvCredential(settings.orderNotificationEmail) ||
     'muhammadeyamin0@gmail.com';
   const senderUser =
-    sanitizeEnvCredential(settings.gmailNotificationUser) ||
     sanitizeEnvCredential(process.env.GMAIL_USER) ||
+    sanitizeEnvCredential(fallbackOverride?.senderUser) ||
+    sanitizeEnvCredential(settings.gmailNotificationUser) ||
     'muhammadeyamin0@gmail.com';
-  const rawPassword =
-    sanitizeEnvCredential(settings.gmailNotificationAppPassword) ||
-    sanitizeEnvCredential(process.env.GMAIL_APP_PASSWORD);
-  const appPassword = rawPassword.replace(/\s+/g, '');
-  return { recipient, senderUser, appPassword };
+  const envPassword = sanitizeEnvCredential(process.env.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
+  const fallbackPassword = (
+    sanitizeEnvCredential(fallbackOverride?.appPassword) ||
+    sanitizeEnvCredential(settings.gmailNotificationAppPassword)
+  ).replace(/\s+/g, '');
+  const appPassword = envPassword || fallbackPassword;
+  const credentialSource = envPassword ? 'env' : fallbackPassword ? 'admin_fallback' : 'none';
+  return { recipient, senderUser, appPassword, credentialSource };
 }
 
 // Helper: Send High-Priority Order Notification to Gmail (muhammadeyamin0@gmail.com)
-async function sendGmailOrderNotification(order: any) {
-  const { recipient, senderUser, appPassword } = getGmailSmtpConfig();
+async function sendGmailOrderNotification(
+  order: any,
+  fallbackOverride?: {
+    recipientEmail?: string;
+    senderUser?: string;
+    appPassword?: string;
+  }
+) {
+  const { recipient, senderUser, appPassword } = getGmailSmtpConfig(fallbackOverride);
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemsHtml = itemsList
@@ -1676,21 +1731,57 @@ app.post('/api/orders/:id/courier', (req: Request, res: Response) => {
 });
 
 // Automatic Gmail Notification Endpoints for Orders
+app.post('/api/settings/smtp', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(403).json({ success: false, error: 'Super Admin verification required.' });
+  }
+  const { orderNotificationEmail, gmailNotificationUser, gmailNotificationAppPassword } = req.body || {};
+  if (typeof orderNotificationEmail === 'string' && orderNotificationEmail.trim()) {
+    settings.orderNotificationEmail = orderNotificationEmail.trim();
+  }
+  if (typeof gmailNotificationUser === 'string' && gmailNotificationUser.trim()) {
+    settings.gmailNotificationUser = gmailNotificationUser.trim();
+  }
+  if (typeof gmailNotificationAppPassword === 'string') {
+    settings.gmailNotificationAppPassword = gmailNotificationAppPassword.replace(/\s+/g, '');
+  }
+  saveSmtpFallbackToDisk();
+  res.json({
+    success: true,
+    hasFallbackPassword: Boolean(settings.gmailNotificationAppPassword),
+    recipient: settings.orderNotificationEmail
+  });
+});
+
 app.post('/api/send-order-notification', async (req: Request, res: Response) => {
-  const { order } = req.body;
+  const { order, smtpFallback } = req.body || {};
   if (!order || !order.customer) {
     return res.status(400).json({ success: false, error: 'Order details with customer info required' });
   }
 
   try {
-    const result = await sendGmailOrderNotification(order);
+    const result = await sendGmailOrderNotification(order, smtpFallback);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-app.post('/api/test-email-notification', async (_req: Request, res: Response) => {
+app.post('/api/test-email-notification', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Admin verification required.' });
+  }
+  const { recipientEmail, senderUser, appPassword } = req.body || {};
+  if (typeof appPassword === 'string' && appPassword.replace(/\s+/g, '')) {
+    settings.gmailNotificationAppPassword = appPassword.replace(/\s+/g, '');
+    if (typeof recipientEmail === 'string' && recipientEmail.trim()) {
+      settings.orderNotificationEmail = recipientEmail.trim();
+    }
+    saveSmtpFallbackToDisk();
+  }
+
   const dummyOrder: any = {
     orderNumber: `VT-TEST-${Math.floor(1000 + Math.random() * 9000)}`,
     createdAt: new Date().toISOString(),
@@ -1719,7 +1810,11 @@ app.post('/api/test-email-notification', async (_req: Request, res: Response) =>
   };
 
   try {
-    const result = await sendGmailOrderNotification(dummyOrder);
+    const result = await sendGmailOrderNotification(dummyOrder, {
+      recipientEmail,
+      senderUser,
+      appPassword
+    });
     res.json({
       success: true,
       message: `Test email notification dispatched for ${result.recipient}`,

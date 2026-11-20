@@ -44,10 +44,24 @@ function sanitizeEnvCred(raw: string | undefined): string {
   return raw.trim().replace(/^["']+|["']+$/g, '').trim();
 }
 
-async function dispatchOrderEmail(order: OrderLike) {
-  const recipient = sanitizeEnvCred(process.env.ORDER_NOTIFICATION_EMAIL) || 'muhammadeyamin0@gmail.com';
-  const senderUser = sanitizeEnvCred(process.env.GMAIL_USER) || 'muhammadeyamin0@gmail.com';
-  const appPassword = sanitizeEnvCred(process.env.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
+interface SmtpFallbackConfig {
+  recipientEmail?: string;
+  senderUser?: string;
+  appPassword?: string;
+}
+
+async function dispatchOrderEmail(order: OrderLike, smtpFallback?: SmtpFallbackConfig) {
+  const recipient =
+    sanitizeEnvCred(smtpFallback?.recipientEmail) ||
+    sanitizeEnvCred(process.env.ORDER_NOTIFICATION_EMAIL) ||
+    'muhammadeyamin0@gmail.com';
+  const senderUser =
+    sanitizeEnvCred(process.env.GMAIL_USER) ||
+    sanitizeEnvCred(smtpFallback?.senderUser) ||
+    'muhammadeyamin0@gmail.com';
+  const envPassword = sanitizeEnvCred(process.env.GMAIL_APP_PASSWORD).replace(/\s+/g, '');
+  const fallbackPassword = sanitizeEnvCred(smtpFallback?.appPassword).replace(/\s+/g, '');
+  const appPassword = envPassword || fallbackPassword;
 
   if (!appPassword) {
     return {
@@ -55,7 +69,7 @@ async function dispatchOrderEmail(order: OrderLike) {
       delivered: false,
       recipient,
       senderUser,
-      note: 'Email payload validated; set GMAIL_APP_PASSWORD environment variable on server for live SMTP delivery'
+      note: 'Email payload validated; set GMAIL_APP_PASSWORD environment variable or enter Server SMTP Credential in Admin Settings'
     };
   }
 
@@ -125,13 +139,29 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   try {
     const body = req.method === 'GET' ? {} : await readJsonBody<Record<string, unknown>>(req);
 
+    if (op === 'save-smtp-config') {
+      const adminCheck = await verifyAdminRequest(req);
+      if (!adminCheck.authorized) {
+        sendJson(res, 401, { success: false, error: 'Unauthorized' });
+        return;
+      }
+      const cleaned = sanitizeEnvCred(String(body.gmailNotificationAppPassword || '')).replace(/\s+/g, '');
+      sendJson(res, 200, {
+        success: true,
+        hasFallbackPassword: Boolean(cleaned),
+        recipient: sanitizeEnvCred(String(body.orderNotificationEmail || '')) || 'muhammadeyamin0@gmail.com'
+      });
+      return;
+    }
+
     if (op === 'send-order-notification') {
       const order = body.order as OrderLike | undefined;
+      const smtpFallback = body.smtpFallback as SmtpFallbackConfig | undefined;
       if (!order || !order.customer) {
         sendJson(res, 400, { success: false, error: 'Order details with customer info required' });
         return;
       }
-      const result = await dispatchOrderEmail(order);
+      const result = await dispatchOrderEmail(order, smtpFallback);
       sendJson(res, 200, result);
       return;
     }
@@ -142,19 +172,27 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         sendJson(res, 401, { success: false, error: 'Unauthorized' });
         return;
       }
-      const result = await dispatchOrderEmail({
-        orderNumber: `VT-TEST-${Math.floor(1000 + Math.random() * 9000)}`,
-        total: 1850,
-        paymentMethod: 'Cash on Delivery (COD)',
-        customer: {
-          fullName: 'VANTREL Admin Test',
-          phone: 'Verified Store Test',
-          district: 'Dhaka',
-          upazila: 'Banani',
-          streetAddress: 'Banani Studio'
+      const smtpFallback: SmtpFallbackConfig = {
+        recipientEmail: typeof body.recipientEmail === 'string' ? body.recipientEmail : undefined,
+        senderUser: typeof body.senderUser === 'string' ? body.senderUser : undefined,
+        appPassword: typeof body.appPassword === 'string' ? body.appPassword : undefined
+      };
+      const result = await dispatchOrderEmail(
+        {
+          orderNumber: `VT-TEST-${Math.floor(1000 + Math.random() * 9000)}`,
+          total: 1850,
+          paymentMethod: 'Cash on Delivery (COD)',
+          customer: {
+            fullName: 'VANTREL Admin Test',
+            phone: 'Verified Store Test',
+            district: 'Dhaka',
+            upazila: 'Banani',
+            streetAddress: 'Banani Studio'
+          },
+          items: [{ name: 'VANTREL Test Garment', size: 'L', color: 'Black', quantity: 1, price: 1850 }]
         },
-        items: [{ name: 'VANTREL Test Garment', size: 'L', color: 'Black', quantity: 1, price: 1850 }]
-      });
+        smtpFallback
+      );
       sendJson(res, 200, { success: true, details: result });
       return;
     }

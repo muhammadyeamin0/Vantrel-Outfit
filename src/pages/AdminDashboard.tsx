@@ -187,6 +187,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Email Notification State
   const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
 
   // Product modal state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -1077,12 +1078,28 @@ export const AdminDashboard: React.FC = () => {
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings(localSettings);
+    const cleanedPass = (localSettings.gmailNotificationAppPassword || '').replace(/\s+/g, '');
+    const cleanedSettings = {
+      ...localSettings,
+      orderNotificationEmail: (localSettings.orderNotificationEmail || 'muhammadeyamin0@gmail.com').trim(),
+      gmailNotificationAppPassword: cleanedPass
+    };
+    setLocalSettings(cleanedSettings);
+    updateSettings(cleanedSettings);
   };
 
   const handleTestEmailNotification = async () => {
     setIsTestingEmail(true);
     try {
+      const cleanedPass = (localSettings.gmailNotificationAppPassword || '').replace(/\s+/g, '');
+      const cleanRecipient = (localSettings.orderNotificationEmail || 'muhammadeyamin0@gmail.com').trim();
+      if (cleanedPass !== (settings.gmailNotificationAppPassword || '')) {
+        updateSettings({
+          ...localSettings,
+          orderNotificationEmail: cleanRecipient,
+          gmailNotificationAppPassword: cleanedPass
+        });
+      }
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const token = await auth?.currentUser?.getIdToken().catch(() => '');
       if (token) {
@@ -1090,7 +1107,11 @@ export const AdminDashboard: React.FC = () => {
       }
       const res = await fetch('/api/test-email-notification', {
         method: 'POST',
-        headers
+        headers,
+        body: JSON.stringify({
+          recipientEmail: cleanRecipient,
+          appPassword: cleanedPass
+        })
       });
       const data = await res.json();
       if (res.ok && data.details?.delivered) {
@@ -1100,11 +1121,11 @@ export const AdminDashboard: React.FC = () => {
       } else if (data.details?.authFailed) {
         showToast(
           'Gmail App Password Invalid (535)',
-          `SMTP login rejected for ${data.details?.senderUser || 'muhammadeyamin0@gmail.com'}. Regular Gmail password কাজ করবে না—myaccount.google.com/apppasswords থেকে ১৬-অক্ষরের App Password তৈরি করে GMAIL_APP_PASSWORD-এ সেট করুন।`,
+          `SMTP login rejected for ${data.details?.senderUser || 'muhammadeyamin0@gmail.com'}. Regular Gmail password কাজ করবে না—myaccount.google.com/apppasswords থেকে ১৬-অক্ষরের App Password তৈরি করে এখানে সেট করুন।`,
           'error'
         );
       } else {
-        showToast('Notification Ready', `Target: ${data.details?.recipient || 'muhammadeyamin0@gmail.com'}. Set GMAIL_APP_PASSWORD in Vercel Env Vars for live delivery.`, 'info');
+        showToast('Notification Ready', `Target: ${data.details?.recipient || 'muhammadeyamin0@gmail.com'}. Enter your 16-char App Password or set GMAIL_APP_PASSWORD env var.`, 'info');
       }
     } catch {
       showToast('Error', 'Failed to dispatch test notification.', 'error');
@@ -4978,14 +4999,32 @@ service cloud.firestore {
 
                   <div>
                     <label className="block font-bold text-[#14221C] mb-1">
-                      Server SMTP Credential (Vercel Env: GMAIL_APP_PASSWORD)
+                      Server SMTP Credential (Vercel Env: GMAIL_APP_PASSWORD / Fallback)
                     </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value="16-char Google App Password via GMAIL_APP_PASSWORD env var"
-                      className="w-full px-3 py-2 bg-stone-100 border border-[#E5E1D5] rounded-xl font-mono text-[11px] text-[#202522]/70"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showSmtpPassword ? 'text' : 'password'}
+                        value={localSettings.gmailNotificationAppPassword || ''}
+                        onChange={(e) => {
+                          const cleanedPass = e.target.value.replace(/\s+/g, '');
+                          setLocalSettings({ ...localSettings, gmailNotificationAppPassword: cleanedPass });
+                        }}
+                        placeholder="16-char Google App Password (স্পেস অটো রিমুভ হবে)"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full pl-3 pr-14 py-2 bg-white border border-[#E5E1D5] rounded-xl font-mono text-xs text-[#14221C] focus:outline-none focus:border-[#FF762E]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSmtpPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] font-bold text-[#14221C]/70 hover:text-[#14221C] bg-stone-100 rounded-md cursor-pointer"
+                      >
+                        {showSmtpPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-[#202522]/55 mt-1">
+                      Env <code className="font-mono">GMAIL_APP_PASSWORD</code> না থাকলে এটি fallback হিসেবে কাজ করবে।
+                    </p>
                   </div>
                 </div>
 
