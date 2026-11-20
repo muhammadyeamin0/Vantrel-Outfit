@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Product,
   CartItem,
@@ -48,6 +48,7 @@ import {
   deleteDoc,
   collection,
   onSnapshot,
+  getDoc,
   getDocs,
   getDocFromServer,
   writeBatch
@@ -343,6 +344,7 @@ export interface StoreContextType {
   addCategory: (name: ProductCategory) => void;
   updateCategoryName: (oldName: ProductCategory, newName: ProductCategory) => void;
   deleteCategory: (name: ProductCategory) => void;
+  deleteCategories: (names: ProductCategory[]) => void;
   moveCategoryOrder: (category: ProductCategory, direction: 'up' | 'down' | 'first') => void;
   reorderCategories: (newOrder: ProductCategory[]) => void;
   moveProductInCategory: (
@@ -549,6 +551,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       'Traditional Wear'
     ];
   });
+
+  const [deletedCategories, setDeletedCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('vt_deleted_categories_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean);
+        }
+      } catch {
+        // fallback empty
+      }
+    }
+    return [];
+  });
+  const deletedCategoriesRef = useRef<string[]>(deletedCategories);
+  const categoriesRef = useRef<ProductCategory[]>(categories);
+  const hasLocalCategoryMutationRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    deletedCategoriesRef.current = deletedCategories;
+    localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(deletedCategories));
+  }, [deletedCategories]);
+
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
 
   // Banners
   const [banners, setBanners] = useState<BannerConfig[]>(() => {
@@ -998,13 +1027,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const mergeDynamicCategories = (loadedProducts: Product[]) => {
       if (loadedProducts.length === 0) return;
+      let storedDeleted: string[] = [];
+      try {
+        const rawDel = localStorage.getItem('vt_deleted_categories_v1');
+        if (rawDel) {
+          const parsedDel = JSON.parse(rawDel);
+          if (Array.isArray(parsedDel)) {
+            storedDeleted = parsedDel.map((d) => String(d || '').trim().toLowerCase());
+          }
+        }
+      } catch {
+        // ignore storage parse error
+      }
+      const deletedSet = new Set<string>([
+        ...deletedCategoriesRef.current.map((d) => d.trim().toLowerCase()),
+        ...storedDeleted
+      ]);
+
       setCategories((prevCats) => {
-        const existingLower = new Set(prevCats.map((c) => c.toLowerCase()));
+        const existingLower = new Set(prevCats.map((c) => c.trim().toLowerCase()));
         const additions: ProductCategory[] = [];
         loadedProducts.forEach((p) => {
+          if (p.isArchived || p.status === 'archived') return;
           const cat = (p.category || '').trim();
-          if (cat && !existingLower.has(cat.toLowerCase())) {
-            existingLower.add(cat.toLowerCase());
+          const catLower = cat.toLowerCase();
+          if (cat && !existingLower.has(catLower) && !deletedSet.has(catLower)) {
+            existingLower.add(catLower);
             additions.push(cat);
           }
         });
@@ -1115,6 +1163,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     loadFromProductsApi();
+
+    if (IS_GOOGLE_CLOUD_CONNECTED && db && !isSearchCrawler()) {
+      getDoc(doc(db, 'settings', 'categories'))
+        .then((snap) => {
+          if (!isMounted || hasLocalCategoryMutationRef.current || !snap.exists()) return;
+          const data = snap.data() as { list?: unknown; deleted?: unknown };
+          const remoteDeleted = Array.isArray(data.deleted)
+            ? data.deleted.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean)
+            : [];
+          deletedCategoriesRef.current = remoteDeleted;
+          setDeletedCategories(remoteDeleted);
+          localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(remoteDeleted));
+
+          if (Array.isArray(data.list) && data.list.length > 0) {
+            const cleanList = data.list.map((c) => String(c || '').trim()).filter(Boolean);
+            const withAll = cleanList.some((c) => c.toLowerCase() === 'all')
+              ? cleanList
+              : ['All', ...cleanList];
+            categoriesRef.current = withAll;
+            setCategories(withAll);
+            localStorage.setItem('vt_categories_v2', JSON.stringify(withAll));
+          }
+        })
+        .catch((err) => {
+          console.warn('Firestore categories load notice:', err);
+        });
+    }
 
     return () => {
       isMounted = false;
@@ -2406,37 +2481,80 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   const getProductBySlug = (slug: string) => products.find((p) => p.slug === slug);
 
   // Categories & Banners
+  const syncCategoriesToFirestore = (nextList: ProductCategory[], nextDeleted: string[]) => {
+    if (
+      !IS_GOOGLE_CLOUD_CONNECTED ||
+      !db ||
+      auth?.currentUser?.email?.trim().toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
+      !auth?.currentUser?.emailVerified
+    ) {
+      return;
+    }
+    setDoc(
+      doc(db, 'settings', 'categories'),
+      {
+        list: nextList,
+        deleted: nextDeleted,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    ).catch((err) => {
+      console.warn('Firestore categories sync notice:', err);
+    });
+  };
+
   const addCategory = (name: ProductCategory) => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (!categories.includes(trimmed)) {
-      setCategories((prev) => [...prev, trimmed]);
+    const trimmedLower = trimmed.toLowerCase();
+    hasLocalCategoryMutationRef.current = true;
+
+    const nextDeleted = deletedCategoriesRef.current.filter((d) => d !== trimmedLower);
+    deletedCategoriesRef.current = nextDeleted;
+    setDeletedCategories(nextDeleted);
+    localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(nextDeleted));
+
+    if (!categoriesRef.current.some((c) => c.trim().toLowerCase() === trimmedLower)) {
+      const nextList = [...categoriesRef.current, trimmed];
+      categoriesRef.current = nextList;
+      setCategories(nextList);
+      localStorage.setItem('vt_categories_v2', JSON.stringify(nextList));
+      syncCategoriesToFirestore(nextList, nextDeleted);
       addAuditLog('CATEGORY_ADD', `Added catalog category "${trimmed}"`);
       showToast('Category Added', `Category "${trimmed}" added to navigation.`, 'success');
+    } else {
+      syncCategoriesToFirestore(categoriesRef.current, nextDeleted);
     }
   };
 
   const updateCategoryName = (oldName: ProductCategory, newName: ProductCategory) => {
     const trimmedNew = newName.trim();
     if (!trimmedNew || oldName === 'All' || oldName === trimmedNew) return;
+    hasLocalCategoryMutationRef.current = true;
+
+    const newLower = trimmedNew.toLowerCase();
+    const nextDeleted = deletedCategoriesRef.current.filter((d) => d !== newLower);
+    deletedCategoriesRef.current = nextDeleted;
+    setDeletedCategories(nextDeleted);
+    localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(nextDeleted));
 
     // 1. Update categories array in state & localStorage
-    setCategories((prev) => {
-      const updated = prev.map((c) => (c.toLowerCase() === oldName.toLowerCase() ? trimmedNew : c));
-      localStorage.setItem('vt_categories_v2', JSON.stringify(updated));
-      return updated;
-    });
+    const updatedList = categoriesRef.current.map((c) =>
+      c.trim().toLowerCase() === oldName.trim().toLowerCase() ? trimmedNew : c
+    );
+    categoriesRef.current = updatedList;
+    setCategories(updatedList);
+    localStorage.setItem('vt_categories_v2', JSON.stringify(updatedList));
+    syncCategoriesToFirestore(updatedList, nextDeleted);
 
     // 2. Cascade update to all products having this category
-    setProducts((prev) => {
-      const updatedProds = prev.map((p) => {
-        if (p.category.toLowerCase() === oldName.toLowerCase()) {
-          return { ...p, category: trimmedNew };
-        }
-        return p;
-      });
-      return updatedProds;
-    });
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.category.trim().toLowerCase() === oldName.trim().toLowerCase()
+          ? { ...p, category: trimmedNew }
+          : p
+      )
+    );
 
     // 3. Update active filter if currently selected
     if (selectedCategory.toLowerCase() === oldName.toLowerCase()) {
@@ -2447,22 +2565,58 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     showToast('ক্যাটাগরির নাম আপডেট হয়েছে', `"${oldName}" সফলভাবে পরিবর্তন করে "${trimmedNew}" করা হয়েছে।`, 'success');
   };
 
-  const deleteCategory = (name: ProductCategory) => {
-    if (name === 'All') return;
-    setCategories((prev) => {
-      const updated = prev.filter((c) => c !== name);
-      localStorage.setItem('vt_categories_v2', JSON.stringify(updated));
-      return updated;
-    });
-    if (selectedCategory === name) {
+  const deleteCategories = (names: ProductCategory[]) => {
+    const targetLowers = Array.from(
+      new Set(
+        names
+          .map((n) => String(n || '').trim().toLowerCase())
+          .filter((n) => n && n !== 'all')
+      )
+    );
+    if (targetLowers.length === 0) return;
+
+    hasLocalCategoryMutationRef.current = true;
+    const targetSet = new Set(targetLowers);
+
+    const updatedList = categoriesRef.current.filter(
+      (c) => !targetSet.has(c.trim().toLowerCase())
+    );
+    categoriesRef.current = updatedList;
+    setCategories(updatedList);
+    localStorage.setItem('vt_categories_v2', JSON.stringify(updatedList));
+
+    const nextDeleted = Array.from(
+      new Set([...deletedCategoriesRef.current, ...targetLowers])
+    );
+    deletedCategoriesRef.current = nextDeleted;
+    setDeletedCategories(nextDeleted);
+    localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(nextDeleted));
+
+    syncCategoriesToFirestore(updatedList, nextDeleted);
+
+    if (targetSet.has(selectedCategory.trim().toLowerCase())) {
       setSelectedCategory('All');
     }
-    addAuditLog('CATEGORY_DELETE', `Removed category "${name}"`);
-    showToast('Category Removed', `Category "${name}" removed.`, 'info');
+
+    const label = names.filter((n) => n.trim().toLowerCase() !== 'all').join(', ');
+    addAuditLog('CATEGORY_DELETE', `Removed category ${label}`);
+    showToast(
+      targetLowers.length > 1 ? `${targetLowers.length}টি ক্যাটাগরি মুছে ফেলা হয়েছে` : 'ক্যাটাগরি মুছে ফেলা হয়েছে',
+      targetLowers.length > 1
+        ? `নির্বাচিত ${targetLowers.length}টি ক্যাটাগরি স্থায়ীভাবে সরানো হয়েছে।`
+        : `"${names[0]}" স্থায়ীভাবে মুছে ফেলা হয়েছে।`,
+      'info'
+    );
+  };
+
+  const deleteCategory = (name: ProductCategory) => {
+    if (!name || name.trim().toLowerCase() === 'all') return;
+    deleteCategories([name]);
   };
 
   const moveCategoryOrder = (category: ProductCategory, direction: 'up' | 'down' | 'first') => {
     if (category === 'All') return;
+    hasLocalCategoryMutationRef.current = true;
     setCategories((prev) => {
       const idx = prev.indexOf(category);
       if (idx === -1) return prev;
@@ -2488,7 +2642,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         copy[targetIdx] = copy[idx];
         copy[idx] = temp;
       }
+      categoriesRef.current = copy;
       localStorage.setItem('vt_categories_v2', JSON.stringify(copy));
+      syncCategoriesToFirestore(copy, deletedCategoriesRef.current);
       return copy;
     });
     addAuditLog('CATEGORY_REORDER', `Reordered category "${category}" (${direction})`);
@@ -2496,8 +2652,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const reorderCategories = (newOrder: ProductCategory[]) => {
+    hasLocalCategoryMutationRef.current = true;
+    categoriesRef.current = newOrder;
     setCategories(newOrder);
     localStorage.setItem('vt_categories_v2', JSON.stringify(newOrder));
+    syncCategoriesToFirestore(newOrder, deletedCategoriesRef.current);
     addAuditLog('CATEGORY_REORDER_ALL', `Updated all categories display order`);
     showToast('ক্যাটাগরি ক্রম সেভ হয়েছে', 'ক্যাটাগরিসমূহ নতুন ক্রমানুসারে সাজানো হয়েছে।', 'success');
   };
@@ -4053,6 +4212,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         addCategory,
         updateCategoryName,
         deleteCategory,
+        deleteCategories,
         moveCategoryOrder,
         reorderCategories,
         moveProductInCategory,

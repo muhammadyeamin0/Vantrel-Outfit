@@ -98,6 +98,7 @@ export const AdminDashboard: React.FC = () => {
     addCategory,
     updateCategoryName,
     deleteCategory,
+    deleteCategories,
     moveCategoryOrder,
     reorderCategories,
     moveProductInCategory,
@@ -200,6 +201,7 @@ export const AdminDashboard: React.FC = () => {
   const [customCategoryText, setCustomCategoryText] = useState('');
   const [catProductSortCategory, setCatProductSortCategory] = useState<string>('T-Shirts');
   const [directRankInputs, setDirectRankInputs] = useState<Record<string, string>>({});
+  const [selectedDeleteCategories, setSelectedDeleteCategories] = useState<string[]>([]);
 
   // Product Form fields - Complete properties required by brief
   const [prodName, setProdName] = useState('');
@@ -2444,18 +2446,45 @@ export const AdminDashboard: React.FC = () => {
 
               {/* Categories Reordering Cards Grid */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-[#14221C]">
                       সক্রিয় ক্যাটাগরি তালিকা (ক্রম অনুযায়ী সাজানো)
                     </h4>
                     <p className="text-[11px] text-stone-500 mt-0.5">
-                      ১, ২, ৩... ক্রমানুসারে আপনার ওয়েবসাইটে ক্যাটাগরিগুলো প্রদর্শিত হবে।
+                      ১, ২, ৩... ক্রমানুসারে আপনার ওয়েবসাইটে ক্যাটাগরিগুলো প্রদর্শিত হবে। একাধিক ডিলিট করতে কার্ডে টিক দিন।
                     </p>
                   </div>
-                  <span className="text-[10px] bg-stone-100 text-stone-700 font-bold px-2 py-1 rounded-md">
-                    বাটন দিয়ে আগে-পিছে নিন
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedDeleteCategories.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            deleteCategories(selectedDeleteCategories);
+                            if (selectedDeleteCategories.includes(catProductSortCategory)) {
+                              setCatProductSortCategory('All');
+                            }
+                            setSelectedDeleteCategories([]);
+                          }}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>সিলেক্ট করা ({selectedDeleteCategories.length}টি) মুছুন</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDeleteCategories([])}
+                          className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                        >
+                          বাতিল
+                        </button>
+                      </>
+                    )}
+                    <span className="text-[10px] bg-stone-100 text-stone-700 font-bold px-2 py-1 rounded-md">
+                      বাটন দিয়ে আগে-পিছে নিন
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -2466,17 +2495,38 @@ export const AdminDashboard: React.FC = () => {
                     const isAll = cat === 'All';
                     const isFirstMovable = !isAll && (idx === 1 || (categories[0] !== 'All' && idx === 0));
                     const isLastMovable = !isAll && idx === categories.length - 1;
+                    const isSelectedForDelete = !isAll && selectedDeleteCategories.includes(cat);
 
                     return (
                       <div
                         key={cat}
                         className={`p-4 bg-white rounded-2xl border transition-all shadow-2xs flex flex-col justify-between space-y-3.5 ${
-                          isAll ? 'border-neutral-300 bg-stone-50/60' : 'border-[#E5E1D5] hover:border-[#14221C]'
+                          isAll
+                            ? 'border-neutral-300 bg-stone-50/60'
+                            : isSelectedForDelete
+                            ? 'border-rose-500 ring-1 ring-rose-400 bg-rose-50/30'
+                            : 'border-[#E5E1D5] hover:border-[#14221C]'
                         }`}
                       >
                         {/* Header & Position Badge */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
+                            {!isAll && (
+                              <input
+                                type="checkbox"
+                                checked={isSelectedForDelete}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedDeleteCategories((prev) => [...prev, cat]);
+                                  } else {
+                                    setSelectedDeleteCategories((prev) => prev.filter((item) => item !== cat));
+                                  }
+                                }}
+                                className="w-4 h-4 accent-rose-600 rounded cursor-pointer shrink-0"
+                                aria-label={`Select ${cat} for deletion`}
+                                title="একাধিক ডিলিটের জন্য সিলেক্ট করুন"
+                              />
+                            )}
                             <span className="w-6 h-6 rounded-lg bg-[#14221C] text-white font-mono text-[11px] font-black flex items-center justify-center shrink-0">
                               {idx + 1}
                             </span>
@@ -2625,9 +2675,13 @@ export const AdminDashboard: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   deleteCategory(cat);
+                                  setSelectedDeleteCategories((prev) => prev.filter((item) => item !== cat));
+                                  if (catProductSortCategory === cat) {
+                                    setCatProductSortCategory('All');
+                                  }
                                 }}
-                                className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="মুছে ফেলুন"
+                                className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="ক্যাটাগরি মুছে ফেলুন"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
