@@ -51,7 +51,7 @@ export const INITIAL_COUPONS: Coupon[] = [
 export const INITIAL_SETTINGS: StoreSettings = {
   storeName: 'VANTREL OUTFIT',
   slogan: 'Define Your Narrative.',
-  logoUrl: '/assets/images/vantrel-logo.png',
+  logoUrl: '/assets/images/vantrel-logo.webp',
   announcementText:
     'ঢাকায় সম্পূর্ণ ফ্রি ডেলিভারি (৳০)! · ঢাকা সাব-এরিয়া ও ৬৩ জেলায় মাত্র ৳৫০ ডেলিভারি · ক্যাশ অন ডেলিভারি',
   deliveryFeeInsideDhaka: 0,

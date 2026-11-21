@@ -86,15 +86,6 @@ textarea::placeholder {
   }
 }
 
-@keyframes vantrel-buy-glow {
-  0%, 100% {
-    box-shadow: 0 4px 14px -2px rgba(255, 118, 46, 0.45);
-  }
-  50% {
-    box-shadow: 0 6px 22px 0px rgba(255, 118, 46, 0.8);
-  }
-}
-
 .vantrel-buy-shimmer::after {
   content: '';
   position: absolute;
@@ -103,14 +94,25 @@ textarea::placeholder {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.32) 50%,
     transparent 100%
   );
-  animation: vantrel-shimmer-sweep 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: vantrel-shimmer-sweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   pointer-events: none;
+  will-change: transform;
 }
 
 .vantrel-buy-glow {
-  animation: vantrel-buy-glow 2.4s ease-in-out infinite;
+  box-shadow: 0 4px 16px -2px rgba(255, 118, 46, 0.52);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .vantrel-buy-shimmer::after,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-ping {
+    animation: none !important;
+  }
+}
+
 

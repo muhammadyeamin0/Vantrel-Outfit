@@ -24,13 +24,13 @@ export const FloatingChatWidget: React.FC = () => {
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-[#14221C]" />
               </div>
               <div>
-                <h4 className="text-sm font-bold tracking-tight">VANTREL OUTFIT Support</h4>
-                <p className="text-[10px] text-white/70">Online · WhatsApp & Facebook</p>
+                <p className="text-sm font-bold tracking-tight">VANTREL OUTFIT Support</p>
+                <p className="text-[10px] text-white/75">Online · WhatsApp & Facebook</p>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="min-w-[36px] min-h-[36px] flex items-center justify-center p-1.5 rounded-lg text-white/75 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               aria-label="Close chat"
             >
               <X className="w-5 h-5" />
@@ -92,13 +92,12 @@ export const FloatingChatWidget: React.FC = () => {
       {/* Floating Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="group relative flex items-center gap-2.5 px-4 py-3 bg-[#14221C] hover:bg-[#202522] text-white rounded-full shadow-2xl border border-white/20 transition-all hover:scale-105 cursor-pointer"
+        className="group relative flex items-center gap-2.5 px-4 min-h-[44px] py-2.5 bg-[#14221C] hover:bg-[#202522] text-white rounded-full shadow-2xl border border-white/20 transition-colors cursor-pointer"
         aria-label="Open live customer chat"
       >
         <div className="relative">
           <MessageCircle className="w-5 h-5 text-[#25D366]" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#25D366] rounded-full animate-ping" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#25D366] rounded-full" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#25D366] rounded-full ring-2 ring-[#14221C]" />
         </div>
         <span className="text-xs font-bold uppercase tracking-wider">
           {isOpen ? 'Close' : 'WhatsApp / Support'}

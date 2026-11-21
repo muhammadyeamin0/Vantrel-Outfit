@@ -5,9 +5,10 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { ToastContainer } from './components/Toast';
 import { DarazBottomNav } from './components/DarazBottomNav';
-import { TopCategoryStrip } from './components/TopCategoryStrip';
 import { DynamicMetaTags } from './components/DynamicMetaTags';
 import { isSearchCrawler } from './utils/crawlerDetect';
+
+const TopCategoryStrip = lazy(() => import('./components/TopCategoryStrip').then(m => ({ default: m.TopCategoryStrip })));
 
 import { HomePage } from './pages/HomePage';
 
@@ -111,7 +112,11 @@ const MainContent: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-white">
       <DynamicMetaTags />
       <Header />
-      {currentPage !== 'home' && <TopCategoryStrip />}
+      {currentPage !== 'home' && (
+        <Suspense fallback={<div className="h-10 sm:h-11 bg-[#14221C] border-b border-[#2A3B32]" />}>
+          <TopCategoryStrip />
+        </Suspense>
+      )}
       <main className="flex-1 pb-16 md:pb-20">
         <Suspense fallback={
           <div className="min-h-[40vh] flex items-center justify-center">
@@ -137,11 +142,18 @@ const MainContent: React.FC = () => {
 };
 
 export default function App() {
-  const showAnalytics = !isSearchCrawler();
+  const [mountAnalytics, setMountAnalytics] = useState(false);
+
+  useEffect(() => {
+    if (isSearchCrawler()) return;
+    const timer = window.setTimeout(() => setMountAnalytics(true), 2500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <StoreProvider>
       <MainContent />
-      {showAnalytics && <Analytics />}
+      {mountAnalytics && <Analytics />}
     </StoreProvider>
   );
 }

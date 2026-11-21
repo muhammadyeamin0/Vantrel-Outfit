@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Crawler-Safe Meta Pixel Queue Stub (external script loads after window.load only for non-crawler browsers) -->
+    <!-- Crawler-Safe Meta Pixel Queue Stub (loads on first interaction or idle after window.load to preserve mobile LCP/TBT) -->
     <script>
     (function(f,b,e,v,n,t,s){
       var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
@@ -10,10 +10,16 @@
       n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
       if(isBot)return;
-      f.addEventListener('load',function(){setTimeout(function(){
+      var loaded=false;
+      function loadPixel(){
+        if(loaded)return;loaded=true;
         t=b.createElement(e);t.async=!0;t.src=v;
         s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
-      },300);});
+      }
+      ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev){
+        f.addEventListener(ev,loadPixel,{once:true,passive:true});
+      });
+      f.addEventListener('load',function(){setTimeout(loadPixel,3500);});
     })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     fbq('init','2167529260510757');
     fbq('track','PageView');
@@ -70,15 +76,21 @@
     <!-- Preload Primary LCP Hero Banner for Sub-Second 4G Mobile Painting -->
     <link rel="preload" as="image" href="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp" type="image/webp" fetchpriority="high" />
 
-    <!-- Crawler-Safe Google Fonts with display=swap (skips external CDN requests during search bot renders to avoid GSC resource errors while loading cleanly for real browsers) -->
+    <!-- Non-blocking Crawler-Safe Google Fonts with preconnect and display=swap -->
     <script>
     (function(){
       var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
       var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
       if(isBot)return;
+      var p1=document.createElement('link');p1.rel='preconnect';p1.href='https://fonts.googleapis.com';
+      var p2=document.createElement('link');p2.rel='preconnect';p2.href='https://fonts.gstatic.com';p2.crossOrigin='anonymous';
       var l=document.createElement('link');
       l.rel='stylesheet';
+      l.media='print';
+      l.onload=function(){this.media='all';};
       l.href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap';
+      document.head.appendChild(p1);
+      document.head.appendChild(p2);
       document.head.appendChild(l);
     })();
     </script>

@@ -56,23 +56,24 @@ export const Footer: React.FC = () => {
 
             {/* Newsletter */}
             <div className="pt-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-white mb-2">
                 Join The Collective
-              </h4>
-              <p className="text-[11px] text-white/60 mb-3">
+              </h2>
+              <p className="text-[11px] text-white/75 mb-3">
                 Receive secret drop previews, editorial releases, and an instant 10% coupon.
               </p>
               <form onSubmit={handleSubscribe} className="flex max-w-sm gap-2">
                 <input
                   type="email"
                   placeholder="Enter your email"
+                  aria-label="Email address for newsletter"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 px-3 py-2 text-xs bg-white/5 border border-white/15 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-[#FF762E]"
+                  className="flex-1 px-3 py-2 text-xs bg-white/5 border border-white/15 rounded-lg text-white placeholder:text-white/60 focus:outline-none focus:border-[#FF762E]"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-1.5 shrink-0"
+                  className="min-h-[40px] px-4 py-2 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-1.5 shrink-0"
                 >
                   <span>Join</span>
                   <Send className="w-3 h-3" />
@@ -83,37 +84,37 @@ export const Footer: React.FC = () => {
 
           {/* Quick Categories */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
               Collections
-            </h4>
-            <ul className="space-y-2 text-xs text-white/70">
+            </h2>
+            <ul className="space-y-1 text-xs text-white/75">
               <li>
-                <button onClick={() => navigateTo('shop', 'Hoodies')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shop', 'Hoodies')} className="py-1 hover:text-white transition-colors">
                   Heavyweight Hoodies
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('shop', 'T-Shirts')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shop', 'T-Shirts')} className="py-1 hover:text-white transition-colors">
                   Artisan Oversized Tees
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('shop', 'Jeans')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shop', 'Jeans')} className="py-1 hover:text-white transition-colors">
                   Raw Selvedge Denim
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('shop', 'Traditional Wear')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shop', 'Traditional Wear')} className="py-1 hover:text-white transition-colors">
                   Linen Panjabi & Ethnic
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('shop', 'Pants')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shop', 'Pants')} className="py-1 hover:text-white transition-colors">
                   Utility Cargo Pants
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('shop', 'Accessories')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shop', 'Accessories')} className="py-1 hover:text-white transition-colors">
                   Canvas Bags & Accessories
                 </button>
               </li>
@@ -122,32 +123,32 @@ export const Footer: React.FC = () => {
 
           {/* Customer Care */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
               Customer Care
-            </h4>
-            <ul className="space-y-2 text-xs text-white/70">
+            </h2>
+            <ul className="space-y-1 text-xs text-white/75">
               <li>
-                <button onClick={() => navigateTo('size-guide')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('size-guide')} className="py-1 hover:text-white transition-colors">
                   Size Guide & Measurements
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('shipping-policy')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('shipping-policy')} className="py-1 hover:text-white transition-colors">
                   Shipping & Delivery
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('return-policy')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('return-policy')} className="py-1 hover:text-white transition-colors">
                   7-Day Returns & Exchanges
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('faqs')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('faqs')} className="py-1 hover:text-white transition-colors">
                   Frequently Asked Questions
                 </button>
               </li>
               <li>
-                <button onClick={() => navigateTo('contact')} className="hover:text-white transition-colors">
+                <button onClick={() => navigateTo('contact')} className="py-1 hover:text-white transition-colors">
                   Contact Support
                 </button>
               </li>
@@ -156,9 +157,9 @@ export const Footer: React.FC = () => {
 
           {/* Store & Legal */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
               Flagship Studio
-            </h4>
+            </h2>
             <div className="space-y-2 text-xs text-white/70">
               <div className="flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-[#FF762E] shrink-0 mt-0.5" />
@@ -208,12 +209,12 @@ export const Footer: React.FC = () => {
               </a>
             </div>
 
-            <div className="pt-2 border-t border-white/10 text-[11px] text-white/50">
-              <button onClick={() => navigateTo('privacy-policy')} className="hover:text-white transition-colors">
+            <div className="pt-2 border-t border-white/10 text-[11px] text-white/70">
+              <button onClick={() => navigateTo('privacy-policy')} className="py-1 hover:text-white transition-colors">
                 Privacy Policy
               </button>
               <span className="mx-1.5">·</span>
-              <button onClick={() => navigateTo('terms')} className="hover:text-white transition-colors">
+              <button onClick={() => navigateTo('terms')} className="py-1 hover:text-white transition-colors">
                 Terms of Service
               </button>
             </div>
@@ -221,14 +222,14 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Bottom Bar & Trust Indicators */}
-        <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/50">
+        <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/70">
           <div>
             © {new Date().getFullYear()} VANTREL OUTFIT. All rights reserved. Registered fashion trademark in Bangladesh.
           </div>
 
           {/* Payment Badges Supported in Bangladesh */}
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="text-white/40 mr-1">Secured Payments:</span>
+            <span className="text-white/75 mr-1">Secured Payments:</span>
             <span className="px-2 py-0.5 bg-white/10 rounded text-pink-300 font-bold">bKash</span>
             <span className="px-2 py-0.5 bg-white/10 rounded text-orange-300 font-bold">Nagad</span>
             <span className="px-2 py-0.5 bg-white/10 rounded text-purple-300 font-bold">Rocket</span>

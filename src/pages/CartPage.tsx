@@ -301,6 +301,10 @@ export const CartPage: React.FC = () => {
                     <img
                       src={toDisplayImageUrl(item.image)}
                       alt={item.name}
+                      width={96}
+                      height={112}
+                      loading="lazy"
+                      decoding="async"
                       onError={handleProxyImageError}
                       className="w-20 h-24 sm:w-24 sm:h-28 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"

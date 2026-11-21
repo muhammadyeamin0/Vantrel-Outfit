@@ -48,6 +48,8 @@ export const AboutPage: React.FC = () => {
             alt="VANTREL OUTFIT"
             width={56}
             height={56}
+            loading="eager"
+            decoding="async"
             className="w-14 h-14 object-contain rounded-xl bg-[#141414] p-2 mx-auto border border-white/15"
           />
           <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#FF762E]">
@@ -66,10 +68,15 @@ export const AboutPage: React.FC = () => {
           <img
             src="/assets/images/hero_fashion_yeamin_1792588589630.webp"
             alt="VANTREL OUTFIT Architectural Streetwear Campaign"
+            width={1376}
+            height={768}
+            fetchPriority="high"
+            loading="eager"
+            decoding="async"
             className="w-full h-full object-cover object-center contrast-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A]/80 via-transparent to-black/20" />
-          <div className="absolute bottom-5 left-6 right-6 flex items-center justify-between text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-white/75">
+          <div className="absolute bottom-5 left-6 right-6 flex items-center justify-between text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-white/85">
             <span>VANTREL ATELIER — DHAKA</span>
             <span>ARCHIVE EDITION</span>
           </div>
@@ -81,6 +88,8 @@ export const AboutPage: React.FC = () => {
             <img
               src="/assets/images/editorial_story_backshot_1793118981432.webp"
               alt="Structured streetwear silhouette and heavyweight textile drape"
+              width={1024}
+              height={1024}
               loading="lazy"
               decoding="async"
               className="w-full h-full object-cover object-center contrast-110"
@@ -216,7 +225,7 @@ export const ContactPage: React.FC = () => {
           <h1 className="font-heading text-3xl sm:text-4xl font-extrabold text-[#14221C] tracking-tight uppercase">
             Contact & Flagship Studio
           </h1>
-          <p className="text-xs text-[#202522]/60 max-w-md mx-auto">
+          <p className="text-xs text-[#202522]/75 max-w-md mx-auto">
             Have questions regarding sizing, custom bulk orders, or your current delivery? Reach out to our team in Banani.
           </p>
         </div>
@@ -224,16 +233,16 @@ export const ContactPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           {/* Info Card */}
           <div className="md:col-span-5 bg-[#14221C] text-[#F7F5EF] p-8 rounded-3xl space-y-6">
-            <h3 className="font-heading text-xl font-bold uppercase tracking-tight text-white">
+            <h2 className="font-heading text-xl font-bold uppercase tracking-tight text-white">
               Studio Details
-            </h3>
+            </h2>
 
             <div className="space-y-4 text-xs">
               <div className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-[#FF762E] shrink-0 mt-0.5" />
                 <div>
                   <p className="font-bold text-white">Banani Flagship Studio</p>
-                  <p className="text-white/70 mt-0.5">{settings.address}</p>
+                  <p className="text-white/80 mt-0.5">{settings.address}</p>
                 </div>
               </div>
 
@@ -245,27 +254,27 @@ export const ContactPage: React.FC = () => {
                     href="https://wa.me/message/E6PISGJZC63TA1"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[#25D366] hover:underline font-semibold block mt-0.5"
+                    className="text-[#4ADE80] hover:underline font-semibold block mt-0.5"
                   >
                     হোয়াটসঅ্যাপ বিজনেসে মেসেজ করুন
                   </a>
-                  <p className="text-white/50 text-[10px]">Open Daily: 24/7 Live Support</p>
+                  <p className="text-white/75 text-[10px]">Open Daily: 24/7 Live Support</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <MessageCircle className="w-4 h-4 text-[#1877F2] shrink-0 mt-0.5" />
+                <MessageCircle className="w-4 h-4 text-[#60A5FA] shrink-0 mt-0.5" />
                 <div>
                   <p className="font-bold text-white">Facebook Support & Messaging</p>
                   <a
                     href="https://www.facebook.com/vantreloutfit"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[#1877F2] hover:underline font-semibold block mt-0.5"
+                    className="text-[#60A5FA] hover:underline font-semibold block mt-0.5"
                   >
                     ফেসবুকে মেসেজ করুন
                   </a>
-                  <p className="text-white/50 text-[10px]">Open Daily: 24/7 Response</p>
+                  <p className="text-white/75 text-[10px]">Open Daily: 24/7 Response</p>
                 </div>
               </div>
 
@@ -303,15 +312,15 @@ export const ContactPage: React.FC = () => {
 
           {/* Form */}
           <div className="md:col-span-7 bg-white p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-4">
-            <h3 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
+            <h2 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
               Send Us a Message
-            </h3>
+            </h2>
 
             {submitted ? (
               <div className="p-8 text-center space-y-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5]">
                 <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-600" />
-                <h4 className="font-bold text-[#14221C]">Message Sent!</h4>
-                <p className="text-xs text-[#202522]/70">
+                <h3 className="font-bold text-[#14221C]">Message Sent!</h3>
+                <p className="text-xs text-[#202522]/75">
                   Thank you for reaching out. We will get back to your mobile or email shortly.
                 </p>
               </div>
@@ -424,7 +433,7 @@ export const FaqPage: React.FC = () => {
           <h1 className="font-heading text-3xl sm:text-4xl font-extrabold text-[#14221C] tracking-tight uppercase">
             Frequently Asked Questions
           </h1>
-          <p className="text-xs text-[#202522]/60">
+          <p className="text-xs text-[#202522]/75">
             Everything you need to know regarding delivery, payments, and our 7-day size guarantee.
           </p>
         </div>
@@ -432,10 +441,10 @@ export const FaqPage: React.FC = () => {
         <div className="space-y-4">
           {faqs.map((faq, idx) => (
             <div key={idx} className="bg-white p-6 rounded-2xl border border-[#E5E1D5] shadow-2xs space-y-2">
-              <h3 className="font-heading text-base font-bold text-[#14221C]">
+              <h2 className="font-heading text-base font-bold text-[#14221C]">
                 {faq.q}
-              </h3>
-              <p className="text-xs text-[#202522]/70 leading-relaxed font-sans">
+              </h2>
+              <p className="text-xs text-[#202522]/80 leading-relaxed font-sans">
                 {faq.a}
               </p>
             </div>
@@ -449,27 +458,27 @@ export const FaqPage: React.FC = () => {
 export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 'terms' }> = ({ type }) => {
   return (
     <div className="bg-[#F7F5EF] min-h-screen py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 bg-white p-8 sm:p-12 rounded-3xl border border-[#E5E1D5] shadow-xs text-xs text-[#202522]/80 leading-relaxed font-sans">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 bg-white p-8 sm:p-12 rounded-3xl border border-[#E5E1D5] shadow-xs text-xs text-[#202522]/85 leading-relaxed font-sans">
         {type === 'shipping' && (
           <>
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#14221C] uppercase tracking-tight">
               Shipping & Courier Delivery Policy
             </h1>
-            <p className="text-[#202522]/60">Last updated: October 2026</p>
+            <p className="text-[#202522]/75">Last updated: October 2026</p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Delivery Zones & Charges</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Delivery Zones & Charges</h2>
             <p>
               • <strong>Inside Dhaka City:</strong> FREE Delivery (৳0). Delivery timeframe: 24 to 48 business hours.<br />
               • <strong>Dhaka Sub-Area (Savar, Ashulia, Keraniganj, Dhamrai, Nawabganj, Dohar):</strong> ৳50 flat rate. Delivery timeframe: 24 to 48 business hours.<br />
               • <strong>Outside Dhaka (All 63 Districts):</strong> ৳50 flat rate. Delivery timeframe: 48 to 72 business hours.
             </p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Courier Partners</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Courier Partners</h2>
             <p>
               We partner with licensed, reputable courier logistics providers including Pathao Courier, Steadfast Courier, and eCourier. Every parcel receives a unique trackable shipment ID.
             </p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">3. Verification Before Dispatch</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">3. Verification Before Dispatch</h2>
             <p>
               To eliminate duplicate or fraudulent bookings, our customer concierge may call your registered mobile number to confirm address details prior to courier pickup.
             </p>
@@ -481,19 +490,19 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#14221C] uppercase tracking-tight">
               7-Day Returns & Size Exchange Policy
             </h1>
-            <p className="text-[#202522]/60">Last updated: October 2026</p>
+            <p className="text-[#202522]/75">Last updated: October 2026</p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Easy Size Replacement</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Easy Size Replacement</h2>
             <p>
               If a garment does not fit as desired, you can request an exchange within 7 calendar days of delivery. The garment must be unworn, unwashed, and retained in its original condition with labels intact.
             </p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Defective or Damaged Pieces</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Defective or Damaged Pieces</h2>
             <p>
               In the rare event of a manufacturing defect or wrong item dispatched, VANTREL OUTFIT bears 100% of the courier costs to replace the item immediately.
             </p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">3. Refund Processing</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">3. Refund Processing</h2>
             <p>
               Refunds for eligible cancellations or pre-paid returned orders are reimbursed via original payment channel (bKash, Nagad, or Bank transfer) within 3–5 working days.
             </p>
@@ -505,14 +514,14 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#14221C] uppercase tracking-tight">
               Privacy Policy & Customer Security
             </h1>
-            <p className="text-[#202522]/60">Last updated: October 2026</p>
+            <p className="text-[#202522]/75">Last updated: October 2026</p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Data Collected</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Data Collected</h2>
             <p>
               We only collect information strictly required to fulfill your garment deliveries: Full Name, Delivery Address, Bangladesh Mobile Number, and optional Email for invoice copies.
             </p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Payment Security</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Payment Security</h2>
             <p>
               VANTREL OUTFIT NEVER asks for or stores your mobile banking PINs, OTP codes, or card CVVs. All mobile transactions occur directly within official bKash/Nagad USSD or secure SSL gateways.
             </p>
@@ -524,14 +533,14 @@ export const PolicyPage: React.FC<{ type: 'shipping' | 'return' | 'privacy' | 't
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#14221C] uppercase tracking-tight">
               Terms & Conditions of Service
             </h1>
-            <p className="text-[#202522]/60">Last updated: October 2026</p>
+            <p className="text-[#202522]/75">Last updated: October 2026</p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Pricing in BDT</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">1. Pricing in BDT</h2>
             <p>
               All prices displayed on VANTREL OUTFIT are denominated in Bangladeshi Taka (৳) and include all applicable local manufacturing costs.
             </p>
 
-            <h3 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Order Integrity</h3>
+            <h2 className="text-sm font-bold text-[#14221C] uppercase pt-4">2. Order Integrity</h2>
             <p>
               We reserve the right to cancel suspicious bookings or orders placed with unreachable telephone numbers to prevent courier returns.
             </p>

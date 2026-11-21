@@ -44,7 +44,7 @@ export const ProductDetailPage: React.FC = () => {
   if (!product) {
     return (
       <div className="bg-[#0A0A0A] text-white min-h-[60vh] max-w-7xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-white">Product not found</h2>
+        <h1 className="text-2xl font-bold text-white">Product not found</h1>
         <button
           onClick={() => setCurrentPage('shop')}
           className="mt-4 px-6 py-2.5 bg-[#FF762E] text-white rounded-lg font-semibold cursor-pointer"
@@ -214,9 +214,11 @@ export const ProductDetailPage: React.FC = () => {
                 itemProp="image"
                 src={toDisplayImageUrl(product.images[activeImageIndex] || product.images[0])}
                 alt={`${product.name} - ${product.category}${product.fabric ? ` (${product.fabric})` : ''} | ${product.brand || 'VANTREL OUTFIT'}`}
+                width={800}
+                height={1000}
                 fetchPriority="high"
                 loading="eager"
-                decoding="sync"
+                decoding="async"
                 onError={handleProxyImageError}
                 referrerPolicy="no-referrer"
                 className={`w-full h-full object-cover object-center transition-transform duration-300 ${
@@ -264,6 +266,8 @@ export const ProductDetailPage: React.FC = () => {
                   <img
                     src={toDisplayImageUrl(img)}
                     alt={`${product.name} - ${product.category} View ${idx + 1} | ${product.brand || 'VANTREL OUTFIT'}`}
+                    width={80}
+                    height={96}
                     loading="lazy"
                     decoding="async"
                     onError={handleProxyImageError}
@@ -279,14 +283,14 @@ export const ProductDetailPage: React.FC = () => {
           <div className="lg:col-span-5 space-y-6 bg-[#141414] text-white p-6 sm:p-8 rounded-3xl border border-white/10 shadow-xl">
             {/* Header info */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-neutral-400">
+              <div className="flex items-center justify-between text-xs text-neutral-300">
                 <span className="uppercase tracking-widest font-bold text-[#FF762E]">
                   <span itemProp="brand" itemScope itemType="https://schema.org/Brand">
                     <span itemProp="name">{product.brand || 'VANTREL OUTFIT'}</span>
                   </span>{' '}
                   · <span itemProp="category">{product.category}</span>
                 </span>
-                <span className="font-mono text-[11px] text-neutral-500">
+                <span className="font-mono text-[11px] text-neutral-300">
                   SKU: <span itemProp="sku">{matchedVariant ? matchedVariant.sku : product.sku}</span>
                 </span>
               </div>
@@ -554,13 +558,13 @@ export const ProductDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Description */}
             <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-white">
                 Product Story & Details
-              </h3>
+              </h2>
               <p itemProp="description" className="text-xs leading-relaxed text-neutral-300">
                 {product.description}
               </p>
-              <div className="text-xs space-y-1.5 pt-2 text-neutral-400">
+              <div className="text-xs space-y-1.5 pt-2 text-neutral-300">
                 <p>• <strong className="text-white">Silhouette:</strong> {product.fit}</p>
                 <p>• <strong className="text-white">Category:</strong> {product.category} ({product.subCategory})</p>
                 <p>• <strong className="text-white">Country of Origin:</strong> Bangladesh (Dhaka Atelier)</p>
@@ -569,9 +573,9 @@ export const ProductDetailPage: React.FC = () => {
 
             {/* Fabric & Material */}
             <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-white">
                 Fabric & Composition
-              </h3>
+              </h2>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-white">
@@ -583,7 +587,7 @@ export const ProductDetailPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-neutral-400 leading-relaxed">
+                <p className="text-[11px] text-neutral-300 leading-relaxed">
                   Carefully engineered for maximum durability, breathability in humid Dhaka summers, and tactile luxury against the skin.
                 </p>
               </div>
@@ -591,9 +595,9 @@ export const ProductDetailPage: React.FC = () => {
 
             {/* Garment Care */}
             <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-white">
                 Wash & Care Instructions
-              </h3>
+              </h2>
               <ul className="text-xs space-y-1.5 text-neutral-300">
                 {product.care.map((item, idx) => (
                   <li key={idx} className="flex items-start gap-2">
@@ -610,9 +614,9 @@ export const ProductDetailPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Ruler className="w-4 h-4 text-[#FF762E]" />
-                <h4 className="text-sm font-bold uppercase tracking-wider text-white">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white">
                   Garment Exact Measurements Chart
-                </h4>
+                </h3>
               </div>
 
               {/* Unit Switcher */}
@@ -684,9 +688,9 @@ export const ProductDetailPage: React.FC = () => {
           <div className="pt-8 border-t border-white/10 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white tracking-tight">
+                <h2 className="text-lg font-bold text-white tracking-tight">
                   Verified Customer Reviews & Photos
-                </h3>
+                </h2>
                 <p className="text-xs text-neutral-400 mt-0.5">
                   Real experiences and outfit photos from customers across Bangladesh.
                 </p>
@@ -761,6 +765,8 @@ export const ProductDetailPage: React.FC = () => {
                             <img
                               src={photo}
                               alt={`${product.name} verified customer review outfit photo`}
+                              width={64}
+                              height={80}
                               loading="lazy"
                               decoding="async"
                               referrerPolicy="no-referrer"
@@ -774,7 +780,7 @@ export const ProductDetailPage: React.FC = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-neutral-400 italic">
+                <p className="text-xs text-neutral-300 italic">
                   Be the first to leave an honest review for this piece!
                 </p>
               )}
@@ -783,9 +789,9 @@ export const ProductDetailPage: React.FC = () => {
             {/* Write a Review Form with Photo Upload Option */}
             <div className="p-6 bg-white/5 rounded-2xl border border-white/10 space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white">
                   Leave Your Rating, Review & Outfit Photo
-                </h4>
+                </h3>
                 <span className="text-[11px] text-neutral-400 flex items-center gap-1">
                   <Camera className="w-3.5 h-3.5 text-[#FF762E]" />
                   <span>Photo Reviews Welcome</span>
@@ -864,6 +870,10 @@ export const ProductDetailPage: React.FC = () => {
                       <img
                         src={newReviewPhoto}
                         alt="Preview"
+                        width={40}
+                        height={48}
+                        loading="lazy"
+                        decoding="async"
                         className="w-10 h-12 object-cover rounded-md border border-white/15"
                       />
                       <span className="text-[11px] text-emerald-400 font-semibold">Photo attached!</span>
@@ -874,7 +884,7 @@ export const ProductDetailPage: React.FC = () => {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer shadow-sm"
+                    className="min-h-[44px] px-6 py-2.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer shadow-sm"
                   >
                     Submit Review & Photos
                   </button>
@@ -889,9 +899,9 @@ export const ProductDetailPage: React.FC = () => {
           <div className="space-y-6 pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-heading text-xl font-extrabold text-white tracking-tight">
+                <h2 className="font-heading text-xl font-extrabold text-white tracking-tight">
                   You May Also Like
-                </h3>
+                </h2>
                 <p className="text-xs text-neutral-400 mt-0.5">
                   Pairs seamlessly with your selected aesthetic.
                 </p>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useStore } from '../context/StoreContext';
 import {
   CASUAL_CATEGORIES,
@@ -26,7 +26,7 @@ import {
   LayoutGrid
 } from 'lucide-react';
 import { ProductCategory } from '../types';
-import { AdminAuthModal } from './AdminAuthModal';
+const AdminAuthModal = lazy(() => import('./AdminAuthModal').then(m => ({ default: m.AdminAuthModal })));
 
 export const TopCategoryStrip: React.FC = () => {
   const {
@@ -95,7 +95,7 @@ export const TopCategoryStrip: React.FC = () => {
   return (
     <div className="bg-[#14221C] text-[#F7F5EF] border-b border-[#2A3B32] shadow-sm select-none relative z-30">
       <div className="max-w-7xl mx-auto pl-2.5 pr-1.5 sm:px-5 lg:px-6">
-        <div className="flex items-center justify-between gap-1.5 h-10 sm:h-11">
+        <div className="flex items-center justify-between gap-1.5 h-11 sm:h-12">
           {/* Left badge indicator */}
           <div className="hidden md:flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#FF762E] pr-2.5 border-r border-[#2A3B32] shrink-0">
             <Flame className="w-3.5 h-3.5" />
@@ -111,14 +111,14 @@ export const TopCategoryStrip: React.FC = () => {
             {/* 'All' option */}
             <button
               onClick={() => handleSelectCategory('All')}
-              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              className={`min-h-[36px] px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 selectedCategory === 'All' && currentPage === 'shop'
                   ? 'bg-[#FF762E] text-white shadow-xs font-bold'
-                  : 'bg-white/10 text-white/90 hover:bg-white/20'
+                  : 'bg-white/10 text-white/95 hover:bg-white/20'
               }`}
             >
               <span>সকল কালেকশন</span>
-              <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full tabular-nums bg-black/30 text-white">
+              <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full tabular-nums bg-black/40 text-white">
                 {products.length}
               </span>
             </button>
@@ -132,17 +132,17 @@ export const TopCategoryStrip: React.FC = () => {
                 <button
                   key={cat}
                   onClick={() => handleSelectCategory(cat)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  className={`min-h-[36px] px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                     isSelected
                       ? 'bg-[#FF762E] text-white shadow-xs font-bold'
-                      : 'bg-white/10 text-white/90 hover:bg-white/20 hover:text-white'
+                      : 'bg-white/10 text-white/95 hover:bg-white/20 hover:text-white'
                   }`}
                   title={cat}
                 >
                   <span>{cat}</span>
                   <span
                     className={`text-[10px] font-black px-1.5 py-0.2 rounded-full tabular-nums ${
-                      isSelected ? 'bg-black/30 text-white' : 'bg-[#FF762E] text-white'
+                      isSelected ? 'bg-black/40 text-white' : 'bg-[#FF762E] text-white'
                     }`}
                   >
                     {count}
@@ -156,7 +156,7 @@ export const TopCategoryStrip: React.FC = () => {
           <div className="relative shrink-0 ml-auto pl-1.5 border-l border-[#2A3B32]" ref={dropdownRef}>
             <button
               onClick={() => setIsMoreOpen(!isMoreOpen)}
-              className={`px-2 py-1 rounded-md text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer select-none whitespace-nowrap ${
+              className={`min-h-[36px] px-2.5 py-1.5 rounded-md text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer select-none whitespace-nowrap ${
                 isMoreOpen
                   ? 'bg-[#FF762E] text-white ring-1 ring-orange-300/40'
                   : 'bg-white/15 hover:bg-[#FF762E] text-white border border-white/15 hover:border-transparent active:scale-95'
@@ -187,9 +187,9 @@ export const TopCategoryStrip: React.FC = () => {
                   <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/10">
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Sparkles className="w-4 h-4 text-[#FF762E]" />
-                      <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                      <p className="text-xs sm:text-sm font-bold text-white tracking-tight">
                         সকল অপশন ও ক্যাটাগরি
-                      </h4>
+                      </p>
                     </div>
 
                     <div className="relative flex-1 max-w-[240px] sm:max-w-[320px]">
@@ -205,8 +205,9 @@ export const TopCategoryStrip: React.FC = () => {
 
                     <button
                       onClick={() => setIsMoreOpen(false)}
-                      className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg cursor-pointer shrink-0"
+                      className="min-w-[40px] min-h-[40px] flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 rounded-lg cursor-pointer shrink-0"
                       title="বন্ধ করুন"
+                      aria-label="বন্ধ করুন"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -341,10 +342,14 @@ export const TopCategoryStrip: React.FC = () => {
       </div>
 
       {/* Admin Authentication Security Modal */}
-      <AdminAuthModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
-      />
+      {isAdminModalOpen && (
+        <Suspense fallback={null}>
+          <AdminAuthModal
+            isOpen={isAdminModalOpen}
+            onClose={() => setIsAdminModalOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -1356,8 +1356,11 @@ export const AdminDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E5E1D5]">
           <div className="flex items-center gap-3.5">
             <img
-              src="/assets/images/vantrel-logo.png"
+              src="/assets/images/vantrel-logo.webp"
               alt="VANTREL OUTFIT"
+              width={56}
+              height={56}
+              decoding="async"
               className="w-13 h-13 sm:w-14 sm:h-14 object-contain rounded-2xl bg-[#14221C] p-2 shadow-md border border-neutral-800 shrink-0"
             />
             <div>

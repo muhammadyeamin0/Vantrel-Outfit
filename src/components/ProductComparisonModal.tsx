@@ -98,13 +98,17 @@ export const ProductComparisonModal: React.FC = () => {
                             <img
                               src={toDisplayImageUrl(p.images[0])}
                               alt={p.name}
+                              width={260}
+                              height={192}
+                              loading="lazy"
+                              decoding="async"
                               onError={handleProxyImageError}
                               className="w-full h-48 object-cover rounded-2xl bg-stone-100 border border-[#E5E1D5] mb-3"
                               referrerPolicy="no-referrer"
                             />
-                            <h4 className="font-heading font-bold text-sm text-[#14221C] leading-snug line-clamp-2">
+                            <h3 className="font-heading font-bold text-sm text-[#14221C] leading-snug line-clamp-2">
                               {p.name}
-                            </h4>
+                            </h3>
                             <p className="text-[11px] text-[#202522]/60 mt-0.5">{p.category} · {p.subCategory}</p>
                             <div className="mt-2 flex items-baseline gap-2">
                               <span className="text-base font-extrabold text-[#14221C] tabular-nums">
@@ -273,6 +277,10 @@ export const FloatingComparisonDock: React.FC = () => {
             key={p.id}
             src={toDisplayImageUrl(p.images[0])}
             alt={p.name}
+            width={40}
+            height={40}
+            loading="lazy"
+            decoding="async"
             onError={handleProxyImageError}
             className="w-10 h-10 rounded-xl object-cover border-2 border-[#14221C]"
             referrerPolicy="no-referrer"

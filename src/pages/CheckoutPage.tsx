@@ -658,6 +658,10 @@ export const CheckoutPage: React.FC = () => {
                     <img
                       src={toDisplayImageUrl(item.image)}
                       alt={item.name}
+                      width={56}
+                      height={64}
+                      loading="lazy"
+                      decoding="async"
                       onError={handleProxyImageError}
                       className="w-14 h-16 object-cover rounded-lg bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"

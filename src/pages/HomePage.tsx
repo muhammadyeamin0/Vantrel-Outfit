@@ -188,10 +188,12 @@ export const HomePage: React.FC = () => {
           <img
             src={activeSlide.bgImage}
             alt={`${activeSlide.title} - ${activeSlide.tagline1} (${activeSlide.categoryList})`}
+            width={941}
+            height={1672}
             fetchPriority={currentSlide === 0 ? "high" : "auto"}
-            loading={currentSlide === 0 ? "eager" : "lazy"}
-            decoding={currentSlide === 0 ? "sync" : "async"}
-            className="w-full h-full object-cover object-top sm:object-center transition-all duration-1000 ease-in-out scale-105"
+            loading="eager"
+            decoding="async"
+            className="w-full h-full object-cover object-top sm:object-center transition-opacity duration-500 ease-out"
             referrerPolicy="no-referrer"
           />
           {/* Subtle gradient overlays for flawless legibility */}
@@ -233,13 +235,13 @@ export const HomePage: React.FC = () => {
               </div>
 
               {/* Category Quick Badges matching the poster (T-SHIRT / HOODIE / PANT / SHIRT) */}
-              <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] font-bold text-white/75">
+              <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] font-bold text-white/90">
                 {['T-SHIRT', 'HOODIE', 'PANT', 'SHIRT'].map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => handleCategoryNav(item)}
-                    className="px-3 py-1 bg-black/50 hover:bg-white hover:text-black border border-white/25 rounded-md transition-all cursor-pointer backdrop-blur-sm"
+                    className="min-h-[36px] px-3 py-1.5 bg-black/55 hover:bg-white hover:text-black border border-white/25 rounded-md transition-colors cursor-pointer backdrop-blur-sm"
                   >
                     {item}
                   </button>
@@ -249,7 +251,7 @@ export const HomePage: React.FC = () => {
               <div className="pt-2 sm:pt-4">
                 <button
                   onClick={() => handleCategoryNav(activeSlide.category)}
-                  className="inline-flex items-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-white text-black hover:bg-neutral-200 text-xs sm:text-sm font-black tracking-[0.2em] uppercase transition-all duration-200 shadow-xl cursor-pointer group"
+                  className="inline-flex items-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-white text-black hover:bg-neutral-200 text-xs sm:text-sm font-black tracking-[0.2em] uppercase transition-colors duration-200 shadow-xl cursor-pointer group"
                 >
                   <span>{activeSlide.ctaText}</span>
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
@@ -261,14 +263,15 @@ export const HomePage: React.FC = () => {
             <div className="hidden lg:flex items-center justify-end shrink-0 py-2">
               <div
                 onClick={() => handleCategoryNav('All')}
-                className="relative group cursor-pointer rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl transition-all duration-500 hover:scale-[1.03] hover:border-white/50 h-[50vh] xl:h-[58vh] aspect-[941/1672] bg-neutral-900 ring-1 ring-white/10"
+                className="relative group cursor-pointer rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl transition-transform duration-300 hover:scale-[1.02] hover:border-white/50 h-[50vh] xl:h-[58vh] aspect-[941/1672] bg-neutral-900 ring-1 ring-white/10"
               >
                 <img
                   src="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp"
                   alt="VANTREL Choose Your Style - Official High Quality Campaign"
-                  className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
-                  fetchPriority="high"
-                  loading="eager"
+                  width={941}
+                  height={1672}
+                  className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
                   decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
@@ -295,9 +298,10 @@ export const HomePage: React.FC = () => {
                   <button
                     key={slide.id}
                     onClick={() => setCurrentSlide(idx)}
-                    className="flex items-center gap-2 transition-colors cursor-pointer"
+                    aria-label={`View slide ${slide.badge}`}
+                    className="min-h-[40px] px-1 flex items-center gap-2 transition-colors cursor-pointer"
                   >
-                    <span className={isActive ? 'text-white font-extrabold' : 'text-neutral-500 hover:text-neutral-300'}>
+                    <span className={isActive ? 'text-white font-extrabold' : 'text-neutral-300 hover:text-white'}>
                       {slide.badge}
                     </span>
                     {isActive && (
@@ -313,7 +317,7 @@ export const HomePage: React.FC = () => {
               <p className="text-[11px] font-bold tracking-[0.25em] text-white uppercase">
                 NEW ARRIVALS
               </p>
-              <p className="text-[11px] font-medium tracking-[0.18em] text-neutral-400 uppercase">
+              <p className="text-[11px] font-medium tracking-[0.18em] text-neutral-300 uppercase">
                 {activeSlide.categoryList}
               </p>
             </div>
@@ -323,6 +327,7 @@ export const HomePage: React.FC = () => {
 
       {/* 2. CATEGORY ROW (4 CARDS: Best Product of Each Active Category) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <h2 className="sr-only">Shop by Category</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {categoryBanners.length > 0 ? (
             categoryBanners.map((cat) => (
@@ -335,10 +340,12 @@ export const HomePage: React.FC = () => {
                 <img
                   src={cat.image}
                   alt={`${cat.title} - ${cat.productName} | VANTREL OUTFIT`}
+                  width={400}
+                  height={500}
                   loading="lazy"
                   decoding="async"
                   onError={handleProxyImageError}
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-75 group-hover:brightness-90"
+                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 brightness-75 group-hover:brightness-90"
                   referrerPolicy="no-referrer"
                 />
 
@@ -474,7 +481,7 @@ export const HomePage: React.FC = () => {
                         ৳ {item.price.toLocaleString('en-IN')}
                       </span>
                       {hasDiscount && (
-                        <span className="text-[11px] text-neutral-400 line-through tabular-nums">
+                        <span className="text-[11px] text-neutral-600 line-through tabular-nums">
                           ৳ {regularPrice.toLocaleString('en-IN')}
                         </span>
                       )}
@@ -492,10 +499,10 @@ export const HomePage: React.FC = () => {
                               setSelectedSwatches((prev) => ({ ...prev, [item.id]: idx }));
                             }}
                             style={{ backgroundColor: colorHex }}
-                            className={`w-3.5 h-3.5 rounded-full border transition-all ${
+                            className={`w-4 h-4 rounded-full border transition-transform ${
                               activeSwatch === idx
                                 ? 'ring-1.5 ring-black ring-offset-1 border-white scale-110'
-                                : 'border-black/20 hover:scale-110'
+                                : 'border-black/25 hover:scale-110'
                             }`}
                             title={`Color variant ${idx + 1}`}
                             aria-label={`Select color ${idx + 1}`}
@@ -503,7 +510,7 @@ export const HomePage: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-[11px] text-neutral-500 font-medium pt-0.5">
+                      <div className="text-[11px] text-neutral-600 font-medium pt-0.5">
                         একক কালার (সিলেক্ট করার প্রয়োজন নেই)
                       </div>
                     )}
@@ -515,7 +522,7 @@ export const HomePage: React.FC = () => {
                         e.stopPropagation();
                         openProductDetail(item.id);
                       }}
-                      className="text-[11px] font-bold text-neutral-600 hover:text-black py-0.5 flex items-center justify-between group/link cursor-pointer text-left w-full"
+                      className="text-[11px] font-bold text-neutral-700 hover:text-black py-1 flex items-center justify-between group/link cursor-pointer text-left w-full"
                     >
                       <span>বিস্তারিত দেখুন / View Details</span>
                       <span className="group-hover/link:translate-x-1 transition-transform">→</span>
@@ -528,7 +535,7 @@ export const HomePage: React.FC = () => {
                       type="button"
                       onClick={(e) => handleQuickAddToCart(e, item)}
                       disabled={isAdding}
-                      className="w-full py-2 px-1.5 bg-neutral-900 text-white hover:bg-black text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs disabled:opacity-75"
+                      className="w-full min-h-[42px] py-2 px-1.5 bg-neutral-900 text-white hover:bg-black text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs disabled:opacity-75"
                       title="Add to Shopping Cart"
                     >
                       {isAdding ? (
@@ -547,7 +554,7 @@ export const HomePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={(e) => handleQuickBuyNow(e, item)}
-                      className="w-full py-2 px-1.5 bg-[#FF762E] text-white hover:bg-[#e8631c] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                      className="w-full min-h-[42px] py-2 px-1.5 bg-[#FF762E] text-white hover:bg-[#e8631c] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                       title="Direct Buy Now"
                     >
                       <Zap className="w-3 h-3 fill-white" />
@@ -569,9 +576,11 @@ export const HomePage: React.FC = () => {
             <img
               src="/assets/images/editorial_cream_hoodie_1793118980188.webp"
               alt="Comfort Meets Style"
+              width={896}
+              height={1200}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
               referrerPolicy="no-referrer"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30" />
@@ -590,7 +599,7 @@ export const HomePage: React.FC = () => {
             <div className="absolute bottom-8 left-8">
               <button
                 onClick={() => handleCategoryNav('Hoodies')}
-                className="px-6 py-3 bg-white text-black hover:bg-neutral-200 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 cursor-pointer"
+                className="min-h-[44px] px-6 py-3 bg-white text-black hover:bg-neutral-200 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <span>Explore Hoodies</span>
                 <span>→</span>
@@ -605,6 +614,8 @@ export const HomePage: React.FC = () => {
               <img
                 src="/assets/images/editorial_story_backshot_1793118981432.webp"
                 alt="Vantrel Streetwear Back Detail"
+                width={1024}
+                height={1024}
                 loading="lazy"
                 decoding="async"
                 className="w-full h-full object-cover object-left-top"

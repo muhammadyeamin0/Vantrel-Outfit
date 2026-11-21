@@ -593,8 +593,11 @@ export const OrderConfirmationPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row justify-between gap-6 pb-6 border-b border-[#E5E1D5]">
             <div className="flex items-center gap-3.5">
               <img
-                src="/assets/images/vantrel-logo.png"
+                src="/assets/images/vantrel-logo.webp"
                 alt="VANTREL OUTFIT"
+                width={56}
+                height={56}
+                decoding="async"
                 className="w-14 h-14 object-contain rounded-xl bg-[#14221C] p-2 shadow-xs border border-stone-800 shrink-0"
               />
               <div>
@@ -625,9 +628,9 @@ export const OrderConfirmationPage: React.FC = () => {
           {/* Delivery & Customer Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] text-xs">
             <div className="space-y-1.5">
-              <h4 className="font-bold uppercase tracking-wider text-[#14221C]">
+              <h2 className="font-bold uppercase tracking-wider text-[#14221C]">
                 Customer Information
-              </h4>
+              </h2>
               <p className="font-semibold text-[#14221C]">{order.customer.fullName}</p>
               <p className="flex items-center gap-1.5 text-[#202522]/80">
                 <Phone className="w-3.5 h-3.5 text-[#FF762E]" />
@@ -643,9 +646,9 @@ export const OrderConfirmationPage: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <h4 className="font-bold uppercase tracking-wider text-[#14221C]">
+              <h2 className="font-bold uppercase tracking-wider text-[#14221C]">
                 Delivery Destination
-              </h4>
+              </h2>
               <p className="flex items-start gap-1.5 text-[#202522]/80">
                 <MapPin className="w-3.5 h-3.5 text-[#FF762E] shrink-0 mt-0.5" />
                 <span>
@@ -679,6 +682,10 @@ export const OrderConfirmationPage: React.FC = () => {
                       <img
                         src={toDisplayImageUrl(item.image)}
                         alt=""
+                        width={40}
+                        height={48}
+                        loading="lazy"
+                        decoding="async"
                         onError={handleProxyImageError}
                         className="w-10 h-12 object-cover rounded bg-stone-100 shrink-0"
                       />

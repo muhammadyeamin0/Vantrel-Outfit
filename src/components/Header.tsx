@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { useStore, PageRoute } from '../context/StoreContext';
 import { ProductCategory } from '../types';
 import {
@@ -16,7 +16,7 @@ import {
   MessageCircle,
   Truck
 } from 'lucide-react';
-import { AdminAuthModal } from './AdminAuthModal';
+const AdminAuthModal = lazy(() => import('./AdminAuthModal').then(m => ({ default: m.AdminAuthModal })));
 
 export const Header: React.FC = () => {
   const {
@@ -93,7 +93,7 @@ export const Header: React.FC = () => {
           <div className="flex items-center lg:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 -ml-2 text-neutral-300 hover:text-white"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-2 text-neutral-300 hover:text-white"
               aria-label="Open mobile menu"
             >
               <Menu className="w-6 h-6" />
@@ -138,11 +138,11 @@ export const Header: React.FC = () => {
           </nav>
 
           {/* Zone 3: Functional action cluster (Search, Account, Cart) */}
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Search Button */}
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="p-2 text-neutral-300 hover:text-white transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors"
               aria-label="Search products"
             >
               <Search className="w-5 h-5" />
@@ -157,7 +157,7 @@ export const Header: React.FC = () => {
                   handleNavClick('account');
                 }
               }}
-              className="p-2 text-neutral-300 hover:text-white transition-colors flex items-center gap-1.5"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors gap-1.5"
               aria-label="Account"
             >
               <div className="relative">
@@ -171,11 +171,11 @@ export const Header: React.FC = () => {
             {/* Cart Trigger with live count matching mockup */}
             <button
               onClick={() => setIsCartDrawerOpen(true)}
-              className="relative p-2 text-neutral-300 hover:text-white transition-colors group"
+              className="relative min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors group"
               aria-label="View shopping bag"
             >
               <ShoppingBag className="w-5 h-5 group-hover:scale-105 transition-transform" />
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-white text-black text-[10px] font-black rounded-full flex items-center justify-center tabular-nums">
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-white text-black text-[10px] font-black rounded-full flex items-center justify-center tabular-nums">
                 {cartItemCount}
               </span>
             </button>
@@ -275,7 +275,8 @@ export const Header: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1.5 rounded-lg text-[#202522]/60 hover:text-[#14221C]"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-[#202522]/75 hover:text-[#14221C]"
+                aria-label="Close mobile menu"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -284,9 +285,9 @@ export const Header: React.FC = () => {
             {/* Mobile Nav Links */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               <div>
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#202522]/40 mb-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#202522]/75 mb-3">
                   Shop Collections
-                </h4>
+                </p>
                 <div className="space-y-1">
                   {navItems.map((item) => (
                     <button
@@ -295,16 +296,16 @@ export const Header: React.FC = () => {
                       className="w-full flex items-center justify-between py-2.5 text-sm font-semibold text-[#14221C] hover:text-[#FF762E] transition-colors"
                     >
                       <span>{item.label}</span>
-                      <ChevronRight className="w-4 h-4 text-[#202522]/30" />
+                      <ChevronRight className="w-4 h-4 text-[#202522]/50" />
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="pt-4 border-t border-[#E5E1D5]">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#202522]/40 mb-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#202522]/75 mb-3">
                   Quick Actions
-                </h4>
+                </p>
                 <div className="space-y-2 text-sm font-medium">
                   <button
                     onClick={() => handleNavClick('account')}
@@ -359,23 +360,23 @@ export const Header: React.FC = () => {
             </div>
 
             {/* Mobile Footer */}
-            <div className="p-6 bg-white border-t border-[#E5E1D5] text-xs text-[#202522]/60 space-y-2">
+            <div className="p-6 bg-white border-t border-[#E5E1D5] text-xs text-[#202522]/75 space-y-2">
               <a
                 href="https://wa.me/message/E6PISGJZC63TA1"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold text-[#25D366] hover:underline flex items-center gap-1.5"
+                className="font-bold text-[#15803D] hover:underline flex items-center gap-1.5 py-1"
               >
-                <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                <MessageCircle className="w-3.5 h-3.5 text-[#15803D]" />
                 <span>হোয়াটসঅ্যাপ হেল্পলাইন (WhatsApp Business)</span>
               </a>
               <a
                 href="https://www.facebook.com/vantreloutfit"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold text-[#1877F2] hover:underline flex items-center gap-1.5"
+                className="font-bold text-[#1D4ED8] hover:underline flex items-center gap-1.5 py-1"
               >
-                <MessageCircle className="w-3.5 h-3.5 text-[#1877F2]" />
+                <MessageCircle className="w-3.5 h-3.5 text-[#1D4ED8]" />
                 <span>ফেসবুক সাপোর্ট (Facebook Support)</span>
               </a>
               <p className="mt-0.5 text-[11px]">Support: {settings.email}</p>
@@ -385,10 +386,14 @@ export const Header: React.FC = () => {
       )}
 
       {/* Admin Security Verification Modal */}
-      <AdminAuthModal
-        isOpen={isAdminAuthModalOpen}
-        onClose={() => setIsAdminAuthModalOpen(false)}
-      />
+      {isAdminAuthModalOpen && (
+        <Suspense fallback={null}>
+          <AdminAuthModal
+            isOpen={isAdminAuthModalOpen}
+            onClose={() => setIsAdminAuthModalOpen(false)}
+          />
+        </Suspense>
+      )}
     </header>
   );
 };

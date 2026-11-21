@@ -35,18 +35,21 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ item, onClick }) => 
         <img
           src={toDisplayImageUrl(item.image)}
           alt={item.title}
+          width={96}
+          height={96}
+          loading="lazy"
+          decoding="async"
           onError={handleProxyImageError}
           className="relative z-10 w-20 h-20 sm:w-24 sm:h-24 object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-sm"
-          loading="lazy"
         />
       </div>
 
       {/* Category Title */}
       <div className="mt-1 w-full px-1">
-        <h4 className="font-heading text-xs sm:text-sm font-bold text-[#14221C] group-hover:text-[#FF762E] transition-colors truncate">
+        <h3 className="font-heading text-xs sm:text-sm font-bold text-[#14221C] group-hover:text-[#FF762E] transition-colors truncate">
           {item.title}
-        </h4>
-        <span className="text-[10px] text-[#202522]/50 block truncate">
+        </h3>
+        <span className="text-[10px] text-[#202522]/75 block truncate">
           {item.banglaTitle}
         </span>
       </div>
@@ -98,10 +101,10 @@ export const CategorySectionModule: React.FC<CategorySectionModuleProps> = ({
                 <Shirt className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-heading text-base sm:text-lg font-extrabold text-[#FF762E] tracking-tight">
+                <h2 className="font-heading text-base sm:text-lg font-extrabold text-[#C2410C] tracking-tight">
                   Gent's Casual & Shirts (1,174)
-                </h3>
-                <p className="text-[11px] text-[#202522]/60">
+                </h2>
+                <p className="text-[11px] text-[#202522]/75">
                   ক্লাসিক পোলো, ড্রপ শোল্ডার, ফরমাল ও প্রিন্ট শার্ট কালেকশন
                 </p>
               </div>
@@ -139,15 +142,19 @@ export const CategorySectionModule: React.FC<CategorySectionModuleProps> = ({
                 <img
                   src="/assets/images/bangladeshi_hoodie_look_1793107183737.webp"
                   alt="Gent's Winter"
+                  width={44}
+                  height={44}
+                  loading="lazy"
+                  decoding="async"
                   onError={handleProxyImageError}
                   className="w-full h-full object-cover rounded-full"
                 />
               </div>
               <div>
-                <h3 className="font-heading text-lg sm:text-xl font-extrabold text-[#E85D15] tracking-tight">
+                <h2 className="font-heading text-lg sm:text-xl font-extrabold text-[#C2410C] tracking-tight">
                   Gent's Winter (384)
-                </h3>
-                <p className="text-[11px] text-[#202522]/60">
+                </h2>
+                <p className="text-[11px] text-[#202522]/75">
                   হুডি, সোয়েটার, সোয়েটশার্টস, জ্যাকেট ও কম্বো উইন্টার সেট
                 </p>
               </div>

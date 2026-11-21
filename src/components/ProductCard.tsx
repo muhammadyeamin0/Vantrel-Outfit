@@ -81,17 +81,17 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
         </div>
 
         {/* Action Buttons: Wishlist & Compare */}
-        <div className="absolute top-3 right-3 flex flex-col gap-1.5">
+        <div className="absolute top-2.5 right-2.5 flex flex-col gap-1.5">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               toggleWishlist(product.id);
             }}
-            className={`p-2 rounded-full backdrop-blur-md transition-all shadow-sm ${
+            className={`min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full backdrop-blur-md transition-all shadow-sm ${
               inWishlist
                 ? 'bg-rose-50 text-rose-500 hover:bg-rose-100'
-                : 'bg-white/80 text-[#202522] hover:bg-white hover:text-rose-500'
+                : 'bg-white/85 text-[#202522] hover:bg-white hover:text-rose-500'
             }`}
             aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
           >
@@ -110,10 +110,10 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
                 addToComparison(product.id);
               }
             }}
-            className={`p-2 rounded-full backdrop-blur-md transition-all shadow-sm ${
+            className={`min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full backdrop-blur-md transition-all shadow-sm ${
               isInComparison(product.id)
                 ? 'bg-[#14221C] text-[#FF762E]'
-                : 'bg-white/80 text-[#202522] hover:bg-white hover:text-[#14221C]'
+                : 'bg-white/85 text-[#202522] hover:bg-white hover:text-[#14221C]'
             }`}
             title={isInComparison(product.id) ? 'Remove from comparison' : 'Compare garment specs'}
             aria-label="Compare"
@@ -178,8 +178,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
       <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between bg-[#141414]">
         <div>
           {/* Category & Rating */}
-          <div className="flex items-center justify-between text-xs text-neutral-400 mb-1.5">
-            <span className="uppercase tracking-wider font-semibold text-[11px] text-neutral-400">
+          <div className="flex items-center justify-between text-xs text-neutral-300 mb-1.5">
+            <span className="uppercase tracking-wider font-semibold text-[11px] text-neutral-300">
               {product.category}
             </span>
             <div className="flex items-center gap-1 text-[11px]">
@@ -187,7 +187,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
               <span className="font-semibold text-white tabular-nums">
                 {product.rating}
               </span>
-              <span className="text-neutral-500 tabular-nums">
+              <span className="text-neutral-300 tabular-nums">
                 ({product.reviewCount})
               </span>
             </div>
@@ -281,7 +281,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
           <button
             type="button"
             onClick={handleQuickAdd}
-            className={`group/cart relative overflow-hidden w-full py-2.5 px-1.5 sm:px-2.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 ${
+            className={`group/cart relative overflow-hidden w-full min-h-[42px] py-2.5 px-1.5 sm:px-2.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 ${
               justAdded
                 ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-400/60 shadow-[0_4px_14px_-3px_rgba(16,185,129,0.45)]'
                 : 'bg-neutral-800/95 hover:bg-neutral-700 text-white border border-white/15 hover:border-[#FF762E]/60 shadow-xs'
@@ -303,7 +303,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
           <button
             type="button"
             onClick={handleQuickBuy}
-            className="group/buy vantrel-buy-shimmer vantrel-buy-glow relative overflow-hidden w-full py-2.5 px-1.5 sm:px-2.5 bg-gradient-to-r from-[#FF762E] via-[#FF5E1A] to-[#FF8A3D] hover:from-[#ff8342] hover:to-[#ff6b26] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap hover:-translate-y-0.5 active:scale-95 border border-white/20"
+            className="group/buy vantrel-buy-shimmer vantrel-buy-glow relative overflow-hidden w-full min-h-[42px] py-2.5 px-1.5 sm:px-2.5 bg-gradient-to-r from-[#FF762E] via-[#FF5E1A] to-[#FF8A3D] hover:from-[#ff8342] hover:to-[#ff6b26] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap hover:-translate-y-0.5 active:scale-95 border border-white/20"
             title="Direct Buy Now"
           >
             <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white shrink-0 transition-transform duration-200 group-hover/buy:scale-125 group-hover/buy:rotate-12" />

@@ -275,6 +275,10 @@ export const CustomerAccountPage: React.FC = () => {
                         <img
                           src={i.image}
                           alt=""
+                          width={48}
+                          height={56}
+                          loading="lazy"
+                          decoding="async"
                           className="w-12 h-14 object-cover rounded-lg bg-neutral-900 shrink-0"
                           referrerPolicy="no-referrer"
                         />

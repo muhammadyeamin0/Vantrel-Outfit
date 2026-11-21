@@ -269,8 +269,11 @@ export const OrderTrackingPage: React.FC = () => {
         {/* Title */}
         <div className="text-center max-w-xl mx-auto space-y-2.5">
           <img
-            src="/assets/images/vantrel-logo.png"
+            src="/assets/images/vantrel-logo.webp"
             alt="VANTREL OUTFIT"
+            width={56}
+            height={56}
+            decoding="async"
             className="w-14 h-14 object-contain rounded-2xl bg-[#14221C] p-2 shadow-sm mx-auto border border-stone-800"
           />
           <div>
@@ -408,6 +411,10 @@ export const OrderTrackingPage: React.FC = () => {
                     <img
                       src={toDisplayImageUrl(item.image)}
                       alt={item.name}
+                      width={64}
+                      height={80}
+                      loading="lazy"
+                      decoding="async"
                       onError={handleProxyImageError}
                       className="w-14 h-18 sm:w-16 sm:h-20 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
                     />

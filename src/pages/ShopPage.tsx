@@ -222,7 +222,7 @@ export const ShopPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileFilterOpen(true)}
-              className="lg:hidden flex items-center gap-2 px-3.5 py-2 bg-[#141414] rounded-xl border border-white/15 text-xs font-semibold text-white"
+              className="lg:hidden min-h-[42px] flex items-center gap-2 px-3.5 py-2 bg-[#141414] rounded-xl border border-white/15 text-xs font-semibold text-white"
             >
               <SlidersHorizontal className="w-4 h-4 text-[#FF762E]" />
               <span>Filters</span>
@@ -322,9 +322,9 @@ export const ShopPage: React.FC = () => {
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-[#FF762E]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-white">
                   Refine By
-                </h3>
+                </h2>
               </div>
               {hasActiveFilters && (
                 <button
@@ -434,22 +434,23 @@ export const ShopPage: React.FC = () => {
                   <Search className="w-8 h-8 opacity-60" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="font-heading text-lg font-bold text-white">
+                  <h2 className="font-heading text-lg font-bold text-white">
                     No garments match your filters
-                  </h3>
-                  <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                  </h2>
+                  <p className="text-xs text-neutral-300 max-w-sm mx-auto">
                     Try adjusting your price range, clearing specific sizes, or searching with broader keywords.
                   </p>
                 </div>
                 <button
                   onClick={resetAllFilters}
-                  className="px-6 py-2.5 bg-[#FF762E] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#e8631c] transition-colors"
+                  className="min-h-[44px] px-6 py-2.5 bg-[#FF762E] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#e8631c] transition-colors"
                 >
                   Clear All Filters
                 </button>
               </div>
             ) : (
               <div className="space-y-8">
+                <h2 className="sr-only">Product Catalog</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                   {filteredProducts.slice(0, visibleCount).map((product) => (
                     <ProductCard key={product.id} product={product} />
@@ -486,12 +487,13 @@ export const ShopPage: React.FC = () => {
 
           <div className="relative ml-auto w-full max-w-xs bg-white text-[#202522] h-full shadow-2xl flex flex-col p-6 space-y-6 overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-[#E5E1D5]">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[#14221C]">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[#14221C]">
                 Filter Catalog
-              </h3>
+              </h2>
               <button
                 onClick={() => setIsMobileFilterOpen(false)}
-                className="p-1 text-[#202522]/60 hover:text-[#14221C]"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#202522]/75 hover:text-[#14221C]"
+                aria-label="Close filter drawer"
               >
                 <X className="w-5 h-5" />
               </button>

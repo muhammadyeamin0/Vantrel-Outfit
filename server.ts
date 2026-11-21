@@ -2186,8 +2186,8 @@ const publicAistudioImages = path.resolve(__dirname, 'public', 'assets', 'aistud
 const srcAssetsImages = path.resolve(__dirname, 'src', 'assets', 'images');
 
 // Support /assets/images & /assets/aistudio statically with aggressive caching
-app.use('/assets/images', express.static(publicAssetsImages, { maxAge: '30d', etag: true }));
-app.use('/assets/aistudio', express.static(publicAistudioImages, { maxAge: '30d', etag: true }));
+app.use('/assets/images', express.static(publicAssetsImages, { maxAge: '365d', immutable: true, etag: true }));
+app.use('/assets/aistudio', express.static(publicAistudioImages, { maxAge: '365d', immutable: true, etag: true }));
 
 app.get('/src/assets/images/:filename', (req: Request, res: Response) => {
   const filename = path.basename(req.params.filename);
@@ -2387,7 +2387,7 @@ ${productUrls}
 });
 
 // Serve remaining static files from public/ after dynamic /robots.txt and /sitemap.xml
-app.use(express.static(path.resolve(__dirname, 'public'), { maxAge: '30d', etag: true }));
+app.use(express.static(path.resolve(__dirname, 'public'), { maxAge: '7d', etag: true }));
 
 app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
   const host = req.get('host') || 'www.vantreloutfit.shop';

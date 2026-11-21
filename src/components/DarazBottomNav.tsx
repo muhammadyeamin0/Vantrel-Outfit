@@ -72,8 +72,8 @@ export const DarazBottomNav: React.FC = () => {
             <button
               key={item.id}
               onClick={item.onClick}
-              className={`flex-1 py-1 flex flex-col items-center justify-center relative transition-colors cursor-pointer ${
-                active ? 'text-white' : 'text-neutral-400 hover:text-neutral-200'
+              className={`flex-1 min-h-[48px] py-1.5 flex flex-col items-center justify-center relative transition-colors cursor-pointer ${
+                active ? 'text-white' : 'text-neutral-300 hover:text-white'
               }`}
             >
               <div className="relative">

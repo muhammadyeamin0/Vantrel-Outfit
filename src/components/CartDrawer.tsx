@@ -278,6 +278,10 @@ export const CartDrawer: React.FC = () => {
                     <img
                       src={toDisplayImageUrl(item.image)}
                       alt={item.name}
+                      width={64}
+                      height={80}
+                      loading="lazy"
+                      decoding="async"
                       onError={handleProxyImageError}
                       className="w-16 h-20 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
                       referrerPolicy="no-referrer"
