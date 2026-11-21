@@ -542,7 +542,7 @@ export const CheckoutPage: React.FC = () => {
                   >
                     {allDistricts.map((d) => (
                       <option key={d.name} value={d.name}>
-                        {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ঢাকা সিটি ফ্রি · সাব-এরিয়া ৳৫০)' : '(৬৩ জেলা - ৳৫০)'}
+                        {d.name} {d.name.toLowerCase() === 'dhaka' ? '(ফ্রি)' : '(৳৫০)'}
                       </option>
                     ))}
                   </select>
