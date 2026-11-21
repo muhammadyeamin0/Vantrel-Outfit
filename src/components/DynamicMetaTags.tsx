@@ -281,9 +281,9 @@ export const DynamicMetaTags: React.FC = () => {
           robotsDirective = 'noindex, nofollow';
           break;
         case 'about':
-          title = 'About VANTREL OUTFIT — Craftsmanship & Story';
+          title = 'About VANTREL — Wear Your Vibe | VANTREL OUTFIT';
           description =
-            'Discover VANTREL OUTFIT’s dedication to heavyweight GSM fabrics, architectural streetwear cuts, and quality garment production in Bangladesh.';
+            'VANTREL একটি আধুনিক স্ট্রিটওয়্যার ও ক্যাজুয়াল অ্যাপারেল ব্র্যান্ড — হাই-GSM ফেব্রিক, সিগনেচার ফিট, ঢাকায় ফ্রি ডেলিভারি এবং ১০০% Cash on Delivery।';
           canonicalUrl = `${canonicalOrigin}/about`;
           break;
         case 'contact':

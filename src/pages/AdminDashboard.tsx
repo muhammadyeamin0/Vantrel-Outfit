@@ -1404,21 +1404,27 @@ export const AdminDashboard: React.FC = () => {
                   Firebase Google Admin সেশন কানেক্টেড নেই
                 </span>
                 <span className="text-amber-900/80">
-                  প্রোডাক্ট যোগ/আপডেট সব ডিভাইসে স্থায়ীভাবে সেভ করতে Google Admin (muhammadeyamin0@gmail.com) পুনরায় কানেক্ট করুন।
+                  সব ডিভাইসে স্থায়ীভাবে সেভ করতে Google Admin (muhammadeyamin0@gmail.com) একবার কানেক্ট করুন—এরপর থেকে সবসময় কানেক্টেড থাকবে।
                 </span>
               </div>
             </div>
             <button
               type="button"
+              disabled={isVerifyingAdmin}
               onClick={async () => {
-                const res = await signInAdminWithGoogle();
-                if (!res.success && res.message) {
-                  showToast('Google Verify Error', res.message, 'error');
+                setIsVerifyingAdmin(true);
+                try {
+                  const res = await signInAdminWithGoogle();
+                  if (!res.success && res.message) {
+                    showToast('Google Verify Error', res.message, 'error');
+                  }
+                } finally {
+                  setIsVerifyingAdmin(false);
                 }
               }}
-              className="px-4 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="px-4 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-60"
             >
-              Google Admin কানেক্ট করুন
+              {isVerifyingAdmin ? 'কানেক্ট হচ্ছে...' : 'Google Admin কানেক্ট করুন'}
             </button>
           </div>
         )}

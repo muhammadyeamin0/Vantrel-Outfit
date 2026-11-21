@@ -12,37 +12,56 @@ import {
   ShieldCheck,
   CheckCircle2
 } from 'lucide-react';
+import aboutHeroBannerImg from '../assets/images/regenerated_image_1795276283085.png';
 
 export const AboutPage: React.FC = () => {
   const { setCurrentPage } = useStore();
 
-  const pillars = [
+  const whyVantrel = [
     {
-      number: '01. Substance Over Noise',
-      copy: 'We reject disposable, lightweight basics. Every garment is cut from densely milled heavyweight cotton (260 GSM jersey tees, 420 GSM French Terry fleece) and structured twill—engineered to hold architectural form wash after wash.'
+      index: '01',
+      title: 'High-GSM Fabric Standard',
+      copy: 'প্রতিটি প্রোডাক্টের ধরন অনুযায়ী আমরা সর্বোচ্চ মানের ও টেকসই GSM ফেব্রিক ব্যবহার করি, যাতে কাপড়ের ওজন, ড্রপ এবং দীর্ঘস্থায়িত্ব আপনাকে দেয় সত্যিকারের প্রিমিয়াম অনুভূতি।'
     },
     {
-      number: '02. Rooted in Craftsmanship',
-      copy: 'Born in the knitwear capital of the world, VANTREL works directly with master patternmakers and boutique ateliers in Narayanganj and Gazipur—enforcing export-grade seam density, tonal hardware, and precision washes.'
+      index: '02',
+      title: 'Seasonal Drops',
+      copy: 'আবহাওয়া ও সময়ের ধারায় আমরা নিয়মিত কালেকশন আপডেট করি। গরমে আরামদায়ক ও ব্রিদেবল Summer Collection এবং শীতে উষ্ণ ও স্টাইলিশ Winter Collection—প্রতিটি সিজনেই পাবেন মানানসই আউটফিট।'
     },
     {
-      number: '03. Honest Luxury, Fair Value',
-      copy: 'Zero intermediary retail markups. Every collection is released direct-to-consumer in Bangladeshi Taka (BDT), delivering international luxury streetwear standards with transparent, attainable value.'
+      index: '03',
+      title: 'Signature Fit & Silhouette',
+      copy: 'ক্যাজুয়াল এভরিডে ওয়্যার হোক বা বোল্ড স্ট্রিটওয়্যার—আমাদের প্রতিটি টি-শার্ট, হুডি ও ড্রপশোল্ডার শার্টের ফিট এমনভাবে তৈরি, যা আপনাকে দেয় স্বাচ্ছন্দ্য এবং শার্প লুক।'
+    },
+    {
+      index: '04',
+      title: 'Free Delivery in Dhaka',
+      copy: 'ঢাকা শহরের ভেতরে সকল অর্ডারে থাকছে ফ্রি ডেলিভারি, যা আপনার শপিংকে করে আরও সহজ ও সাশ্রয়ী।'
+    },
+    {
+      index: '05',
+      title: 'Zero Advance Payment (100% COD)',
+      copy: 'অর্ডারের সময় কোনো অগ্রিম টাকা দেওয়ার বাধ্যবাধকতা নেই। প্রোডাক্ট হাতে পেয়ে, দেখে-বুঝে তারপর পেমেন্ট করার সুবিধা থাকায় আপনি শপিং করতে পারেন সম্পূর্ণ নিশ্চিন্তে।'
+    },
+    {
+      index: '06',
+      title: 'Built on Trust & Transparency',
+      copy: 'আমরা অতিরঞ্জিত প্রতিশ্রুতিতে নয়, ধারাবাহিক কোয়ালিটি ও স্বচ্ছতায় বিশ্বাসী। সঠিক প্রোডাক্ট এবং নির্ভরযোগ্য সার্ভিসের মাধ্যমে আমরা গড়ে তুলতে চাই কাস্টমারদের সাথে দীর্ঘমেয়াদী আস্থা।'
     }
   ];
 
   const standards = [
-    { metric: '260–420 GSM', label: 'Heavyweight Fabrics' },
-    { metric: '100%', label: 'Batch Quality Control' },
-    { metric: 'Nationwide', label: 'Cash on Delivery' },
-    { metric: '7-Day', label: 'Easy Size Exchange' }
+    { metric: 'High-GSM', label: 'Durable Fabric Standard' },
+    { metric: 'Seasonal', label: 'Summer & Winter Drops' },
+    { metric: 'Free Delivery', label: 'Inside Dhaka City' },
+    { metric: '100% COD', label: 'Zero Advance Payment' }
   ];
 
   return (
     <div className="bg-[#0A0A0A] text-[#F7F5EF] min-h-screen py-14 sm:py-20 selection:bg-white selection:text-black">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 sm:space-y-24">
-        {/* 1. Editorial Hero Section */}
-        <section className="text-center space-y-5 max-w-3xl mx-auto">
+        {/* 1. Hero & About VANTREL Intro */}
+        <section className="text-center space-y-6 max-w-3xl mx-auto">
           <img
             src="/assets/images/vantrel-logo.webp"
             alt="VANTREL OUTFIT"
@@ -52,22 +71,22 @@ export const AboutPage: React.FC = () => {
             decoding="async"
             className="w-14 h-14 object-contain rounded-xl bg-[#141414] p-2 mx-auto border border-white/15"
           />
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#FF762E]">
-            OUR MANIFESTO
+          <p className="font-heading text-xs sm:text-sm font-bold uppercase tracking-[0.28em] text-[#FF762E]">
+            VANTREL — Wear Your Vibe
           </p>
-          <h1 className="font-heading text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-[0.04em] uppercase leading-[0.95]">
-            DEFINE YOUR NARRATIVE.
+          <h1 className="font-heading text-4xl sm:text-6xl font-black text-white tracking-[0.02em] uppercase leading-[1.02]">
+            About VANTREL
           </h1>
-          <p className="text-sm sm:text-base text-neutral-300 max-w-2xl mx-auto leading-relaxed font-normal">
-            Born in Bangladesh, VANTREL bridges architectural tailoring with contemporary street culture. We obsess over heavyweight textiles, precision silhouettes, and uncompromising durability—crafted for those who move with intent.
+          <p className="font-bangla text-base sm:text-lg text-[#F7F5EF]/90 max-w-3xl mx-auto leading-[1.85] font-normal">
+            VANTREL একটি আধুনিক স্ট্রিটওয়্যার ও ক্যাজুয়াল অ্যাপারেল ব্র্যান্ড, যেখানে স্টাইল, ফেব্রিকের মান এবং স্বস্তি মিলে তৈরি হয় আপনার প্রতিদিনের সিগনেচার লুক। আমরা বিশ্বাস করি, আপনার পোশাক কেবল শরীর আবৃত করার মাধ্যম নয়—এটি আপনার ব্যক্তিত্ব, মুড এবং আত্মবিশ্বাসের বহিঃপ্রকাশ। Wear Your Vibe—এই দর্শন থেকেই প্রতিটি ডিজাইন ও ফিটের জন্ম।
           </p>
         </section>
 
         {/* Hero Editorial Campaign Frame */}
         <div className="relative overflow-hidden border border-white/10 bg-[#141414] aspect-[16/9] shadow-2xl">
           <img
-            src="/assets/images/hero_fashion_yeamin_1792588589630.webp"
-            alt="VANTREL OUTFIT Architectural Streetwear Campaign"
+            src={aboutHeroBannerImg}
+            alt="VANTREL — Wear Your Vibe Streetwear Collection"
             width={1376}
             height={768}
             fetchPriority="high"
@@ -77,17 +96,17 @@ export const AboutPage: React.FC = () => {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A]/80 via-transparent to-black/20" />
           <div className="absolute bottom-5 left-6 right-6 flex items-center justify-between text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-white/85">
-            <span>VANTREL ATELIER — DHAKA</span>
-            <span>ARCHIVE EDITION</span>
+            <span>VANTREL — WEAR YOUR VIBE</span>
+            <span>DHAKA, BANGLADESH</span>
           </div>
         </div>
 
-        {/* 2. Editorial Split Section */}
+        {/* 2. Collection Craftsmanship Split Section */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center border-t border-white/10 pt-14 sm:pt-16">
           <div className="lg:col-span-6 relative overflow-hidden border border-white/10 bg-[#141414] aspect-[4/5] shadow-xl">
             <img
               src="/assets/images/editorial_story_backshot_1793118981432.webp"
-              alt="Structured streetwear silhouette and heavyweight textile drape"
+              alt="VANTREL T-Shirts, Hoodies & Dropshoulder Shirts Silhouette"
               width={1024}
               height={1024}
               loading="lazy"
@@ -99,69 +118,69 @@ export const AboutPage: React.FC = () => {
 
           <div className="lg:col-span-6 space-y-6 lg:pl-4">
             <span className="inline-block text-[11px] font-bold uppercase tracking-[0.28em] text-[#FF762E]">
-              SILHOUETTE &amp; PROPORTION
+              SIGNATURE APPAREL
             </span>
-            <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-black text-white uppercase tracking-tight leading-[1.02]">
-              ENGINEERED FOR THE MODERN SILHOUETTE
+            <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-black text-white uppercase tracking-tight leading-[1.06]">
+              Crafted Cut, Fit &amp; Finishing
             </h2>
             <div className="w-14 h-[2px] bg-[#FF762E]" />
-            <p className="text-sm sm:text-base text-neutral-300 leading-relaxed">
-              Every pattern is drafted from first principles around intentional proportion. Our structured fits pair dropped shoulders and boxy drapes with clean necklines and heavyweight rib-knit collars that frame the upper body cleanly.
+            <p className="font-bangla text-base sm:text-lg text-[#F7F5EF]/90 leading-[1.85]">
+              আমাদের কালেকশনে রয়েছে প্রিমিয়াম টি-শার্ট, হুডি এবং ড্রপশোল্ডার শার্ট, যেগুলোর প্রতিটি পিসে কাটিং, ফিট এবং ফিনিশিংয়ের ওপর দেওয়া হয় নিখুঁত মনোযোগ।
             </p>
-            <p className="text-sm text-neutral-400 leading-relaxed">
-              Below the waist, relaxed trousers and architectural cargos fall with natural weight—balancing movement, structure, and minimalist restraint for everyday wear in Dhaka and beyond.
-            </p>
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10 text-[11px] uppercase tracking-[0.18em] text-neutral-400 font-bold">
+            <div className="grid grid-cols-3 gap-4 pt-5 border-t border-white/10 text-[11px] uppercase tracking-[0.16em] text-neutral-400 font-bold">
               <div>
-                <span className="block text-white font-black text-sm tracking-normal mb-0.5">Structured</span>
-                Tailored Fits
+                <span className="block text-white font-black text-sm tracking-normal mb-1">T-Shirts</span>
+                Everyday Essential
               </div>
               <div>
-                <span className="block text-white font-black text-sm tracking-normal mb-0.5">Relaxed</span>
-                Fluid Trousers
+                <span className="block text-white font-black text-sm tracking-normal mb-1">Hoodies</span>
+                Heavyweight Warmth
               </div>
               <div>
-                <span className="block text-white font-black text-sm tracking-normal mb-0.5">Boxy</span>
-                Architectural Drapes
+                <span className="block text-white font-black text-sm tracking-normal mb-1">Dropshoulder</span>
+                Sharp Silhouette
               </div>
             </div>
           </div>
         </section>
 
-        {/* 3. Three Core Pillars */}
+        {/* 3. Why VANTREL (6 Editorial Pillars) */}
         <section className="space-y-8 border-t border-white/10 pt-14 sm:pt-16">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#FF762E]">
-                CORE PRINCIPLES
-              </p>
-              <h2 className="font-heading text-2xl sm:text-3xl font-black text-white uppercase tracking-tight mt-1">
                 THE VANTREL STANDARD
+              </p>
+              <h2 className="font-heading text-3xl sm:text-4xl font-black text-white uppercase tracking-tight mt-1">
+                Why VANTREL
               </h2>
             </div>
-            <p className="text-xs text-neutral-400 uppercase tracking-[0.2em]">
-              DHAKA, BANGLADESH
+            <p className="text-xs text-neutral-400 uppercase tracking-[0.22em]">
+              WEAR YOUR VIBE
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {pillars.map((pillar) => (
-              <div
-                key={pillar.number}
-                className="bg-[#141414] p-7 border border-white/10 hover:border-white/25 transition-colors space-y-3"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+            {whyVantrel.map((item) => (
+              <article
+                key={item.index}
+                className="bg-[#141414] p-7 sm:p-8 border border-white/10 hover:border-white/25 transition-colors flex flex-col justify-start space-y-3.5"
               >
-                <h3 className="font-heading font-bold text-base sm:text-lg text-white tracking-tight uppercase">
-                  {pillar.number}
+                <span className="font-heading text-xs font-bold tracking-[0.25em] text-[#FF762E]">
+                  {item.index}
+                </span>
+                <h3 className="font-heading font-bold text-lg sm:text-xl text-white tracking-tight leading-snug">
+                  {item.title}
                 </h3>
-                <p className="text-xs sm:text-sm text-neutral-400 leading-relaxed font-sans">
-                  {pillar.copy}
+                <p className="font-bangla text-sm sm:text-[15px] text-neutral-300 leading-[1.82]">
+                  {item.copy}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </section>
 
-        {/* 4. Minimalist 4-Column Brand Standards Strip */}
+        {/* 4. Minimalist 4-Column Brand Highlights Strip */}
         <section className="border-y border-white/10 py-10">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
             {standards.map((item, idx) => (
@@ -180,18 +199,35 @@ export const AboutPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Editorial CTA */}
-        <div className="text-center pb-4">
-          <button
-            onClick={() => {
-              setCurrentPage('shop');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="px-10 py-4 bg-white hover:bg-neutral-200 text-black text-xs font-black uppercase tracking-[0.25em] transition-all shadow-xl cursor-pointer"
-          >
-            Explore The Drop →
-          </button>
-        </div>
+        {/* 5. Our Promise Manifesto & Collection CTA */}
+        <section className="bg-[#141414] border border-white/12 p-8 sm:p-14 text-center space-y-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#FF762E]">
+            QUALITY &amp; TRUST
+          </p>
+          <h2 className="font-heading text-3xl sm:text-4xl font-black text-white uppercase tracking-tight">
+            Our Promise
+          </h2>
+          <p className="font-bangla text-base sm:text-lg text-[#F7F5EF]/90 leading-[1.9] max-w-3xl mx-auto">
+            সর্বোচ্চ মানের ফেব্রিক, সময়োপযোগী সিজনাল কালেকশন, ঢাকায় ফ্রি ডেলিভারি এবং ঝামেলামুক্ত Cash on Delivery-র সমন্বয়ে VANTREL আপনাকে দিচ্ছে এমন এক শপিং অভিজ্ঞতা, যেখানে স্টাইল ও বিশ্বাস—দুটোই সমানভাবে গুরুত্ব পায়।
+          </p>
+          <div className="w-16 h-[1px] bg-white/20 mx-auto" />
+          <p className="font-heading text-base sm:text-lg font-bold tracking-[0.14em] text-white uppercase">
+            VANTREL — Wear Your Vibe.
+          </p>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentPage('shop');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="min-h-[48px] px-8 sm:px-10 py-4 bg-white hover:bg-neutral-200 text-black text-xs sm:text-sm font-black uppercase tracking-[0.18em] transition-colors shadow-xl cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              <span>Explore the collection at vantreloutfit.shop</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );

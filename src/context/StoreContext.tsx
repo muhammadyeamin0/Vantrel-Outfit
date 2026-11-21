@@ -65,7 +65,9 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut as fbSignOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 
 export enum OperationType {
@@ -778,8 +780,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [currentStaffRole, setCurrentStaffRole] = useState<StaffRole>('Super Admin');
-  const [firebaseAuthLoaded, setFirebaseAuthLoaded] = useState(false);
-  const [isFirebaseAdminAuthenticated, setIsFirebaseAdminAuthenticated] = useState(false);
+  const [firebaseAuthLoaded, setFirebaseAuthLoaded] = useState(() => Boolean(auth?.currentUser));
+  const [isFirebaseAdminAuthenticated, setIsFirebaseAdminAuthenticated] = useState(() =>
+    Boolean(
+      auth?.currentUser &&
+        auth.currentUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        auth.currentUser.emailVerified
+    )
+  );
 
   // SMS Logs & Templates
   const [smsLogs, setSmsLogs] = useState<SmsLog[]>(() => {
@@ -1702,16 +1710,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [currentPage, currentUser?.email, currentUser?.emailVerified, getAdminAuthHeaders]);
 
-  // Listen to Firebase Auth state changes (skipped for search crawlers and anonymous public landing)
+  // Listen to Firebase Auth state changes once on mount (skipped for search crawlers)
   useEffect(() => {
-    const needsAuthSync =
-      isAuthModalOpen ||
-      currentPage === 'account' ||
-      currentPage === 'checkout' ||
-      currentPage === 'admin' ||
-      Boolean(currentUser);
-    if (!needsAuthSync || !IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
+    let mounted = true;
+
+    const authWithReady = auth as typeof auth & { authStateReady?: () => Promise<void> };
+    if (typeof authWithReady.authStateReady === 'function') {
+      void authWithReady.authStateReady().then(() => {
+        if (!mounted) return;
+        const activeUser = auth.currentUser;
+        const isSuperAdminAccount = Boolean(
+          activeUser &&
+            activeUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+            activeUser.emailVerified
+        );
+        setIsFirebaseAdminAuthenticated(isSuperAdminAccount);
+        setFirebaseAuthLoaded(true);
+      }).catch(() => {
+        if (mounted) setFirebaseAuthLoaded(true);
+      });
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (!mounted) return;
       setFirebaseAuthLoaded(true);
       const isSuperAdminAccount = Boolean(
         fbUser &&
@@ -1753,8 +1775,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
       }
     });
-    return () => unsubscribe();
-  }, [isAuthModalOpen, currentPage, currentUser?.id]);
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   // Real-time Firestore Wishlist Sync for authenticated / logged-in user (human sessions only)
   useEffect(() => {
@@ -4331,12 +4356,18 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         return null;
       }
       try {
+        await setPersistence(auth, browserLocalPersistence).catch(() => {});
         const gProvider = new GoogleAuthProvider();
         const result = await signInWithPopup(auth, gProvider);
         const fbUser = result.user;
         const isSuperAdminAccount =
           fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
           Boolean(fbUser.emailVerified);
+
+        if (isSuperAdminAccount) {
+          setIsFirebaseAdminAuthenticated(true);
+          setFirebaseAuthLoaded(true);
+        }
 
         const authenticatedUser: User = {
           id: fbUser.uid,
@@ -4549,6 +4580,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     try {
+      await setPersistence(auth, browserLocalPersistence).catch(() => {});
       const gProvider = new GoogleAuthProvider();
       gProvider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, gProvider);
@@ -4557,6 +4589,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
       if (verifiedEmail !== 'muhammadeyamin0@gmail.com' || !fbUser.emailVerified) {
         await fbSignOut(auth).catch(() => {});
+        setIsFirebaseAdminAuthenticated(false);
         return {
           success: false,
           message: `'${verifiedEmail || 'Unknown'}' ইমেইলটি অ্যাডমিন হিসেবে অনুমোদিত নয়। শুধুমাত্র ভেরিফাইড muhammadeyamin0@gmail.com দিয়ে প্রবেশ করুন।`
@@ -4597,9 +4630,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         }
       }
 
+      setIsFirebaseAdminAuthenticated(true);
+      setFirebaseAuthLoaded(true);
       setCurrentUser(adminUser);
       setCurrentStaffRole('Super Admin');
-      showToast('Admin Authenticated', 'স্বাগতম Muhammad Yeamin! গুগল ভেরিফিকেশনের মাধ্যমে অ্যাডমিন প্যানেল আনলক হয়েছে।', 'success');
+      showToast('Admin Authenticated', 'স্বাগতম Muhammad Yeamin! গুগল সেশন স্থায়ীভাবে কানেক্ট হয়েছে।', 'success');
       return { success: true };
     } catch (err: any) {
       return {

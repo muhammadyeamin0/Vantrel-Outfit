@@ -2243,7 +2243,15 @@ const srcAssetsImages = path.resolve(__dirname, 'src', 'assets', 'images');
 app.use('/assets/images', express.static(publicAssetsImages, { maxAge: '365d', immutable: true, etag: true }));
 app.use('/assets/aistudio', express.static(publicAistudioImages, { maxAge: '365d', immutable: true, etag: true }));
 
-app.get('/src/assets/images/:filename', (req: Request, res: Response) => {
+app.get('/src/assets/images/:filename', (req: Request, res: Response, next: NextFunction) => {
+  if (
+    'import' in req.query ||
+    'url' in req.query ||
+    'raw' in req.query ||
+    'inline' in req.query
+  ) {
+    return next();
+  }
   const filename = path.basename(req.params.filename);
   const p1 = path.join(publicAssetsImages, filename);
   const p2 = path.join(srcAssetsImages, filename);
