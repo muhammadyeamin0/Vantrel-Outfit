@@ -115,7 +115,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   if (req.method === 'GET') {
     const adminCheck = await verifyAdminRequest(req);
 
-    // Public tracking lookup strictly requires BOTH orderNumber AND 10-digit phone (unless verified Admin)
+    // Public tracking lookup strictly requires BOTH orderNumber/trackingCode AND 10-digit phone (unless verified Admin)
     if (orderNumberParam && phoneParam) {
       const cleanPhoneLast10 = normalizeBdPhoneLast10(phoneParam);
       if (cleanPhoneLast10.length < 10) {
@@ -123,7 +123,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return;
       }
       const foundList = orders.filter((o) => {
-        const matchNum = o.orderNumber.toUpperCase() === orderNumberParam;
+        const matchNum =
+          o.orderNumber.toUpperCase() === orderNumberParam ||
+          String(o.trackingNumber || '').trim().toUpperCase() === orderNumberParam ||
+          String(o.courierTrackingCode || '').trim().toUpperCase() === orderNumberParam;
         const ordPhoneLast10 = normalizeBdPhoneLast10(o.customer?.phone || '');
         const matchPhone = ordPhoneLast10 === cleanPhoneLast10;
         const matchId = idParam ? (o.id === idParam || o.orderNumber.toUpperCase() === idParam.toUpperCase()) : true;
@@ -231,18 +234,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return;
       }
       const targetId = idParam || pathname.split('/').slice(-2, -1)[0] || '';
-      const idx = orders.findIndex((o) => o.id === targetId || o.orderNumber === targetId);
+      let idx = orders.findIndex((o) => o.id === targetId || o.orderNumber === targetId);
+      const snapshot = body.orderSnapshot as OrderRecord | undefined;
+      if (idx === -1 && snapshot && typeof snapshot === 'object' && snapshot.id) {
+        orders.unshift(snapshot);
+        idx = 0;
+      }
       if (idx === -1) {
         sendJson(res, 404, { success: false, error: 'Order not found' });
         return;
       }
+      const approveNote = String(body.note || 'Order approved by admin');
       orders[idx].orderStatus = 'Order Confirmed';
+      orders[idx].currentLocationNote = approveNote;
       orders[idx].statusHistory = [
         ...(orders[idx].statusHistory || []),
         {
           status: 'Order Confirmed',
           timestamp: new Date().toISOString(),
-          note: 'Order approved by admin'
+          note: approveNote
         }
       ];
       saveOrdersCache(orders);
@@ -258,23 +268,44 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return;
       }
       const targetId = idParam || pathname.split('/').slice(-2, -1)[0] || '';
-      const idx = orders.findIndex((o) => o.id === targetId || o.orderNumber === targetId);
+      let idx = orders.findIndex((o) => o.id === targetId || o.orderNumber === targetId);
+      const snapshot = body.orderSnapshot as OrderRecord | undefined;
+      if (idx === -1 && snapshot && typeof snapshot === 'object' && snapshot.id) {
+        orders.unshift(snapshot);
+        idx = 0;
+      }
       if (idx === -1) {
         sendJson(res, 404, { success: false, error: 'Order not found' });
         return;
       }
-      const courierName = String(body.courierName || 'Steadfast');
-      const trackingCode = String(body.trackingCode || '');
+      const courierName = String(body.courierName || orders[idx].courierName || 'Steadfast');
+      const trackingCode = String(body.trackingCode || body.trackingNumber || '').trim();
+      const targetStatus = String(
+        body.targetStatus ||
+          (orders[idx].orderStatus === 'Pending Customer Confirmation' ||
+          orders[idx].orderStatus === 'Customer Confirmed' ||
+          orders[idx].orderStatus === 'Awaiting Staff Approval'
+            ? 'Order Confirmed'
+            : orders[idx].orderStatus === 'Order Confirmed'
+            ? 'Shipped'
+            : orders[idx].orderStatus)
+      );
+      const note = String(body.note || `Assigned ${courierName} Tracking ID: ${trackingCode}`);
       orders[idx].courierName = courierName;
       orders[idx].courierTrackingCode = trackingCode;
       orders[idx].trackingNumber = trackingCode;
-      orders[idx].orderStatus = 'Shipped';
+      if (typeof body.trackingUrl === 'string' && body.trackingUrl.trim()) {
+        orders[idx].trackingUrl = body.trackingUrl.trim();
+      }
+      orders[idx].trackingAssignedAt = new Date().toISOString();
+      orders[idx].currentLocationNote = note;
+      orders[idx].orderStatus = targetStatus;
       orders[idx].statusHistory = [
         ...(orders[idx].statusHistory || []),
         {
-          status: 'Shipped',
+          status: targetStatus,
           timestamp: new Date().toISOString(),
-          note: `Dispatched via ${courierName}: ${trackingCode}`
+          note
         }
       ];
       saveOrdersCache(orders);
@@ -283,14 +314,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     // Update status (Admin only)
-    if (req.method === 'PATCH') {
+    if (req.method === 'PATCH' || actionParam === 'status') {
       const adminCheck = await verifyAdminRequest(req);
       if (!adminCheck.authorized) {
         sendJson(res, 401, { success: false, error: 'Unauthorized' });
         return;
       }
       const targetId = idParam || pathname.split('/').slice(-2, -1)[0] || '';
-      const idx = orders.findIndex((o) => o.id === targetId || o.orderNumber === targetId);
+      let idx = orders.findIndex((o) => o.id === targetId || o.orderNumber === targetId);
+      const snapshot = body.orderSnapshot as OrderRecord | undefined;
+      if (idx === -1 && snapshot && typeof snapshot === 'object' && snapshot.id) {
+        orders.unshift(snapshot);
+        idx = 0;
+      }
       if (idx === -1) {
         sendJson(res, 404, { success: false, error: 'Order not found' });
         return;
@@ -298,6 +334,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const status = String(body.status || orders[idx].orderStatus);
       const note = String(body.note || `Updated status to ${status}`);
       orders[idx].orderStatus = status;
+      orders[idx].currentLocationNote = note;
       orders[idx].statusHistory = [
         ...(orders[idx].statusHistory || []),
         { status, timestamp: new Date().toISOString(), note }

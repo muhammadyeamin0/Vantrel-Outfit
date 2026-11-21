@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { Address } from '../types';
+import { getOrderProgressInfo } from '../utils/orderProgress';
 import {
   User as UserIcon,
   ShoppingBag,
@@ -20,7 +21,8 @@ import {
   CheckCircle2,
   Copy,
   Sliders,
-  Bell
+  Bell,
+  Truck
 } from 'lucide-react';
 
 export const CustomerAccountPage: React.FC = () => {
@@ -35,6 +37,7 @@ export const CustomerAccountPage: React.FC = () => {
     addUserAddress,
     deleteUserAddress,
     setIsAuthModalOpen,
+    refreshOrderFromServer,
     settings,
     showToast
   } = useStore();
@@ -53,6 +56,22 @@ export const CustomerAccountPage: React.FC = () => {
   const [editEmail, setEditEmail] = useState(currentUser?.email || '');
   const [marketingSms, setMarketingSms] = useState(currentUser?.privacySettings?.marketingSms ?? true);
   const [orderAlerts, setOrderAlerts] = useState(currentUser?.privacySettings?.orderAlerts ?? true);
+
+  useEffect(() => {
+    if (!currentUser || activeTab !== 'orders') return;
+    const cleanPhone = (currentUser.phone || '').replace(/\D/g, '').slice(-10);
+    const activeOrders = orders.filter((o) => {
+      const matchUser = Boolean(currentUser.id) && o.userId === currentUser.id;
+      const ordPhone = (o.customer?.phone || '').replace(/\D/g, '').slice(-10);
+      const matchPhone = cleanPhone.length >= 10 && cleanPhone === ordPhone;
+      return (matchUser || matchPhone) && !getOrderProgressInfo(o).isTerminal;
+    });
+    activeOrders.slice(0, 5).forEach((ord) => {
+      if (ord.orderNumber && ord.customer?.phone) {
+        refreshOrderFromServer(ord.orderNumber, ord.customer.phone);
+      }
+    });
+  }, [currentUser?.id, currentUser?.phone, activeTab, refreshOrderFromServer]);
 
   if (!currentUser) {
     return (
@@ -243,7 +262,9 @@ export const CustomerAccountPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              myOrders.map((ord) => (
+              myOrders.map((ord) => {
+                const prog = getOrderProgressInfo(ord);
+                return (
                 <div
                   key={ord.id}
                   className="bg-[#141414] p-6 rounded-3xl border border-white/10 shadow-xs space-y-4 text-white"
@@ -256,6 +277,16 @@ export const CustomerAccountPage: React.FC = () => {
                       <span className="text-neutral-400 ml-2">
                         {new Date(ord.createdAt).toLocaleDateString('en-GB')}
                       </span>
+                      {prog.trackingCode ? (
+                        <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold">
+                          <Truck className="w-3 h-3" />
+                          Tracking: {prog.trackingCode}
+                        </span>
+                      ) : (
+                        <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+                          Tracking ID কনফার্মেশনের পর যুক্ত হবে
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -267,6 +298,27 @@ export const CustomerAccountPage: React.FC = () => {
                       </span>
                     </div>
                   </div>
+
+                  {/* Mini Progress Bar ("কতটুকু এসেছে") */}
+                  {!prog.isCancelledOrException && (
+                    <div className="p-3 bg-white/5 rounded-2xl border border-white/10 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-neutral-200">
+                          কতটুকু এসেছে: {prog.stageLabelBn}
+                        </span>
+                        <span className="font-mono font-black text-[#FF762E]">
+                          {prog.percent}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-[#FF762E] rounded-full transition-all duration-500"
+                          style={{ width: `${prog.percent}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-neutral-400">{prog.latestNote}</p>
+                    </div>
+                  )}
 
                   {/* Items list */}
                   <div className="space-y-3">
@@ -295,17 +347,36 @@ export const CustomerAccountPage: React.FC = () => {
                     ))}
                   </div>
 
-                  <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-neutral-400">
+                  <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-neutral-400">
                     <span>
                       Destination: {ord.customer.upazila}, {ord.customer.district}
                     </span>
-                    <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{ord.orderStatus}</span>
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{ord.orderStatus}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('order', ord.orderNumber);
+                            url.searchParams.set('phone', ord.customer.phone);
+                            window.history.replaceState({}, '', url.toString());
+                          }
+                          setCurrentPage('tracking');
+                        }}
+                        className="px-3 py-1.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-[11px] font-bold rounded-xl inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>লাইভ ট্র্যাক</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

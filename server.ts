@@ -1295,7 +1295,12 @@ app.get('/api/orders', (req: Request, res: Response) => {
 
   if (orderNumber) {
     const cleanNum = String(orderNumber).trim().toUpperCase();
-    result = result.filter((o) => o.orderNumber.toUpperCase() === cleanNum);
+    result = result.filter(
+      (o) =>
+        o.orderNumber.toUpperCase() === cleanNum ||
+        String(o.trackingNumber || '').trim().toUpperCase() === cleanNum ||
+        String(o.courierTrackingCode || '').trim().toUpperCase() === cleanNum
+    );
   }
 
   if (phone) {
@@ -1313,6 +1318,8 @@ app.get('/api/orders', (req: Request, res: Response) => {
     result = result.filter(
       (o) =>
         o.orderNumber.toLowerCase().includes(q) ||
+        String(o.trackingNumber || '').toLowerCase().includes(q) ||
+        String(o.courierTrackingCode || '').toLowerCase().includes(q) ||
         o.customer.fullName.toLowerCase().includes(q) ||
         o.customer.phone.includes(q)
     );
@@ -1511,14 +1518,21 @@ app.post('/api/send-whatsapp-confirmation', (req: Request, res: Response) => {
 });
 
 app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
-  const { status, note } = req.body;
-  const idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  const { status, note, orderSnapshot } = req.body;
+  let idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  if (idx === -1 && orderSnapshot && typeof orderSnapshot === 'object' && orderSnapshot.id) {
+    orders.unshift(orderSnapshot as Order);
+    idx = 0;
+  }
   if (idx === -1) {
     return res.status(404).json({ success: false, error: 'Order not found' });
   }
 
   const prevStatus = orders[idx].orderStatus;
   orders[idx].orderStatus = status as OrderStatus;
+  if (typeof note === 'string' && note.trim()) {
+    (orders[idx] as Order & { currentLocationNote?: string }).currentLocationNote = note.trim();
+  }
   orders[idx].statusHistory = [
     ...(orders[idx].statusHistory || []),
     {
@@ -1527,6 +1541,8 @@ app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
       note: note || `Status transitioned from ${prevStatus} to ${status}`
     }
   ];
+
+  saveOrdersToDisk();
 
   recordAudit(
     'Staff Operator',
@@ -1540,7 +1556,7 @@ app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
     dispatchSms(
       orders[idx].customer.phone,
       'ORDER_SHIPPED',
-      `VANTREL: Order ${orders[idx].orderNumber} has been dispatched with ${orders[idx].courierName || 'Steadfast'}. Tracking: ${orders[idx].courierTrackingCode || 'N/A'}`
+      `VANTREL: Order ${orders[idx].orderNumber} has been dispatched with ${orders[idx].courierName || 'Steadfast'}. Tracking: ${orders[idx].courierTrackingCode || orders[idx].trackingNumber || 'N/A'}`
     );
   } else if (status === 'Delivered') {
     dispatchSms(
@@ -1603,20 +1619,30 @@ app.post('/api/orders/:id/auto-confirm', (req: Request, res: Response) => {
 
 // Staff Approval endpoint
 app.post('/api/orders/:id/approve', (req: Request, res: Response) => {
-  const idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  const { orderSnapshot, note } = req.body || {};
+  let idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  if (idx === -1 && orderSnapshot && typeof orderSnapshot === 'object' && orderSnapshot.id) {
+    orders.unshift(orderSnapshot as Order);
+    idx = 0;
+  }
   if (idx === -1) {
     return res.status(404).json({ success: false, error: 'Order not found' });
   }
 
   orders[idx].orderStatus = 'Order Confirmed';
+  if (typeof note === 'string' && note.trim()) {
+    (orders[idx] as Order & { currentLocationNote?: string }).currentLocationNote = note.trim();
+  }
   orders[idx].statusHistory = [
     ...(orders[idx].statusHistory || []),
     {
       status: 'Order Confirmed',
       timestamp: new Date().toISOString(),
-      note: 'Order approved by authorized store staff and pushed to warehouse packing queue.'
+      note: note || 'Order confirmed by admin and moved to packaging & tracking queue.'
     }
   ];
+
+  saveOrdersToDisk();
 
   recordAudit(
     'Staff Operator',
@@ -1719,38 +1745,66 @@ app.delete('/api/orders', (_req: Request, res: Response) => {
   });
 });
 
-// Assign Courier
+// Assign Courier & Tracking ID
 app.post('/api/orders/:id/courier', (req: Request, res: Response) => {
-  const { courierName, trackingCode } = req.body;
-  const idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  const { courierName, trackingCode, trackingNumber, trackingUrl, targetStatus, note, orderSnapshot } = req.body || {};
+  let idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
+  if (idx === -1 && orderSnapshot && typeof orderSnapshot === 'object' && orderSnapshot.id) {
+    orders.unshift(orderSnapshot as Order);
+    idx = 0;
+  }
   if (idx === -1) {
     return res.status(404).json({ success: false, error: 'Order not found' });
   }
 
-  orders[idx].courierName = courierName || 'Steadfast';
-  orders[idx].courierTrackingCode = trackingCode;
-  orders[idx].trackingNumber = trackingCode;
-  orders[idx].orderStatus = 'Shipped';
+  const finalCode = String(trackingCode || trackingNumber || '').trim();
+  const finalCourier = courierName || orders[idx].courierName || 'Steadfast';
+  const nextStatus = (targetStatus as OrderStatus) || (
+    orders[idx].orderStatus === 'Pending Customer Confirmation' ||
+    orders[idx].orderStatus === 'Customer Confirmed' ||
+    orders[idx].orderStatus === 'Awaiting Staff Approval'
+      ? 'Order Confirmed'
+      : orders[idx].orderStatus === 'Order Confirmed'
+      ? 'Shipped'
+      : orders[idx].orderStatus
+  );
+
+  orders[idx].courierName = finalCourier;
+  orders[idx].courierTrackingCode = finalCode;
+  orders[idx].trackingNumber = finalCode;
+  if (typeof trackingUrl === 'string' && trackingUrl.trim()) {
+    orders[idx].trackingUrl = trackingUrl.trim();
+  }
+  (orders[idx] as Order & { trackingAssignedAt?: string; currentLocationNote?: string }).trackingAssignedAt =
+    new Date().toISOString();
+  const finalNote =
+    typeof note === 'string' && note.trim()
+      ? note.trim()
+      : `Assigned ${finalCourier} Tracking ID: ${finalCode}`;
+  (orders[idx] as Order & { currentLocationNote?: string }).currentLocationNote = finalNote;
+  orders[idx].orderStatus = nextStatus;
   orders[idx].statusHistory = [
     ...(orders[idx].statusHistory || []),
     {
-      status: 'Shipped',
+      status: nextStatus,
       timestamp: new Date().toISOString(),
-      note: `Assigned ${courierName} consignment tracking: ${trackingCode}`
+      note: finalNote
     }
   ];
+
+  saveOrdersToDisk();
 
   recordAudit(
     'Staff Operator',
     'Order Moderator',
     'Courier Consignment Assigned',
-    `Order ${orders[idx].orderNumber} dispatched via ${courierName} with tracking code ${trackingCode}`
+    `Order ${orders[idx].orderNumber} assigned ${finalCourier} tracking code ${finalCode} (${nextStatus})`
   );
 
   dispatchSms(
     orders[idx].customer.phone,
     'ORDER_SHIPPED',
-    `VANTREL: Order ${orders[idx].orderNumber} dispatched via ${courierName}! Consignment Tracking ID: ${trackingCode}. Track: https://steadfast.com.bd/t/${trackingCode}`
+    `VANTREL: Order ${orders[idx].orderNumber} Tracking ID: ${finalCode} (${finalCourier}). Status: ${nextStatus}.`
   );
 
   res.json({ success: true, data: orders[idx] });

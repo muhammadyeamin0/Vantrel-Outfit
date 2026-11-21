@@ -28,6 +28,11 @@ import {
   DEFAULT_WEBP_QUALITY
 } from '../utils/webpConverter';
 import {
+  generateInternalTrackingId,
+  getTrackingCode,
+  getOrderProgressInfo
+} from '../utils/orderProgress';
+import {
   ShieldCheck,
   TrendingUp,
   Package,
@@ -162,10 +167,12 @@ export const AdminDashboard: React.FC = () => {
     | 'settings'
   >('overview');
 
-  // Assign courier consignment modal state
+  // Assign courier consignment & Tracking ID modal state
   const [courierModalOrder, setCourierModalOrder] = useState<Order | null>(null);
   const [selectedCourier, setSelectedCourier] = useState<Order['courierName']>('Steadfast');
   const [courierTrackingCode, setCourierTrackingCode] = useState('');
+  const [courierTargetStatus, setCourierTargetStatus] = useState<OrderStatus>('Shipped');
+  const [courierProgressNote, setCourierProgressNote] = useState('');
 
   // Customer Loyalty adjustment modal state
   const [adjustingCust, setAdjustingCust] = useState<User | null>(null);
@@ -258,6 +265,8 @@ export const AdminDashboard: React.FC = () => {
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
   const [statusNote, setStatusNote] = useState('');
   const [trackingInput, setTrackingInput] = useState('');
+  const [inspectCourier, setInspectCourier] = useState<Order['courierName']>('Steadfast');
+  const [inspectTrackingNote, setInspectTrackingNote] = useState('');
 
   // Coupon Form fields
   const [newCouponCode, setNewCouponCode] = useState('');
@@ -3310,15 +3319,39 @@ export const AdminDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D5]">
-                  {filteredOrders.map((order) => (
+                  {filteredOrders.map((order) => {
+                    const orderTrackingCode = getTrackingCode(order);
+                    const orderProg = getOrderProgressInfo(order);
+                    return (
                     <tr key={order.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-mono font-bold text-[#14221C]">
-                        {order.orderNumber}
-                        {order.courierTrackingCode && (
-                          <span className="block text-[10px] text-[#FF762E] font-medium font-sans">
-                            {order.courierName}: {order.courierTrackingCode}
+                        <div className="flex items-center gap-1.5">
+                          <span>{order.orderNumber}</span>
+                          {!orderProg.isCancelledOrException && (
+                            <span className="px-1.5 py-0.5 rounded bg-stone-100 text-[#14221C] text-[9px] font-sans font-bold">
+                              {orderProg.percent}%
+                            </span>
+                          )}
+                        </div>
+                        {orderTrackingCode ? (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-800 font-mono">
+                              {order.courierName || 'Courier'}: {orderTrackingCode}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(orderTrackingCode, `trk-${order.id}`)}
+                              className="p-0.5 text-stone-400 hover:text-stone-700 rounded cursor-pointer"
+                              title="Tracking ID কপি করুন"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : orderProg.isConfirmed && !orderProg.isCancelledOrException ? (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-800 font-sans font-semibold">
+                            Tracking ID যুক্ত করুন
                           </span>
-                        )}
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-[#202522]/60 tabular-nums">
                         {new Date(order.createdAt).toLocaleDateString('en-GB')}
@@ -3431,25 +3464,34 @@ export const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                          {/* Quick Staff Approve button */}
+                          {/* Quick Confirm + Prompt Tracking ID */}
                           {(order.orderStatus === 'Awaiting Staff Approval' ||
                             order.orderStatus === 'Customer Confirmed' ||
                             order.orderStatus === 'Pending Customer Confirmation') && (
                             <button
-                              onClick={() => approveOrder(order.id)}
-                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs"
-                              title="Staff Approval"
+                              type="button"
+                              onClick={() => {
+                                approveOrder(order.id);
+                                setCourierModalOrder({ ...order, orderStatus: 'Order Confirmed' });
+                                setSelectedCourier(order.courierName || 'Steadfast');
+                                setCourierTrackingCode(getTrackingCode(order) || generateInternalTrackingId(order.orderNumber));
+                                setCourierTargetStatus('Order Confirmed');
+                                setCourierProgressNote('অর্ডার কনফার্ম হয়েছে এবং প্যাকিং প্রস্তুতি চলছে।');
+                              }}
+                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs cursor-pointer"
+                              title="Confirm order and add Tracking ID"
                             >
                               <Check className="w-3 h-3" />
-                              <span>Approve</span>
+                              <span>Confirm Order</span>
                             </button>
                           )}
 
                           {/* Quick Cancel Approve button if customer requested */}
                           {order.orderStatus === 'Cancellation Requested' && (
                             <button
+                              type="button"
                               onClick={() => cancelOrder(order.id, 'Staff approved cancellation request')}
-                              className="px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs"
+                              className="px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs cursor-pointer"
                               title="Approve Cancellation & Restore Stock"
                             >
                               <X className="w-3 h-3" />
@@ -3457,29 +3499,38 @@ export const AdminDashboard: React.FC = () => {
                             </button>
                           )}
 
-                          {/* Assign Courier button */}
-                          {(order.orderStatus === 'Packed' ||
-                            order.orderStatus === 'Processing' ||
-                            order.orderStatus === 'Order Confirmed' ||
-                            order.orderStatus === 'Shipped') && (
+                          {/* Add / Update Tracking ID button for Confirmed or Active Orders */}
+                          {orderProg.isConfirmed && !orderProg.isCancelledOrException && (
                             <button
+                              type="button"
                               onClick={() => {
                                 setCourierModalOrder(order);
-                                setCourierTrackingCode(order.courierTrackingCode || '');
+                                setCourierTrackingCode(orderTrackingCode || generateInternalTrackingId(order.orderNumber));
                                 setSelectedCourier(order.courierName || 'Steadfast');
+                                setCourierTargetStatus(
+                                  order.orderStatus === 'Order Confirmed' ? 'Shipped' : order.orderStatus
+                                );
+                                setCourierProgressNote(order.currentLocationNote || '');
                               }}
-                              className="px-2.5 py-1 bg-[#202522] hover:bg-[#14221C] text-white text-[11px] font-bold rounded-lg flex items-center gap-1"
-                              title="Assign Steadfast / Pathao Consignment"
+                              className={`px-2.5 py-1 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs cursor-pointer ${
+                                orderTrackingCode
+                                  ? 'bg-[#202522] hover:bg-[#14221C]'
+                                  : 'bg-[#FF762E] hover:bg-[#e56320]'
+                              }`}
+                              title="অর্ডার কনফার্মের পর Tracking ID যুক্ত বা আপডেট করুন"
                             >
                               <Truck className="w-3 h-3" />
-                              <span>Courier</span>
+                              <span>{orderTrackingCode ? 'Update Tracking' : '+ Tracking ID'}</span>
                             </button>
                           )}
 
                           <button
+                            type="button"
                             onClick={() => {
                               setInspectingOrder(order);
-                              setTrackingInput(order.trackingNumber || order.courierTrackingCode || '');
+                              setTrackingInput(orderTrackingCode || '');
+                              setInspectCourier(order.courierName || 'Steadfast');
+                              setInspectTrackingNote(order.currentLocationNote || '');
                             }}
                             className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-[#14221C] text-[11px] font-semibold rounded-lg cursor-pointer"
                           >
@@ -3487,6 +3538,7 @@ export const AdminDashboard: React.FC = () => {
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => deleteOrder(order.id)}
                             className="p-1 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
                             title="Delete Order"
@@ -3496,7 +3548,8 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -6382,51 +6435,105 @@ service cloud.firestore {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-[#14221C] mb-1">Courier Tracking ID (Steadfast / Pathao)</label>
+                <div className="p-3.5 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-[#14221C]">
+                      Tracking ID ও কুরিয়ার যুক্ত / আপডেট করুন
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setTrackingInput(generateInternalTrackingId(inspectingOrder.orderNumber))}
+                      className="px-2 py-0.5 bg-white border border-[#E5E1D5] hover:border-[#14221C] text-[10px] font-bold text-[#14221C] rounded-lg cursor-pointer"
+                    >
+                      🎲 Auto Tracking ID
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <select
+                      value={inspectCourier}
+                      onChange={(e) => setInspectCourier(e.target.value as Order['courierName'])}
+                      className="px-3 py-2 bg-white border border-[#E5E1D5] rounded-xl font-bold text-[#14221C]"
+                    >
+                      <option value="Steadfast">Steadfast</option>
+                      <option value="Pathao">Pathao</option>
+                      <option value="RedX">RedX</option>
+                      <option value="Paperfly">Paperfly</option>
+                      <option value="eCourier">eCourier</option>
+                      <option value="In-House">In-House Rider</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="e.g. STEAD-894211 or VT-TRK-..."
+                      value={trackingInput}
+                      onChange={(e) => setTrackingInput(e.target.value.toUpperCase())}
+                      className="sm:col-span-2 px-3 py-2 bg-white border border-[#E5E1D5] rounded-xl font-mono font-bold uppercase"
+                    />
+                  </div>
+
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. STEAD-894211 or PTH-1249"
-                      value={trackingInput}
-                      onChange={(e) => setTrackingInput(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-mono"
+                      placeholder="কাস্টমারকে দেখানোর জন্য বর্তমান অবস্থা/লোকেশন নোট (ঐচ্ছিক)"
+                      value={inspectTrackingNote}
+                      onChange={(e) => setInspectTrackingNote(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-white border border-[#E5E1D5] rounded-xl text-xs"
                     />
                     <button
                       type="button"
                       onClick={() => {
-                        inspectingOrder.trackingNumber = trackingInput;
-                        inspectingOrder.courierTrackingCode = trackingInput;
-                        showToast('Tracking Saved', `Courier ID: ${trackingInput}`, 'success');
+                        const cleanTrack = trackingInput.trim();
+                        if (!cleanTrack) {
+                          showToast('Tracking ID খালি', 'অনুগ্রহ করে একটি Tracking ID লিখুন বা Auto বাটনে ক্লিক করুন।', 'error');
+                          return;
+                        }
+                        const targetSt: OrderStatus =
+                          inspectingOrder.orderStatus === 'Pending Customer Confirmation' ||
+                          inspectingOrder.orderStatus === 'Customer Confirmed' ||
+                          inspectingOrder.orderStatus === 'Awaiting Staff Approval'
+                            ? 'Order Confirmed'
+                            : inspectingOrder.orderStatus;
+                        assignCourierTracking(inspectingOrder.id, inspectCourier, cleanTrack, {
+                          targetStatus: targetSt,
+                          note: inspectTrackingNote.trim() || undefined
+                        });
+                        setInspectingOrder({
+                          ...inspectingOrder,
+                          orderStatus: targetSt,
+                          courierName: inspectCourier,
+                          trackingNumber: cleanTrack,
+                          courierTrackingCode: cleanTrack,
+                          currentLocationNote: inspectTrackingNote.trim() || inspectingOrder.currentLocationNote
+                        });
                       }}
-                      className="px-4 py-2 bg-[#14221C] text-white rounded-xl font-bold uppercase"
+                      className="px-4 py-2 bg-[#14221C] hover:bg-[#202522] text-white rounded-xl font-bold uppercase cursor-pointer shrink-0"
                     >
-                      Save Tracking
+                      Save Tracking ID
                     </button>
                   </div>
                 </div>
 
-                {inspectingOrder.courierTrackingCode && (
+                {getTrackingCode(inspectingOrder) && (
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs flex items-center justify-between">
                     <div>
                       <span className="font-bold text-emerald-900 block">
-                        {inspectingOrder.courierName || 'Steadfast'}: {inspectingOrder.courierTrackingCode}
+                        {inspectingOrder.courierName || 'Steadfast'}: {getTrackingCode(inspectingOrder)}
                       </span>
-                      <span className="text-[10px] text-emerald-700">Consignment live in Bangladesh courier portal</span>
+                      <span className="text-[10px] text-emerald-700">
+                        কাস্টমার ওয়েবসাইটে লাইভ ট্র্যাকিং ও অগ্রগতি দেখতে পাচ্ছেন
+                      </span>
                     </div>
-                    <a
-                      href={
-                        inspectingOrder.courierName === 'Pathao'
-                          ? `https://pathao.com/courier-tracking/?consignment_id=${inspectingOrder.courierTrackingCode}`
-                          : `https://steadfast.com.bd/t/${inspectingOrder.courierTrackingCode}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1 bg-emerald-800 text-white font-bold rounded-lg flex items-center gap-1 text-[11px]"
-                    >
-                      <span>Track Portal</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                    {inspectingOrder.trackingUrl && inspectingOrder.trackingUrl.startsWith('http') && (
+                      <a
+                        href={inspectingOrder.trackingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-emerald-800 text-white font-bold rounded-lg flex items-center gap-1 text-[11px]"
+                      >
+                        <span>Track Portal</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -6451,22 +6558,32 @@ service cloud.firestore {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center pt-4 border-t border-[#E5E1D5]">
-                {inspectingOrder.orderStatus === 'Awaiting Staff Approval' && (
+              <div className="flex justify-between items-center pt-4 border-t border-[#E5E1D5] gap-2 flex-wrap">
+                {(inspectingOrder.orderStatus === 'Awaiting Staff Approval' ||
+                  inspectingOrder.orderStatus === 'Customer Confirmed' ||
+                  inspectingOrder.orderStatus === 'Pending Customer Confirmation') && (
                   <button
+                    type="button"
                     onClick={() => {
                       approveOrder(inspectingOrder.id);
+                      const confirmedOrd = { ...inspectingOrder, orderStatus: 'Order Confirmed' as OrderStatus };
                       setInspectingOrder(null);
+                      setCourierModalOrder(confirmedOrd);
+                      setSelectedCourier(confirmedOrd.courierName || 'Steadfast');
+                      setCourierTrackingCode(getTrackingCode(confirmedOrd) || generateInternalTrackingId(confirmedOrd.orderNumber));
+                      setCourierTargetStatus('Order Confirmed');
+                      setCourierProgressNote('অর্ডার কনফার্ম হয়েছে এবং প্যাকিং প্রস্তুতি চলছে।');
                     }}
-                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold uppercase rounded-xl flex items-center gap-1.5"
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold uppercase rounded-xl flex items-center gap-1.5 cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>Approve Order Now</span>
+                    <span>Confirm & Add Tracking ID</span>
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => setInspectingOrder(null)}
-                  className="px-6 py-2 bg-[#14221C] text-white text-xs font-bold uppercase rounded-xl ml-auto"
+                  className="px-6 py-2 bg-[#14221C] text-white text-xs font-bold uppercase rounded-xl ml-auto cursor-pointer"
                 >
                   Close
                 </button>
@@ -6475,56 +6592,115 @@ service cloud.firestore {
           </div>
         )}
 
-        {/* MODAL: ASSIGN COURIER CONSIGNMENT */}
+        {/* MODAL: ASSIGN TRACKING ID & COURIER PROGRESS */}
         {courierModalOrder && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-            <div className="bg-white rounded-3xl border border-[#E5E1D5] max-w-md w-full p-6 sm:p-8 space-y-5">
+            <div className="bg-white rounded-3xl border border-[#E5E1D5] max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl">
               <div className="flex justify-between items-center pb-3 border-b border-[#E5E1D5]">
                 <div>
-                  <h3 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
-                    Courier Dispatch
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF762E] block">
+                    Post-Confirmation Tracking System
+                  </span>
+                  <h3 className="font-heading text-lg font-bold text-[#14221C] tracking-tight">
+                    Tracking ID যুক্ত / আপডেট করুন — {courierModalOrder.orderNumber}
                   </h3>
-                  <span className="text-xs text-[#202522]/50">Order {courierModalOrder.orderNumber}</span>
                 </div>
-                <button onClick={() => setCourierModalOrder(null)} className="p-1 text-[#202522]/60 hover:text-[#14221C]">
+                <button
+                  type="button"
+                  onClick={() => setCourierModalOrder(null)}
+                  className="p-1 text-[#202522]/60 hover:text-[#14221C] cursor-pointer"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] text-xs space-y-1">
-                <p><strong>Customer:</strong> {courierModalOrder.customer.fullName} ({courierModalOrder.customer.phone})</p>
-                <p><strong>Destination:</strong> {courierModalOrder.customer.upazila}, {courierModalOrder.customer.district}</p>
-                <p><strong>COD Amount:</strong> ৳{courierModalOrder.paymentStatus === 'Paid' ? 0 : courierModalOrder.total.toLocaleString()}</p>
+                <p><strong>কাস্টমার:</strong> {courierModalOrder.customer.fullName} ({courierModalOrder.customer.phone})</p>
+                <p><strong>গন্তব্য:</strong> {courierModalOrder.customer.upazila}, {courierModalOrder.customer.district}</p>
+                <p><strong>মোট বিল:</strong> ৳{courierModalOrder.total.toLocaleString()} ({courierModalOrder.paymentStatus})</p>
               </div>
 
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block font-bold text-[#14221C] mb-1">Select Delivery Partner</label>
-                  <select
-                    value={selectedCourier}
-                    onChange={(e) => setSelectedCourier(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C]"
-                  >
-                    <option value="Steadfast">Steadfast Courier (Nationwide Next-Day BD)</option>
-                    <option value="Pathao">Pathao Courier (Express Dhaka & Suburb)</option>
-                    <option value="Paperfly">Paperfly BD</option>
-                    <option value="RedX">RedX Logistics</option>
-                    <option value="eCourier">eCourier Bangladesh</option>
-                  </select>
+              <div className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#14221C] mb-1">কুরিয়ার পার্টনার</label>
+                    <select
+                      value={selectedCourier}
+                      onChange={(e) => setSelectedCourier(e.target.value as Order['courierName'])}
+                      className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C]"
+                    >
+                      <option value="Steadfast">Steadfast Courier</option>
+                      <option value="Pathao">Pathao Courier</option>
+                      <option value="RedX">RedX Logistics</option>
+                      <option value="Paperfly">Paperfly BD</option>
+                      <option value="eCourier">eCourier Bangladesh</option>
+                      <option value="In-House">In-House Express Delivery</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#14221C] mb-1">অর্ডারটি কতটুকু এগিয়েছে (Stage)</label>
+                    <select
+                      value={courierTargetStatus}
+                      onChange={(e) => setCourierTargetStatus(e.target.value as OrderStatus)}
+                      className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C]"
+                    >
+                      <option value="Order Confirmed">Order Confirmed (কনফার্ম - ৩২%)</option>
+                      <option value="Processing">Processing (প্রসেসিং - ৪৮%)</option>
+                      <option value="Packed">Packed (প্যাকিং সম্পন্ন - ৬৪%)</option>
+                      <option value="Shipped">Shipped (কুরিয়ারে হস্তান্তর - ৮০%)</option>
+                      <option value="Out for Delivery">Out for Delivery (ডেলিভারির পথে - ৯২%)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#14221C] mb-1">Consignment / Tracking Number</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-[#14221C]">Tracking ID / Consignment Code</label>
+                    <button
+                      type="button"
+                      onClick={() => setCourierTrackingCode(generateInternalTrackingId(courierModalOrder.orderNumber))}
+                      className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-[10px] font-bold cursor-pointer"
+                    >
+                      🎲 Auto Tracking ID তৈরি করুন
+                    </button>
+                  </div>
                   <input
                     type="text"
-                    placeholder={selectedCourier === 'Steadfast' ? 'e.g. STF-893201BD' : 'e.g. PTH-551940'}
+                    placeholder={selectedCourier === 'Steadfast' ? 'e.g. STF-893201BD or VT-TRK-...' : 'e.g. PTH-551940 or VT-TRK-...'}
                     value={courierTrackingCode}
-                    onChange={(e) => setCourierTrackingCode(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-mono uppercase font-bold"
+                    onChange={(e) => setCourierTrackingCode(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-mono uppercase font-bold text-sm"
                   />
-                  <p className="text-[10px] text-[#202522]/50 mt-1">
-                    Customer will automatically receive an SMS with tracking URL upon dispatch.
-                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#14221C] mb-1">
+                    বর্তমান অবস্থা / লোকেশন আপডেট (কাস্টমার ট্র্যাকিংয়ে দেখতে পাবেন)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: প্যাকিং সম্পন্ন হয়ে ঢাকা কুরিয়ার হাব থেকে রওনা হয়েছে"
+                    value={courierProgressNote}
+                    onChange={(e) => setCourierProgressNote(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {[
+                      'অর্ডার কনফার্ম ও প্যাকিং চলছে',
+                      'কুরিয়ারে হ্যান্ডওভার সম্পন্ন',
+                      'ডেলিভারির জন্য রওনা হয়েছে'
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setCourierProgressNote(preset)}
+                        className="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-md text-[10px] text-[#14221C] cursor-pointer"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -6532,24 +6708,27 @@ service cloud.firestore {
                 <button
                   type="button"
                   onClick={() => setCourierModalOrder(null)}
-                  className="px-4 py-2 bg-[#F7F5EF] text-[#202522] rounded-xl font-semibold text-xs"
+                  className="px-4 py-2 bg-[#F7F5EF] hover:bg-stone-200 text-[#202522] rounded-xl font-semibold text-xs cursor-pointer"
                 >
-                  Cancel
+                  পরে যুক্ত করবো
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     if (!courierTrackingCode.trim()) {
-                      showToast('Missing Code', 'Please enter consignment tracking number', 'error');
+                      showToast('Tracking ID প্রয়োজন', 'অনুগ্রহ করে Tracking ID লিখুন বা Auto তৈরি বাটনে ক্লিক করুন।', 'error');
                       return;
                     }
-                    assignCourierTracking(courierModalOrder.id, selectedCourier, courierTrackingCode.trim());
+                    assignCourierTracking(courierModalOrder.id, selectedCourier, courierTrackingCode.trim(), {
+                      targetStatus: courierTargetStatus,
+                      note: courierProgressNote.trim() || undefined
+                    });
                     setCourierModalOrder(null);
                   }}
-                  className="px-5 py-2 bg-[#14221C] text-white font-bold uppercase rounded-xl hover:bg-[#202522] text-xs flex items-center gap-1.5"
+                  className="px-5 py-2 bg-[#14221C] text-white font-bold uppercase rounded-xl hover:bg-[#202522] text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
-                  <Truck className="w-3.5 h-3.5" />
-                  <span>Dispatch & Update Status</span>
+                  <Truck className="w-3.5 h-3.5 text-[#FF762E]" />
+                  <span>Save Tracking ID</span>
                 </button>
               </div>
             </div>

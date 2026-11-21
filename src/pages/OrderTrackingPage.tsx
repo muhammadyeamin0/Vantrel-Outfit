@@ -3,6 +3,10 @@ import { useStore } from '../context/StoreContext';
 import { Order, OrderStatus } from '../types';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import {
+  getOrderProgressInfo,
+  buildCourierTrackingUrl
+} from '../utils/orderProgress';
+import {
   Package,
   Search,
   CheckCircle2,
@@ -17,7 +21,10 @@ import {
   XCircle,
   ExternalLink,
   MessageSquare,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  Check,
+  RefreshCw
 } from 'lucide-react';
 
 const CANCELLATION_REASONS = [
@@ -30,7 +37,9 @@ const CANCELLATION_REASONS = [
 
 export const OrderTrackingPage: React.FC = () => {
   const {
+    orders,
     trackOrderLookup,
+    refreshOrderFromServer,
     lastPlacedOrder,
     settings,
     cancelOrder,
@@ -41,11 +50,27 @@ export const OrderTrackingPage: React.FC = () => {
     showToast
   } = useStore();
 
-  const [orderNumber, setOrderNumber] = useState(lastPlacedOrder ? lastPlacedOrder.orderNumber : '');
-  const [phone, setPhone] = useState(lastPlacedOrder ? lastPlacedOrder.customer.phone : '');
-  const [searchedOrder, setSearchedOrder] = useState<Order | null>(lastPlacedOrder || null);
+  const initialQueryParams =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const queryOrder = initialQueryParams?.get('order') || '';
+  const queryPhone = initialQueryParams?.get('phone') || '';
+
+  const [orderNumber, setOrderNumber] = useState(
+    queryOrder || (lastPlacedOrder ? lastPlacedOrder.orderNumber : '')
+  );
+  const [phone, setPhone] = useState(
+    queryPhone || (lastPlacedOrder ? lastPlacedOrder.customer.phone : '')
+  );
+  const [searchedOrder, setSearchedOrder] = useState<Order | null>(() => {
+    if (queryOrder && queryPhone) {
+      return trackOrderLookup(queryOrder, queryPhone);
+    }
+    return lastPlacedOrder || null;
+  });
   const [hasSearched, setHasSearched] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isRefreshingLive, setIsRefreshingLive] = useState(false);
+  const [copiedTrackId, setCopiedTrackId] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   // 15-min countdown timer state
@@ -58,6 +83,50 @@ export const OrderTrackingPage: React.FC = () => {
   const [cancelCustomNote, setCancelCustomNote] = useState('');
   const [showReturnPrompt, setShowReturnPrompt] = useState(false);
   const [returnReason, setReturnReason] = useState('Fabric/fit adjustment requested');
+
+  // Keep searchedOrder synchronized when local orders list updates (e.g. Admin updates in same browser)
+  useEffect(() => {
+    if (!searchedOrder) return;
+    const latest = orders.find(
+      (o) => o.id === searchedOrder.id || o.orderNumber === searchedOrder.orderNumber
+    );
+    if (latest) {
+      setSearchedOrder(latest);
+    }
+  }, [orders, searchedOrder?.id, searchedOrder?.orderNumber]);
+
+  // Initial & periodic server revalidation so cross-device Tracking ID & progress always appear live
+  useEffect(() => {
+    const activeOrderNum = searchedOrder?.orderNumber || queryOrder;
+    const activePhone = searchedOrder?.customer?.phone || queryPhone;
+    if (!activeOrderNum || !activePhone) return;
+
+    let mounted = true;
+    const syncOnce = async () => {
+      const fresh = await refreshOrderFromServer(activeOrderNum, activePhone);
+      if (mounted && fresh) {
+        setSearchedOrder(fresh);
+      }
+    };
+
+    syncOnce();
+
+    if (searchedOrder && getOrderProgressInfo(searchedOrder).isTerminal) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      syncOnce();
+    }, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [searchedOrder?.orderNumber, searchedOrder?.customer?.phone, searchedOrder?.orderStatus, queryOrder, queryPhone, refreshOrderFromServer]);
 
   // Track 15-minute deadline for searched order
   useEffect(() => {
@@ -132,57 +201,63 @@ export const OrderTrackingPage: React.FC = () => {
     const trimmedPhone = phone.trim();
 
     if (!trimmedOrder && !trimmedPhone) {
-      setErrorMessage('Please enter both your Order Number (e.g. VT-89241) and Mobile Number.');
+      setErrorMessage('অনুগ্রহ করে আপনার Order Number / Tracking ID এবং মোবাইল নম্বর দিন।');
       return;
     }
 
-    // 1. Check current session/local orders first
+    // 1. Check current session/local orders first for instant response
     const localOrder = trackOrderLookup(trimmedOrder, trimmedPhone);
     if (localOrder) {
       setSearchedOrder(localOrder);
-      showToast('Order Located', `Current Status: ${localOrder.orderStatus}`, 'info');
+      // Revalidate in background from server so newly assigned Tracking IDs always appear
+      if (trimmedOrder && trimmedPhone) {
+        refreshOrderFromServer(trimmedOrder, trimmedPhone).then((fresh) => {
+          if (fresh) setSearchedOrder(fresh);
+        });
+      }
+      showToast('অর্ডার পাওয়া গেছে', `বর্তমান অবস্থা: ${localOrder.orderStatus}`, 'info');
       return;
     }
 
-    // 2. Fallback to live serverless lookup for cross-device / post-refresh tracking
+    // 2. Fallback to live server lookup for cross-device / post-refresh tracking
     if (!trimmedOrder || !trimmedPhone) {
       setSearchedOrder(null);
-      setErrorMessage('Please enter both your Order Number and Mobile Number to verify and track your order.');
+      setErrorMessage('যাচাই করার জন্য Order Number / Tracking ID এবং মোবাইল নম্বর দুটোই দিন।');
       return;
     }
 
     setIsSearching(true);
     try {
-      const res = await fetch(
-        `/api/orders?orderNumber=${encodeURIComponent(trimmedOrder)}&phone=${encodeURIComponent(trimmedPhone)}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const foundOrder = Array.isArray(data?.data) ? data.data[0] : data?.data;
-        if (data?.success && foundOrder && foundOrder.orderNumber) {
-          setSearchedOrder(foundOrder);
-          showToast('Order Located', `Current Status: ${foundOrder.orderStatus}`, 'info');
-          return;
-        }
+      const foundOrder = await refreshOrderFromServer(trimmedOrder, trimmedPhone);
+      if (foundOrder && foundOrder.orderNumber) {
+        setSearchedOrder(foundOrder);
+        showToast('অর্ডার পাওয়া গেছে', `বর্তমান অবস্থা: ${foundOrder.orderStatus}`, 'info');
+        return;
       }
       setSearchedOrder(null);
-      setErrorMessage('No order found matching this Order Number and Mobile Number. Please double-check your details.');
+      setErrorMessage('এই Order Number / Tracking ID ও মোবাইল নম্বরের সাথে মিল কোনো অর্ডার পাওয়া যায়নি।');
     } catch {
       setSearchedOrder(null);
-      setErrorMessage('Unable to verify order right now. Please try again in a moment.');
+      setErrorMessage('এই মুহূর্তে অর্ডার তথ্য যাচাই করা যাচ্ছে না। কিছুক্ষণ পর আবার চেষ্টা করুন।');
     } finally {
       setIsSearching(false);
     }
   };
 
-  const getStepStatus = (step: OrderStatus, currentStatus: OrderStatus) => {
-    if (currentStatus === 'Cancelled') return 'cancelled';
-    const currentIndex = mainStatusPipeline.indexOf(currentStatus);
-    const stepIndex = mainStatusPipeline.indexOf(step);
-
-    if (stepIndex < currentIndex) return 'completed';
-    if (stepIndex === currentIndex) return 'current';
-    return 'upcoming';
+  const handleManualRefresh = async () => {
+    if (!searchedOrder) return;
+    setIsRefreshingLive(true);
+    const fresh = await refreshOrderFromServer(
+      searchedOrder.orderNumber,
+      searchedOrder.customer.phone
+    );
+    setIsRefreshingLive(false);
+    if (fresh) {
+      setSearchedOrder(fresh);
+      showToast('আপডেট সম্পন্ন', `বর্তমান অবস্থা: ${fresh.orderStatus}`, 'success');
+    } else {
+      showToast('সর্বশেষ অবস্থা দেখানো হচ্ছে', searchedOrder.orderStatus, 'info');
+    }
   };
 
   const handleCancelSubmit = async () => {
@@ -294,11 +369,11 @@ export const OrderTrackingPage: React.FC = () => {
           <form onSubmit={handleTrackSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
             <div className="sm:col-span-5">
               <label className="block text-xs font-bold text-[#14221C] mb-1">
-                Order Number
+                Order Number বা Tracking ID
               </label>
               <input
                 type="text"
-                placeholder="e.g. VT-89241"
+                placeholder="যেমন: VT-89241 বা VT-TRK-..."
                 value={orderNumber}
                 onChange={(e) => setOrderNumber(e.target.value.toUpperCase())}
                 className="w-full px-4 py-2.5 text-xs bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl focus:outline-none focus:border-[#14221C] uppercase font-mono"
@@ -342,49 +417,184 @@ export const OrderTrackingPage: React.FC = () => {
         </div>
 
         {/* Found Order Timeline & Info */}
-        {searchedOrder && (
+        {searchedOrder && (() => {
+          const progressInfo = getOrderProgressInfo(searchedOrder);
+          const externalCourierUrl = buildCourierTrackingUrl(
+            searchedOrder.courierName,
+            progressInfo.trackingCode,
+            searchedOrder.trackingUrl
+          );
+          return (
           <div className="bg-white p-6 sm:p-10 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-8 animate-fadeIn">
             {/* Top Status Banner */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-[#E5E1D5]">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold uppercase tracking-widest text-[#FF762E]">
                     Order #{searchedOrder.orderNumber}
                   </span>
                   <span className="px-2.5 py-0.5 bg-[#14221C] text-white text-[10px] font-bold rounded-full uppercase">
                     {searchedOrder.orderStatus}
                   </span>
+                  <button
+                    type="button"
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshingLive}
+                    className="px-2.5 py-0.5 bg-[#F7F5EF] hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-[10px] font-bold rounded-full inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRefreshingLive ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingLive ? 'রিফ্রেশ হচ্ছে...' : 'লাইভ রিফ্রেশ'}</span>
+                  </button>
                 </div>
-                <h2 className="font-heading text-2xl font-black text-[#14221C] mt-1">
-                  Status: <span className="text-[#FF762E]">{searchedOrder.orderStatus}</span>
+                <h2 className="font-heading text-2xl font-black text-[#14221C] mt-1.5">
+                  {progressInfo.stageLabelBn}
                 </h2>
                 <p className="text-xs text-[#202522]/60 mt-1">
-                  Placed on {new Date(searchedOrder.createdAt).toLocaleDateString('en-GB')} at {new Date(searchedOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  অর্ডার তারিখ: {new Date(searchedOrder.createdAt).toLocaleDateString('en-GB')} · সময়: {new Date(searchedOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
 
-              {/* Courier consignment info */}
-              {searchedOrder.trackingNumber && (
-                <div className="p-3 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] text-xs space-y-1">
-                  <div className="text-[10px] text-[#202522]/60 font-semibold uppercase tracking-wider">
-                    Courier: {searchedOrder.courierName || 'Steadfast Courier'}
+              {/* Courier Tracking ID Info Box */}
+              {progressInfo.trackingCode ? (
+                <div className="p-3.5 bg-emerald-50 rounded-2xl border-2 border-emerald-200 text-xs space-y-1.5 min-w-[220px]">
+                  <div className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">
+                    Tracking ID ({searchedOrder.courierName || 'Courier'})
                   </div>
-                  <div className="font-mono font-bold text-sm text-[#14221C]">
-                    {searchedOrder.trackingNumber}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono font-black text-base text-[#14221C]">
+                      {progressInfo.trackingCode}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(progressInfo.trackingCode).catch(() => {});
+                        setCopiedTrackId(true);
+                        showToast('Tracking ID কপি হয়েছে', progressInfo.trackingCode, 'success');
+                        setTimeout(() => setCopiedTrackId(false), 2000);
+                      }}
+                      className="px-2 py-1 bg-white border border-emerald-300 rounded-lg text-[10px] font-bold text-emerald-900 inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedTrackId ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedTrackId ? 'কপি' : 'Copy'}</span>
+                    </button>
                   </div>
-                  {searchedOrder.trackingUrl && (
+                  {externalCourierUrl && (
                     <a
-                      href={searchedOrder.trackingUrl}
+                      href={externalCourierUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] text-[#FF762E] font-bold hover:underline"
                     >
-                      <span>Live Courier Link</span>
+                      <span>কুরিয়ার পোর্টালে লাইভ দেখুন</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   )}
                 </div>
+              ) : (
+                <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs max-w-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <Clock className="w-3.5 h-3.5 text-[#FF762E]" />
+                    <span>Tracking ID অপেক্ষমাণ</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    অর্ডার কনফার্ম হওয়ার কিছুক্ষণের মধ্যেই আপনার ট্র্যাকিং আইডি এখানে যুক্ত হয়ে যাবে।
+                  </p>
+                </div>
               )}
+            </div>
+
+            {/* LIVE PROGRESS BAR: "আপনার অর্ডারটি এখন কতটুকু এসেছে" */}
+            <div className="p-5 sm:p-6 bg-gradient-to-br from-[#FAF9F5] to-[#F2EFE6] rounded-2xl border border-[#E5E1D5] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF762E] block">
+                    Live Shipment Progress
+                  </span>
+                  <h3 className="font-heading text-lg font-extrabold text-[#14221C]">
+                    আপনার অর্ডারটি এখন কতটুকু এসেছে
+                  </h3>
+                </div>
+                {!progressInfo.isCancelledOrException && (
+                  <div className="inline-flex items-center gap-2 self-start sm:self-center px-3.5 py-1.5 rounded-full bg-[#14221C] text-white">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="font-mono font-black text-sm">{progressInfo.percent}%</span>
+                    <span className="text-[11px] font-semibold">সম্পন্ন</span>
+                  </div>
+                )}
+              </div>
+
+              {!progressInfo.isCancelledOrException && (
+                <div className="space-y-2">
+                  <div className="w-full h-3.5 bg-white border border-[#E5E1D5] rounded-full overflow-hidden p-0.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#14221C] via-emerald-600 to-[#FF762E] rounded-full transition-all duration-700"
+                      style={{ width: `${progressInfo.percent}%` }}
+                    />
+                  </div>
+                  <div className="p-3 bg-white rounded-xl border border-[#E5E1D5] flex items-start gap-2.5 text-xs">
+                    <Truck className="w-4 h-4 text-[#FF762E] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-[#14221C] block">সর্বশেষ আপডেট:</span>
+                      <p className="text-[#202522]/80 mt-0.5">{progressInfo.latestNote}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 7-Stage Responsive Milestone Stepper */}
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5 pt-2">
+                {progressInfo.milestones.map((step, idx) => (
+                  <div
+                    key={step.key}
+                    className={`p-3 rounded-xl border flex flex-col items-center text-center transition-all ${
+                      step.state === 'current'
+                        ? 'bg-white border-[#FF762E] ring-2 ring-[#FF762E]/20 shadow-xs'
+                        : step.state === 'completed'
+                        ? 'bg-emerald-50/70 border-emerald-200'
+                        : step.state === 'cancelled'
+                        ? 'bg-rose-50/60 border-rose-200 opacity-75'
+                        : 'bg-white/60 border-[#E5E1D5] opacity-70'
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-2 ${
+                        step.state === 'completed'
+                          ? 'bg-emerald-700 text-white'
+                          : step.state === 'current'
+                          ? 'bg-[#FF762E] text-white'
+                          : step.state === 'cancelled'
+                          ? 'bg-rose-200 text-rose-800'
+                          : 'bg-[#F7F5EF] text-[#202522]/50 border border-[#E5E1D5]'
+                      }`}
+                    >
+                      {step.state === 'completed' ? (
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                      ) : (
+                        <span>{idx + 1}</span>
+                      )}
+                    </div>
+                    <span
+                      className={`text-[11px] font-bold leading-tight ${
+                        step.state === 'current'
+                          ? 'text-[#FF762E]'
+                          : step.state === 'completed'
+                          ? 'text-[#14221C]'
+                          : 'text-[#202522]/60'
+                      }`}
+                    >
+                      {step.labelBn}
+                    </span>
+                    <span className="text-[9px] text-[#202522]/50 uppercase tracking-tight mt-0.5">
+                      {step.labelEn}
+                    </span>
+                    {step.timestamp && (
+                      <span className="text-[9px] font-mono text-emerald-700 mt-1">
+                        {new Date(step.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* PROMINENT "SHE KI ORDER KORESE" (WHAT YOU ORDERED) SECTION */}
@@ -476,52 +686,6 @@ export const OrderTrackingPage: React.FC = () => {
                     <span>সর্বমোট বিল (ক্যাশ অন ডেলিভারি):</span>
                     <span className="text-[#FF762E] font-mono text-base">৳{searchedOrder.total.toLocaleString()} BDT</span>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Visual Progress Timeline (16-Stage Mapping) */}
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#14221C] mb-6">
-                Fulfillment Stepper
-              </h3>
-
-              <div className="overflow-x-auto pb-2">
-                <div className="flex sm:grid sm:grid-cols-8 gap-4 min-w-[600px]">
-                  {mainStatusPipeline.map((step, idx) => {
-                    const state = getStepStatus(step, searchedOrder.orderStatus);
-                    return (
-                      <div key={step} className="flex flex-col items-center text-center relative group">
-                        <div
-                          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
-                            state === 'completed'
-                              ? 'bg-[#14221C] text-white'
-                              : state === 'current'
-                              ? 'bg-[#FF762E] text-white ring-4 ring-[#FF762E]/20 scale-110'
-                              : 'bg-[#F7F5EF] text-[#202522]/40 border border-[#E5E1D5]'
-                          }`}
-                        >
-                          {state === 'completed' ? (
-                            <CheckCircle2 className="w-4 h-4 text-white" />
-                          ) : (
-                            <span>{idx + 1}</span>
-                          )}
-                        </div>
-
-                        <span
-                          className={`text-[10px] font-bold mt-2 uppercase tracking-tight max-w-[80px] leading-tight ${
-                            state === 'current'
-                              ? 'text-[#FF762E]'
-                              : state === 'completed'
-                              ? 'text-[#14221C]'
-                              : 'text-[#202522]/40'
-                          }`}
-                        >
-                          {step}
-                        </span>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             </div>
@@ -883,7 +1047,8 @@ export const OrderTrackingPage: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

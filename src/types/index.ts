@@ -223,6 +223,8 @@ export interface Order {
   trackingNumber?: string;
   courierTrackingCode?: string;
   trackingUrl?: string;
+  trackingAssignedAt?: string;
+  currentLocationNote?: string;
   estimatedDeliveryMinDays?: number;
   estimatedDeliveryMaxDays?: number;
   statusHistory: OrderStatusHistoryItem[];

@@ -48,6 +48,7 @@ import {
   BANNER_WEBP_MAX_WIDTH,
   DEFAULT_WEBP_QUALITY
 } from '../utils/webpConverter';
+import { buildCourierTrackingUrl } from '../utils/orderProgress';
 import { auth, db, IS_GOOGLE_CLOUD_CONNECTED, sanitizeFirestoreData } from '../firebase';
 import {
   doc,
@@ -387,9 +388,15 @@ export interface StoreContextType {
   assignCourierTracking: (
     orderId: string,
     courierName: Order['courierName'],
-    trackingNumber: string
+    trackingNumber: string,
+    options?: {
+      targetStatus?: OrderStatus;
+      note?: string;
+      trackingUrl?: string;
+    }
   ) => void;
   trackOrderLookup: (orderNumber?: string, phone?: string) => Order | null;
+  refreshOrderFromServer: (orderNumberOrTracking: string, phone: string) => Promise<Order | null>;
   clearAllOrders: () => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
   addCoupon: (coupon: Coupon) => void;
@@ -1626,7 +1633,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
           );
           const nextSig = sorted
-            .map((o) => `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}`)
+            .map(
+              (o) =>
+                `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
+            )
             .join('|');
           if (nextSig !== lastSig) {
             lastSig = nextSig;
@@ -1666,7 +1676,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
             );
             const nextSig = remoteOrders
-              .map((o) => `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}`)
+              .map(
+                (o) =>
+                  `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
+              )
               .join('|');
             if (nextSig !== lastSig) {
               lastSig = nextSig;
@@ -3439,8 +3452,10 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       canCancelUntil: confirmationDeadline,
       courierName:
         data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 'Pathao' : 'Steadfast',
-      trackingNumber: `VT-PKG-${Math.floor(100000 + Math.random() * 900000)}`,
+      trackingNumber: undefined,
+      courierTrackingCode: undefined,
       trackingUrl: `/tracking?order=${orderNumber}`,
+      currentLocationNote: 'অর্ডার গ্রহণ করা হয়েছে। কনফার্ম হওয়ার পর কিছুক্ষণের মধ্যেই ট্র্যাকিং আইডি যুক্ত হবে।',
       estimatedDeliveryMinDays:
         data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 1 : 2,
       estimatedDeliveryMaxDays:
@@ -3793,81 +3808,163 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     return { success: true, message: 'Return request submitted successfully.' };
   };
 
-  // Staff Approval (from Awaiting Staff Approval -> Order Confirmed)
+  // Staff Approval (from Pending / Awaiting Staff Approval -> Order Confirmed)
   const approveOrder = (orderId: string) => {
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              orderStatus: 'Order Confirmed',
-              statusHistory: [
-                ...o.statusHistory,
-                {
-                  status: 'Order Confirmed',
-                  timestamp: new Date().toISOString(),
-                  note: `Approved and verified by ${currentStaffRole}`,
-                  actor: `${currentUser?.name || 'Staff'} (${currentStaffRole})`
-                }
-              ]
-            }
-          : o
-      )
-    );
+    const confirmNote = `অর্ডার কনফার্ম করা হয়েছে (${currentStaffRole})। শীঘ্রই ট্র্যাকিং আইডি ও কুরিয়ার আপডেট যুক্ত হবে।`;
+    const nextHistory = [
+      ...(order.statusHistory || []),
+      {
+        status: 'Order Confirmed' as OrderStatus,
+        timestamp: new Date().toISOString(),
+        note: confirmNote,
+        actor: `${currentUser?.name || 'Staff'} (${currentStaffRole})`
+      }
+    ];
 
-    sendOrderSms(order, 'order_confirmed');
+    const updatedOrder: Order = {
+      ...order,
+      orderStatus: 'Order Confirmed',
+      currentLocationNote: confirmNote,
+      statusHistory: nextHistory
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+    setLastPlacedOrder((prev) => (prev && prev.id === orderId ? updatedOrder : prev));
+
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' })
+      .then((headers) =>
+        fetch(`/api/orders/${encodeURIComponent(order.id)}/approve`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ note: confirmNote, orderSnapshot: order })
+        })
+      )
+      .catch((err) => console.warn('Order approve backend sync notice:', err));
+
+    if (db) {
+      try {
+        setDoc(
+          doc(db, 'orders', order.id),
+          sanitizeFirestoreData({
+            orderStatus: 'Order Confirmed',
+            currentLocationNote: confirmNote,
+            statusHistory: nextHistory
+          }),
+          { merge: true }
+        ).catch((err) => console.warn('Firestore order approve notice:', err));
+      } catch {
+        // ignore Firestore sync error
+      }
+    }
+
+    sendOrderSms(updatedOrder, 'order_confirmed');
     addAuditLog('ORDER_APPROVED', `Order #${order.orderNumber} approved by ${currentStaffRole}`);
-    showToast('Order Approved', `Order #${order.orderNumber} marked as Confirmed.`, 'success');
+    showToast('অর্ডার কনফার্ম হয়েছে', `অর্ডার #${order.orderNumber} কনফার্ম করা হয়েছে। এখন ট্র্যাকিং আইডি যুক্ত করুন।`, 'success');
   };
 
-  // Assign Courier & Track Number
+  // Assign Courier & Tracking Number
   const assignCourierTracking = (
     orderId: string,
     courierName: Order['courierName'],
-    trackingNumber: string
+    trackingNumber: string,
+    options?: {
+      targetStatus?: OrderStatus;
+      note?: string;
+      trackingUrl?: string;
+    }
   ) => {
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
-    let trackingUrl = `/tracking?order=${order.orderNumber}`;
-    if (courierName === 'Steadfast') {
-      trackingUrl = `https://steadfast.com.bd/t/${trackingNumber}`;
-    } else if (courierName === 'Pathao') {
-      trackingUrl = `https://pathao.com/courier-tracking/?consignment_id=${trackingNumber}`;
+    const cleanCode = trackingNumber.trim();
+    const resolvedCourier = courierName || order.courierName || 'Steadfast';
+    const nextStatus: OrderStatus =
+      options?.targetStatus ||
+      (order.orderStatus === 'Pending Customer Confirmation' ||
+      order.orderStatus === 'Customer Confirmed' ||
+      order.orderStatus === 'Awaiting Staff Approval'
+        ? 'Order Confirmed'
+        : order.orderStatus === 'Order Confirmed'
+        ? 'Shipped'
+        : order.orderStatus);
+
+    const externalUrl = buildCourierTrackingUrl(resolvedCourier, cleanCode, options?.trackingUrl);
+    const trackingUrl = externalUrl || `/tracking?order=${order.orderNumber}`;
+    const assignNote =
+      options?.note?.trim() ||
+      `${resolvedCourier} এর মাধ্যমে ট্র্যাকিং আইডি যুক্ত হয়েছে: ${cleanCode}`;
+    const assignedAt = new Date().toISOString();
+
+    const nextHistory = [
+      ...(order.statusHistory || []),
+      {
+        status: nextStatus,
+        timestamp: assignedAt,
+        note: assignNote,
+        actor: `${currentUser?.name || 'Staff'} (${currentStaffRole})`
+      }
+    ];
+
+    const updatedOrder: Order = {
+      ...order,
+      orderStatus: nextStatus,
+      courierName: resolvedCourier,
+      trackingNumber: cleanCode,
+      courierTrackingCode: cleanCode,
+      trackingUrl,
+      trackingAssignedAt: assignedAt,
+      currentLocationNote: assignNote,
+      statusHistory: nextHistory
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+    setLastPlacedOrder((prev) => (prev && prev.id === orderId ? updatedOrder : prev));
+
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' })
+      .then((headers) =>
+        fetch(`/api/orders/${encodeURIComponent(order.id)}/courier`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            courierName: resolvedCourier,
+            trackingCode: cleanCode,
+            trackingNumber: cleanCode,
+            trackingUrl,
+            targetStatus: nextStatus,
+            note: assignNote,
+            orderSnapshot: order
+          })
+        })
+      )
+      .catch((err) => console.warn('Courier tracking backend sync notice:', err));
+
+    if (db) {
+      try {
+        setDoc(
+          doc(db, 'orders', order.id),
+          sanitizeFirestoreData({
+            orderStatus: nextStatus,
+            courierName: resolvedCourier,
+            trackingNumber: cleanCode,
+            courierTrackingCode: cleanCode,
+            trackingUrl,
+            trackingAssignedAt: assignedAt,
+            currentLocationNote: assignNote,
+            statusHistory: nextHistory
+          }),
+          { merge: true }
+        ).catch((err) => console.warn('Firestore courier tracking sync notice:', err));
+      } catch {
+        // ignore Firestore sync error
+      }
     }
 
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              orderStatus: 'Shipped',
-              courierName,
-              trackingNumber,
-              trackingUrl,
-              statusHistory: [
-                ...o.statusHistory,
-                {
-                  status: 'Shipped',
-                  timestamp: new Date().toISOString(),
-                  note: `Handed over to ${courierName} courier with consignment #${trackingNumber}`,
-                  actor: `${currentUser?.name || 'Staff'} (${currentStaffRole})`
-                }
-              ]
-            }
-          : o
-      )
-    );
-
-    sendOrderSms(
-      { ...order, courierName, trackingNumber, trackingUrl },
-      'order_shipped'
-    );
-    addAuditLog('ORDER_SHIPPED', `Assigned ${courierName} #${trackingNumber} to #${order.orderNumber}`);
-    showToast('Consignment Assigned', `Order marked as Shipped via ${courierName}.`, 'success');
+    sendOrderSms(updatedOrder, 'order_shipped');
+    addAuditLog('ORDER_TRACKING_ASSIGNED', `Assigned ${resolvedCourier} Tracking ID #${cleanCode} to #${order.orderNumber}`);
+    showToast('Tracking ID সেভ হয়েছে', `#${order.orderNumber} এর জন্য Tracking ID (${cleanCode}) যুক্ত করা হয়েছে।`, 'success');
   };
 
   const updateOrderStatus = (orderId: string, status: OrderStatus, note?: string) => {
@@ -3899,35 +3996,65 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       );
     }
 
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === orderId) {
-          return {
-            ...o,
+    const statusNote = note?.trim() || `Status updated to ${status}`;
+    const nextHistory = [
+      ...(order.statusHistory || []),
+      {
+        status,
+        timestamp: new Date().toISOString(),
+        note: statusNote,
+        actor: `${currentUser?.name || 'Staff'} (${currentStaffRole})`
+      }
+    ];
+
+    const updatedOrder: Order = {
+      ...order,
+      orderStatus: status,
+      currentLocationNote: statusNote,
+      statusHistory: nextHistory
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+    setLastPlacedOrder((prev) => (prev && prev.id === orderId ? updatedOrder : prev));
+
+    getAdminAuthHeaders({ 'Content-Type': 'application/json' })
+      .then((headers) =>
+        fetch(`/api/orders/${encodeURIComponent(order.id)}/status`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            status,
+            note: statusNote,
+            orderSnapshot: order
+          })
+        })
+      )
+      .catch((err) => console.warn('Order status backend sync notice:', err));
+
+    if (db) {
+      try {
+        setDoc(
+          doc(db, 'orders', order.id),
+          sanitizeFirestoreData({
             orderStatus: status,
-            statusHistory: [
-              ...o.statusHistory,
-              {
-                status,
-                timestamp: new Date().toISOString(),
-                note: note || `Status updated to ${status}`,
-                actor: `${currentUser?.name || 'Staff'} (${currentStaffRole})`
-              }
-            ]
-          };
-        }
-        return o;
-      })
-    );
+            currentLocationNote: statusNote,
+            statusHistory: nextHistory
+          }),
+          { merge: true }
+        ).catch((err) => console.warn('Firestore order status sync notice:', err));
+      } catch {
+        // ignore Firestore sync error
+      }
+    }
 
     // Auto trigger specific SMS events
     if (status === 'Out for Delivery') {
-      sendOrderSms(order, 'out_for_delivery');
+      sendOrderSms(updatedOrder, 'out_for_delivery');
     } else if (status === 'Delivered') {
       const earned = Math.floor(order.total / (settings.pointsPerSpend || 50));
-      sendOrderSms(order, 'order_delivered', { points: earned.toString() });
+      sendOrderSms(updatedOrder, 'order_delivered', { points: earned.toString() });
     } else if (status === 'Cancelled') {
-      sendOrderSms(order, 'order_cancelled');
+      sendOrderSms(updatedOrder, 'order_cancelled');
     }
 
     addAuditLog('STATUS_CHANGE', `Order #${order.orderNumber} status changed to ${status}`);
@@ -3946,6 +4073,29 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           : order
       )
     );
+    setLastPlacedOrder((prev) =>
+      prev && prev.id === orderId
+        ? {
+            ...prev,
+            paymentStatus: status,
+            transactionId: transactionId || prev.transactionId
+          }
+        : prev
+    );
+    if (db) {
+      try {
+        setDoc(
+          doc(db, 'orders', orderId),
+          sanitizeFirestoreData({
+            paymentStatus: status,
+            ...(transactionId ? { transactionId } : {})
+          }),
+          { merge: true }
+        ).catch(() => {});
+      } catch {
+        // ignore Firestore sync error
+      }
+    }
     addAuditLog('PAYMENT_UPDATE', `Order payment updated to ${status}`);
     showToast('Payment Updated', `Payment marked as ${status}`, 'success');
   };
@@ -3957,7 +4107,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     if (!cleanNum && !cleanPhone) return null;
 
     const found = orders.find((o) => {
-      const matchNum = cleanNum ? o.orderNumber.toUpperCase() === cleanNum : false;
+      const matchNum = cleanNum
+        ? o.orderNumber.toUpperCase() === cleanNum ||
+          String(o.trackingNumber || '').trim().toUpperCase() === cleanNum ||
+          String(o.courierTrackingCode || '').trim().toUpperCase() === cleanNum
+        : false;
       const orderPhoneClean = o.customer.phone.replace(/[-+\s]/g, '');
       const matchPhone = cleanPhone
         ? orderPhoneClean.endsWith(cleanPhone.slice(-10)) ||
@@ -3965,7 +4119,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         : false;
 
       if (cleanNum && cleanPhone) {
-        return matchNum || matchPhone;
+        return matchNum && matchPhone;
       }
       if (cleanNum) return matchNum;
       if (cleanPhone) return matchPhone;
@@ -3974,6 +4128,50 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     return found || null;
   };
+
+  const refreshOrderFromServer = useCallback(
+    async (orderNumberOrTracking: string, phone: string): Promise<Order | null> => {
+      const trimmedNum = String(orderNumberOrTracking || '').trim();
+      const trimmedPhone = String(phone || '').trim();
+      if (!trimmedNum || !trimmedPhone) return null;
+
+      try {
+        const res = await fetch(
+          `/api/orders?orderNumber=${encodeURIComponent(trimmedNum)}&phone=${encodeURIComponent(trimmedPhone)}`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return null;
+        const json = await res.json();
+        const serverOrder: Order | null = Array.isArray(json?.data)
+          ? json.data[0] || null
+          : json?.data || null;
+
+        if (serverOrder && serverOrder.orderNumber) {
+          setOrders((prev) => {
+            const exists = prev.some(
+              (o) => o.id === serverOrder.id || o.orderNumber === serverOrder.orderNumber
+            );
+            if (!exists) return [serverOrder, ...prev];
+            return prev.map((o) =>
+              o.id === serverOrder.id || o.orderNumber === serverOrder.orderNumber
+                ? { ...o, ...serverOrder }
+                : o
+            );
+          });
+          setLastPlacedOrder((prev) =>
+            prev && (prev.id === serverOrder.id || prev.orderNumber === serverOrder.orderNumber)
+              ? { ...prev, ...serverOrder }
+              : prev
+          );
+          return serverOrder;
+        }
+      } catch {
+        // Fallback gracefully to cached state
+      }
+      return null;
+    },
+    []
+  );
 
   const clearAllOrders = async () => {
     setOrders([]);
@@ -4821,6 +5019,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         approveOrder,
         assignCourierTracking,
         trackOrderLookup,
+        refreshOrderFromServer,
         clearAllOrders,
         deleteOrder,
         addCoupon,
