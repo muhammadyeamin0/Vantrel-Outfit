@@ -75,3 +75,42 @@ textarea::placeholder {
 .bg-\[\#14221C\] input::placeholder {
   color: rgba(255, 255, 255, 0.5) !important;
 }
+
+/* Scoped animations for ProductCard Buy Now & Add to Cart CTA */
+@keyframes vantrel-shimmer-sweep {
+  0% {
+    transform: translateX(-140%) skewX(-20deg);
+  }
+  45%, 100% {
+    transform: translateX(240%) skewX(-20deg);
+  }
+}
+
+@keyframes vantrel-buy-glow {
+  0%, 100% {
+    box-shadow: 0 4px 14px -2px rgba(255, 118, 46, 0.45);
+  }
+  50% {
+    box-shadow: 0 6px 22px 0px rgba(255, 118, 46, 0.8);
+  }
+}
+
+.vantrel-buy-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  animation: vantrel-shimmer-sweep 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.vantrel-buy-glow {
+  animation: vantrel-buy-glow 2.4s ease-in-out infinite;
+}
+

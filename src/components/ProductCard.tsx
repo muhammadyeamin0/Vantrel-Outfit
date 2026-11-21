@@ -3,7 +3,7 @@ import { Product } from '../types';
 import { useStore } from '../context/StoreContext';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { getProductSeoSlug } from '../utils/seoSlug';
-import { Heart, ShoppingBag, Eye, Star, Zap } from 'lucide-react';
+import { Heart, ShoppingBag, Star, Zap, Check } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -28,6 +28,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
   );
   const [selectedColor, setSelectedColor] = useState<string>(defaultCardColor);
 
+  const [justAdded, setJustAdded] = useState(false);
+
   const inWishlist = isInWishlist(product.id);
   const price = product.discountPrice ?? product.regularPrice;
   const hasDiscount = product.discountPrice && product.discountPrice < product.regularPrice;
@@ -35,6 +37,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     addToCart(product, selectedSize, selectedColor || defaultCardColor, 1);
+    setJustAdded(true);
+    window.setTimeout(() => setJustAdded(false), 950);
   };
 
   const handleQuickBuy = (e: React.MouseEvent) => {
@@ -272,25 +276,38 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
           )}
         </div>
 
-        {/* Permanent Dual Action Buttons: অ্যাড টু কার্ট & বাই নাউ */}
+        {/* Permanent Dual Action Buttons: Add to Cart & Buy Now */}
         <div className="grid grid-cols-2 gap-2 pt-3">
           <button
             type="button"
             onClick={handleQuickAdd}
-            className="w-full py-2 px-2.5 bg-neutral-800 hover:bg-neutral-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs border border-white/10"
+            className={`group/cart relative overflow-hidden w-full py-2.5 px-1.5 sm:px-2.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 ${
+              justAdded
+                ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-400/60 shadow-[0_4px_14px_-3px_rgba(16,185,129,0.45)]'
+                : 'bg-neutral-800/95 hover:bg-neutral-700 text-white border border-white/15 hover:border-[#FF762E]/60 shadow-xs'
+            }`}
             title="Add to Shopping Cart"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-[#FF762E]" />
-            <span>অ্যাড টু কার্ট</span>
+            {justAdded ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />
+                <span>Added!</span>
+              </>
+            ) : (
+              <>
+                <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FF762E] shrink-0 transition-transform duration-200 group-hover/cart:scale-110 group-hover/cart:-rotate-6" />
+                <span>Add to Cart</span>
+              </>
+            )}
           </button>
           <button
             type="button"
             onClick={handleQuickBuy}
-            className="w-full py-2 px-2.5 bg-[#FF762E] hover:bg-[#e8631c] text-white text-[11px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+            className="group/buy vantrel-buy-shimmer vantrel-buy-glow relative overflow-hidden w-full py-2.5 px-1.5 sm:px-2.5 bg-gradient-to-r from-[#FF762E] via-[#FF5E1A] to-[#FF8A3D] hover:from-[#ff8342] hover:to-[#ff6b26] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap hover:-translate-y-0.5 active:scale-95 border border-white/20"
             title="Direct Buy Now"
           >
-            <Zap className="w-3.5 h-3.5 fill-white" />
-            <span>বাই নাউ</span>
+            <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white shrink-0 transition-transform duration-200 group-hover/buy:scale-125 group-hover/buy:rotate-12" />
+            <span>Buy Now</span>
           </button>
         </div>
       </div>
