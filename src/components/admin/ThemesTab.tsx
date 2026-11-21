@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { ThemePreset, ThemeConfig, Banner3DConfig } from '../../types';
+import {
+  convertFileToWebpDataUrl,
+  convertImageSourceToWebp,
+  isWebpImageSource,
+  BANNER_WEBP_MAX_WIDTH,
+  DEFAULT_WEBP_QUALITY
+} from '../../utils/webpConverter';
 import {
   Palette,
   Sparkles,
@@ -13,7 +20,8 @@ import {
   Eye,
   RefreshCw,
   Box,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Upload
 } from 'lucide-react';
 
 export const ThemesTab: React.FC = () => {
@@ -89,6 +97,8 @@ export const ThemesTab: React.FC = () => {
   // 3D Banner Modal state
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const bannerFileInputRef = useRef<HTMLInputElement>(null);
   const [bannerFormData, setBannerFormData] = useState({
     title: '',
     subtitle: '',
@@ -150,17 +160,60 @@ export const ThemesTab: React.FC = () => {
     setIsBannerModalOpen(true);
   };
 
-  const handleBannerSubmit = (e: React.FormEvent) => {
+  const handleBannerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setIsUploadingBanner(true);
+    try {
+      const webpDataUrl = await convertFileToWebpDataUrl(file, {
+        maxWidth: BANNER_WEBP_MAX_WIDTH,
+        quality: DEFAULT_WEBP_QUALITY,
+        maxDataUrlLength: 350_000
+      });
+      setBannerFormData((prev) => ({ ...prev, bgImage: webpDataUrl }));
+      showToast(
+        'Banner WebP Ready',
+        'ব্যানারের ছবি রিসাইজ (সর্বোচ্চ 1400px) ও 0.8 কোয়ালিটির .webp ফরম্যাটে প্রস্তুত হয়েছে।',
+        'success'
+      );
+    } catch {
+      showToast('আপলোড ব্যর্থ', 'সঠিক ইমেজ ফাইল (JPG, PNG, WebP) নির্বাচন করুন।', 'error');
+    } finally {
+      setIsUploadingBanner(false);
+    }
+  };
+
+  const handleBannerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bannerFormData.title.trim()) {
       showToast('Validation Error', 'Title is required for the 3D banner.', 'error');
       return;
     }
 
+    let nextBg = bannerFormData.bgImage.trim();
+    if (nextBg && !isWebpImageSource(nextBg)) {
+      setIsUploadingBanner(true);
+      try {
+        const converted = await convertImageSourceToWebp(nextBg, {
+          maxWidth: BANNER_WEBP_MAX_WIDTH,
+          quality: DEFAULT_WEBP_QUALITY,
+          maxDataUrlLength: 350_000
+        });
+        if (converted) {
+          nextBg = converted;
+        }
+      } finally {
+        setIsUploadingBanner(false);
+      }
+    }
+
+    const payload = { ...bannerFormData, bgImage: nextBg, bgImageUrl: nextBg };
     if (editingBannerId) {
-      updateBanner3D(editingBannerId, bannerFormData);
+      updateBanner3D(editingBannerId, payload);
     } else {
-      addBanner3D(bannerFormData);
+      addBanner3D(payload);
     }
     setIsBannerModalOpen(false);
   };
@@ -555,15 +608,35 @@ export const ThemesTab: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-[#14221C] mb-1">Background Image URL</label>
-                <input
-                  type="text"
-                  value={bannerFormData.bgImage}
-                  onChange={(e) =>
-                    setBannerFormData({ ...bannerFormData, bgImage: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl"
-                />
+                <label className="block font-bold text-[#14221C] mb-1">
+                  Background Image URL or Upload (.webp max 1400px)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={bannerFormData.bgImage}
+                    onChange={(e) =>
+                      setBannerFormData({ ...bannerFormData, bgImage: e.target.value })
+                    }
+                    className="flex-1 px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl"
+                  />
+                  <button
+                    type="button"
+                    disabled={isUploadingBanner}
+                    onClick={() => bannerFileInputRef.current?.click()}
+                    className="px-3 py-2 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 border border-[#E5E1D5] text-[#14221C] rounded-xl font-bold uppercase cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-[#FF762E]" />
+                    <span>{isUploadingBanner ? 'Processing...' : 'Upload'}</span>
+                  </button>
+                  <input
+                    ref={bannerFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBannerFileUpload}
+                    className="sr-only"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

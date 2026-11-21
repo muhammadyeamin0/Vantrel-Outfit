@@ -21,6 +21,13 @@ import {
   getHomepageShowcaseCategories
 } from '../utils/categoryShowcase';
 import {
+  convertFileToWebpDataUrl,
+  convertImageSourceToWebp,
+  isWebpImageSource,
+  PRODUCT_WEBP_MAX_WIDTH,
+  DEFAULT_WEBP_QUALITY
+} from '../utils/webpConverter';
+import {
   ShieldCheck,
   TrendingUp,
   Package,
@@ -693,7 +700,7 @@ export const AdminDashboard: React.FC = () => {
     return rewriteToCanonicalProxyUrl(rawInput);
   };
 
-  const handleAddImage = () => {
+  const handleAddImage = async () => {
     const raw = newImageUrl.trim();
     if (!raw) {
       // If user clicks Add Image without typing a URL, immediately open the file picker
@@ -710,14 +717,35 @@ export const AdminDashboard: React.FC = () => {
       showToast('অকার্যকর লিংক', 'সঠিক ইমেজ URL (https://...) দিন অথবা Upload বাটনে ক্লিক করে ছবি আপলোড করুন।', 'error');
       return;
     }
-    const wasProxied = normalized.includes('/api/image-proxy?url=');
-    setProdImages((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+
+    let finalImg = normalized;
+    let convertedWebp = false;
+    if (!isWebpImageSource(normalized)) {
+      setIsUploadingImages(true);
+      try {
+        const webpResult = await convertImageSourceToWebp(normalized, {
+          maxWidth: PRODUCT_WEBP_MAX_WIDTH,
+          quality: DEFAULT_WEBP_QUALITY
+        });
+        if (webpResult) {
+          finalImg = webpResult;
+          convertedWebp = true;
+        }
+      } finally {
+        setIsUploadingImages(false);
+      }
+    }
+
+    const wasProxied = finalImg.includes('/api/image-proxy?url=');
+    setProdImages((prev) => (prev.includes(finalImg) ? prev : [...prev, finalImg]));
     setNewImageUrl('');
     showToast(
-      wasProxied ? 'VANTREL Proxy URL Added' : 'Image Added',
-      wasProxied
-        ? 'থার্ড-পার্টি লিংকটি স্বয়ংক্রিয়ভাবে vantreloutfit.shop ইমেজ প্রক্সি ইউআরএল-এ রূপান্তর করে যুক্ত করা হয়েছে।'
-        : 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।',
+      convertedWebp ? 'WebP Image Added' : wasProxied ? 'VANTREL Proxy URL Added' : 'Image Added',
+      convertedWebp
+        ? 'ছবিটি ব্রাউজার Canvas দিয়ে রিসাইজ (সর্বোচ্চ 1000px) ও .webp ফরম্যাটে কনভার্ট করে যুক্ত করা হয়েছে।'
+        : wasProxied
+          ? 'থার্ড-পার্টি লিংকটি স্বয়ংক্রিয়ভাবে vantreloutfit.shop ইমেজ প্রক্সি ইউআরএল-এ রূপান্তর করে যুক্ত করা হয়েছে।'
+          : 'প্রোডাক্টের নতুন ছবি সফলভাবে যুক্ত হয়েছে।',
       'success'
     );
   };
@@ -745,73 +773,9 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const compressAndReadImageFile = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const isImageMime = file.type.startsWith('image/');
-      const isImageExt = /\.(jpe?g|png|webp|gif|bmp|avif|svg)$/i.test(file.name);
-      if (!isImageMime && !isImageExt) {
-        reject(new Error(`Unsupported file type: ${file.name}`));
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-      reader.onload = (event) => {
-        const rawDataUrl = event.target?.result;
-        if (typeof rawDataUrl !== 'string' || !rawDataUrl) {
-          reject(new Error(`Empty image data: ${file.name}`));
-          return;
-        }
-
-        // Preserve animated GIFs / vector SVGs as-is if reasonably sized
-        if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
-          resolve(rawDataUrl);
-          return;
-        }
-
-        const img = new Image();
-        img.onerror = () => {
-          // Fallback to raw DataURL if browser cannot decode via Image element
-          resolve(rawDataUrl);
-        };
-        img.onload = () => {
-          try {
-            const renderAtSize = (maxDim: number, quality: number): string => {
-              let width = img.naturalWidth || img.width;
-              let height = img.naturalHeight || img.height;
-              if (width > maxDim || height > maxDim) {
-                const ratio = Math.min(maxDim / width, maxDim / height);
-                width = Math.max(1, Math.round(width * ratio));
-                height = Math.max(1, Math.round(height * ratio));
-              }
-              const canvas = document.createElement('canvas');
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) return rawDataUrl;
-              ctx.drawImage(img, 0, 0, width, height);
-              let out = canvas.toDataURL('image/webp', quality);
-              if (!out.startsWith('data:image/webp')) {
-                out = canvas.toDataURL('image/jpeg', quality);
-              }
-              return out;
-            };
-
-            let compressed = renderAtSize(900, 0.8);
-            if (compressed.length > 220_000) {
-              compressed = renderAtSize(800, 0.65);
-            }
-            if (compressed.length > 220_000) {
-              compressed = renderAtSize(680, 0.5);
-            }
-            // Keep smaller result so Firestore 1MB limit is never exceeded when multiple images are uploaded
-            resolve(compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
-          } catch {
-            resolve(rawDataUrl);
-          }
-        };
-        img.src = rawDataUrl;
-      };
-      reader.readAsDataURL(file);
+    return convertFileToWebpDataUrl(file, {
+      maxWidth: PRODUCT_WEBP_MAX_WIDTH,
+      quality: DEFAULT_WEBP_QUALITY
     });
   };
 
@@ -929,8 +893,16 @@ export const AdminDashboard: React.FC = () => {
         normalizedPending.startsWith('/') ||
         normalizedPending.startsWith('data:image/')
       ) {
-        if (!finalImages.includes(normalizedPending)) {
-          finalImages.push(normalizedPending);
+        let resolvedPending = normalizedPending;
+        if (!isWebpImageSource(normalizedPending)) {
+          const webpPending = await convertImageSourceToWebp(normalizedPending, {
+            maxWidth: PRODUCT_WEBP_MAX_WIDTH,
+            quality: DEFAULT_WEBP_QUALITY
+          });
+          if (webpPending) resolvedPending = webpPending;
+        }
+        if (!finalImages.includes(resolvedPending)) {
+          finalImages.push(resolvedPending);
         }
         setProdImages(finalImages);
         setNewImageUrl('');

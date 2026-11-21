@@ -41,6 +41,13 @@ import {
 import { rewriteProductImagesToProxy, rewriteToCanonicalProxyUrl } from '../utils/imageProxy';
 import { isSearchCrawler, withTimeout } from '../utils/crawlerDetect';
 import { doesProductMatchCategory } from '../utils/categoryShowcase';
+import {
+  isWebpImageSource,
+  convertImageSourceToWebp,
+  PRODUCT_WEBP_MAX_WIDTH,
+  BANNER_WEBP_MAX_WIDTH,
+  DEFAULT_WEBP_QUALITY
+} from '../utils/webpConverter';
 import { auth, db, IS_GOOGLE_CLOUD_CONNECTED, sanitizeFirestoreData } from '../firebase';
 import {
   doc,
@@ -1290,6 +1297,310 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       unsubscribe();
     };
   }, [currentPage]);
+
+  // Automatic Background WebP Upgrade (App & Admin Load):
+  // Checks stored/database banners, logo, and products for any non-WebP images and converts them via Browser Canvas.
+  // Safely skips any URL that fails due to CORS, network errors, or Firestore 1MB payload limits.
+  const webpSkippedUrlsRef = useRef<Set<string>>(null as unknown as Set<string>);
+  if (!webpSkippedUrlsRef.current) {
+    const initialSkipped = new Set<string>();
+    try {
+      const saved = sessionStorage.getItem('vt_webp_skip_urls_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((u) => {
+            if (typeof u === 'string') initialSkipped.add(u);
+          });
+        }
+      }
+    } catch {
+      // ignore sessionStorage error
+    }
+    webpSkippedUrlsRef.current = initialSkipped;
+  }
+
+  const recordSkippedWebpUrl = useCallback((url: string) => {
+    webpSkippedUrlsRef.current.add(url);
+    try {
+      const list = Array.from(webpSkippedUrlsRef.current).slice(-200);
+      sessionStorage.setItem('vt_webp_skip_urls_v1', JSON.stringify(list));
+    } catch {
+      // ignore storage error
+    }
+  }, []);
+
+  const staticWebpAuditDoneRef = useRef(false);
+  useEffect(() => {
+    if (staticWebpAuditDoneRef.current || isSearchCrawler() || typeof window === 'undefined') {
+      return;
+    }
+    staticWebpAuditDoneRef.current = true;
+    let cancelled = false;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        // 1. Check Store Logo in settings
+        if (
+          settings.logoUrl &&
+          !isWebpImageSource(settings.logoUrl) &&
+          !webpSkippedUrlsRef.current.has(settings.logoUrl)
+        ) {
+          const webpLogo = await convertImageSourceToWebp(settings.logoUrl, {
+            maxWidth: PRODUCT_WEBP_MAX_WIDTH,
+            quality: DEFAULT_WEBP_QUALITY
+          });
+          if (cancelled) return;
+          if (webpLogo) {
+            setSettings((prev) => (prev.logoUrl === settings.logoUrl ? { ...prev, logoUrl: webpLogo } : prev));
+          } else {
+            recordSkippedWebpUrl(settings.logoUrl);
+          }
+        }
+
+        // 2. Check Standard Banners (max width 1400px, quality 0.8)
+        let bannersChanged = false;
+        const nextBanners = await Promise.all(
+          banners.map(async (b) => {
+            const src = b.bgImageUrl || '';
+            if (!src || isWebpImageSource(src) || webpSkippedUrlsRef.current.has(src)) {
+              return b;
+            }
+            const converted = await convertImageSourceToWebp(src, {
+              maxWidth: BANNER_WEBP_MAX_WIDTH,
+              quality: DEFAULT_WEBP_QUALITY,
+              maxDataUrlLength: 350_000
+            });
+            if (converted) {
+              bannersChanged = true;
+              return { ...b, bgImageUrl: converted };
+            }
+            recordSkippedWebpUrl(src);
+            return b;
+          })
+        );
+        if (!cancelled && bannersChanged) {
+          setBanners(nextBanners);
+        }
+
+        // 3. Check 3D Banners (max width 1400px for background, 1000px for cutout)
+        let banners3DChanged = false;
+        const nextBanners3D = await Promise.all(
+          banners3D.map(async (b) => {
+            let updated = { ...b };
+            const bgSrc = b.bgImage || b.bgImageUrl || '';
+            if (bgSrc && !isWebpImageSource(bgSrc) && !webpSkippedUrlsRef.current.has(bgSrc)) {
+              const convertedBg = await convertImageSourceToWebp(bgSrc, {
+                maxWidth: BANNER_WEBP_MAX_WIDTH,
+                quality: DEFAULT_WEBP_QUALITY,
+                maxDataUrlLength: 350_000
+              });
+              if (convertedBg) {
+                banners3DChanged = true;
+                if (updated.bgImage) updated.bgImage = convertedBg;
+                if (updated.bgImageUrl || !updated.bgImage) updated.bgImageUrl = convertedBg;
+              } else {
+                recordSkippedWebpUrl(bgSrc);
+              }
+            }
+
+            const cutoutSrc = b.productCutoutUrl || '';
+            if (cutoutSrc && !isWebpImageSource(cutoutSrc) && !webpSkippedUrlsRef.current.has(cutoutSrc)) {
+              const convertedCutout = await convertImageSourceToWebp(cutoutSrc, {
+                maxWidth: PRODUCT_WEBP_MAX_WIDTH,
+                quality: DEFAULT_WEBP_QUALITY
+              });
+              if (convertedCutout) {
+                banners3DChanged = true;
+                updated.productCutoutUrl = convertedCutout;
+              } else {
+                recordSkippedWebpUrl(cutoutSrc);
+              }
+            }
+            return updated;
+          })
+        );
+        if (!cancelled && banners3DChanged) {
+          setBanners3D(nextBanners3D);
+        }
+      } catch {
+        // Non-critical background migration; skip cleanly
+      }
+    }, 1800);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [banners, banners3D, settings.logoUrl, recordSkippedWebpUrl]);
+
+  const productWebpMigrationRunningRef = useRef(false);
+  const productWebpCheckedSigRef = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (
+      isSearchCrawler() ||
+      typeof window === 'undefined' ||
+      products.length === 0 ||
+      productWebpMigrationRunningRef.current
+    ) {
+      return;
+    }
+
+    const isAdminContext =
+      currentPage === 'admin' ||
+      isFirebaseAdminAuthenticated ||
+      (auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        Boolean(auth?.currentUser?.emailVerified));
+
+    const candidates = products.filter((p) => {
+      if (!Array.isArray(p.images) || p.images.length === 0) return false;
+      const sig = p.images.join('|');
+      if (productWebpCheckedSigRef.current.get(p.id) === sig) return false;
+      return p.images.some((img) => {
+        if (!img || isWebpImageSource(img) || webpSkippedUrlsRef.current.has(img)) return false;
+        if (isAdminContext) return true;
+        // On public app load, migrate inline non-WebP data URLs, local /assets non-WebP paths, and top un-migrated storefront items
+        return (
+          img.startsWith('data:image/') ||
+          img.startsWith('/assets/') ||
+          img.includes('vantreloutfit.shop/assets/')
+        );
+      });
+    });
+
+    // Public app load: also allow converting up to 6 visible external non-WebP products per session if localStorage stays light
+    const extraPublicExternalCandidates =
+      !isAdminContext && candidates.length === 0
+        ? products
+            .filter((p) => {
+              if (!Array.isArray(p.images) || p.images.length === 0) return false;
+              const sig = p.images.join('|');
+              if (productWebpCheckedSigRef.current.get(p.id) === sig) return false;
+              return p.images.some(
+                (img) => img && !isWebpImageSource(img) && !webpSkippedUrlsRef.current.has(img)
+              );
+            })
+            .slice(0, 6)
+        : [];
+
+    const queue = candidates.length > 0 ? candidates : extraPublicExternalCandidates;
+    if (queue.length === 0) return;
+
+    let cancelled = false;
+    const delayMs = isAdminContext ? 1200 : 2800;
+
+    const timer = window.setTimeout(async () => {
+      if (cancelled || productWebpMigrationRunningRef.current) return;
+      productWebpMigrationRunningRef.current = true;
+
+      try {
+        const canWriteFirestore =
+          Boolean(db) &&
+          auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+          Boolean(auth?.currentUser?.emailVerified);
+        const adminHeaders = isAdminContext
+          ? await getAdminAuthHeaders({ 'Content-Type': 'application/json' })
+          : null;
+
+        let approxProductsBytes = (() => {
+          try {
+            return new Blob([JSON.stringify(products)]).size;
+          } catch {
+            return 0;
+          }
+        })();
+
+        for (let i = 0; i < queue.length; i += 2) {
+          if (cancelled) break;
+          const batch = queue.slice(i, i + 2);
+
+          await Promise.all(
+            batch.map(async (prod) => {
+              if (cancelled) return;
+              const originalSig = (prod.images || []).join('|');
+              productWebpCheckedSigRef.current.set(prod.id, originalSig);
+
+              // Guard localStorage (~5MB cap) when not writing to Firestore/server permanently
+              if (!isAdminContext && approxProductsBytes > 3_200_000) {
+                return;
+              }
+
+              let changed = false;
+              const nextImages: string[] = [];
+
+              for (const imgSrc of prod.images || []) {
+                if (!imgSrc || isWebpImageSource(imgSrc) || webpSkippedUrlsRef.current.has(imgSrc)) {
+                  nextImages.push(imgSrc);
+                  continue;
+                }
+
+                const converted = await convertImageSourceToWebp(imgSrc, {
+                  maxWidth: PRODUCT_WEBP_MAX_WIDTH,
+                  quality: DEFAULT_WEBP_QUALITY,
+                  maxDataUrlLength: 200_000
+                });
+
+                if (converted) {
+                  changed = true;
+                  nextImages.push(converted);
+                  approxProductsBytes += Math.max(0, converted.length - imgSrc.length);
+                } else {
+                  recordSkippedWebpUrl(imgSrc);
+                  nextImages.push(imgSrc);
+                }
+              }
+
+              if (!changed || cancelled) return;
+
+              const updatedProd = { ...prod, images: nextImages };
+              const payload = sanitizeFirestoreData(updatedProd);
+              const payloadBytes = new Blob([JSON.stringify(payload)]).size;
+              if (payloadBytes > 950_000) {
+                // Skip persisting oversized multi-image document to protect Firestore 1MB limit
+                return;
+              }
+
+              productWebpCheckedSigRef.current.set(prod.id, nextImages.join('|'));
+              setProducts((prev) =>
+                prev.map((item) => (item.id === prod.id ? { ...item, images: nextImages } : item))
+              );
+
+              if (canWriteFirestore && db) {
+                try {
+                  await setDoc(doc(db, 'products', prod.id), payload, { merge: true });
+                } catch {
+                  // Ignore Firestore permission/network error cleanly
+                }
+              }
+
+              if (adminHeaders && (adminHeaders.Authorization || window.location.hostname === 'localhost')) {
+                try {
+                  await fetch(`/api/products/${encodeURIComponent(prod.id)}`, {
+                    method: 'PUT',
+                    headers: adminHeaders,
+                    body: JSON.stringify({ images: nextImages })
+                  });
+                } catch {
+                  // Non-critical backend mirror notice
+                }
+              }
+            })
+          );
+
+          if (!cancelled && i + 2 < queue.length) {
+            await new Promise((r) => window.setTimeout(r, 180));
+          }
+        }
+      } finally {
+        productWebpMigrationRunningRef.current = false;
+      }
+    }, delayMs);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [products, currentPage, isFirebaseAdminAuthenticated, getAdminAuthHeaders, recordSkippedWebpUrl]);
 
   // Scoped Orders Synchronization: Full list only inside authenticated Admin Dashboard
   useEffect(() => {
