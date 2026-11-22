@@ -111,6 +111,17 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
 export const COST_TO_SELLING_MARKUP_BDT = 180;
 export const SELLING_TO_REGULAR_MARKUP_BDT = 200;
 
+export function dedupeProductsById(list: Product[]): Product[] {
+  const seen = new Set<string>();
+  const unique: Product[] = [];
+  for (const item of list) {
+    if (!item || !item.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
+}
+
 export function computePricesFromCost(cost: number): {
   costPrice: number;
   sellingPrice: number;
@@ -519,9 +530,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
           const parsedSsr: Product[] = JSON.parse(ssrScript.textContent);
           if (Array.isArray(parsedSsr) && parsedSsr.length > 0) {
-            return parsedSsr
-              .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-              .map(sanitizeProductSizes);
+            return dedupeProductsById(
+              parsedSsr
+                .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+                .map(sanitizeProductSizes)
+            );
           }
         } catch {
           // fallback below
@@ -533,9 +546,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const parsed: Product[] = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed
-            .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-            .map(sanitizeProductSizes);
+          return dedupeProductsById(
+            parsed
+              .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+              .map(sanitizeProductSizes)
+          );
         }
       } catch {
         return [];
@@ -1143,14 +1158,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (Array.isArray(parsedSsr) && parsedSsr.length > 0) {
             hasSsrCatalog = true;
             const cleanSsr = sortProductsList(
-              parsedSsr
-                .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-                .map((p) =>
-                  sanitizeProductSizes({
-                    ...p,
-                    isArchived: Boolean(p.isArchived || p.status === 'archived')
-                  })
-                )
+              dedupeProductsById(
+                parsedSsr
+                  .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+                  .map((p) =>
+                    sanitizeProductSizes({
+                      ...p,
+                      isArchived: Boolean(p.isArchived || p.status === 'archived')
+                    })
+                  )
+              )
             );
             setProducts(cleanSsr);
             mergeDynamicCategories(cleanSsr);
@@ -1179,14 +1196,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && isMounted) {
           const serverProducts = sortProductsList(
-            (json.data as Product[])
-              .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-              .map((p) =>
-                sanitizeProductSizes({
-                  ...p,
-                  isArchived: Boolean(p.isArchived || p.status === 'archived')
-                })
-              )
+            dedupeProductsById(
+              (json.data as Product[])
+                .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+                .map((p) =>
+                  sanitizeProductSizes({
+                    ...p,
+                    isArchived: Boolean(p.isArchived || p.status === 'archived')
+                  })
+                )
+            )
           );
           setProducts(serverProducts);
           mergeDynamicCategories(serverProducts);
@@ -1216,7 +1235,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               })
             );
           });
-          const sorted = sortProductsList(remoteProducts);
+          const sorted = sortProductsList(dedupeProductsById(remoteProducts));
           setProducts(sorted);
           mergeDynamicCategories(sorted);
         } catch (fbErr) {
@@ -1300,7 +1319,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return 0;
         });
 
-        setProducts(remoteProducts);
+        setProducts(dedupeProductsById(remoteProducts));
       },
       (error) => {
         console.warn('Admin Firestore products sync notice:', error.message);
@@ -2518,8 +2537,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       return { success: false, firestoreSynced: false, apiSynced: false, error: combinedErr };
     }
 
-    // Update local state & categories after backend/Firestore persistence succeeds
-    setProducts((prev) => [product, ...prev]);
+    // Update local state & categories after backend/Firestore persistence succeeds (deduped against live onSnapshot)
+    setProducts((prev) => dedupeProductsById([product, ...prev]));
     if (product.category?.trim()) {
       setCategories((prev) =>
         prev.some((c) => c.toLowerCase() === product.category.trim().toLowerCase())
@@ -2662,7 +2681,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       sortOrder: (target.sortOrder ?? 0) + 1,
       createdDate: new Date().toISOString().split('T')[0]
     };
-    setProducts((prev) => [duplicated, ...prev]);
+    setProducts((prev) => dedupeProductsById([duplicated, ...prev]));
 
     // Save to Firebase Firestore
     try {
