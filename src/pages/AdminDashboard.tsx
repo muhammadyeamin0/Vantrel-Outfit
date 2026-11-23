@@ -1994,7 +1994,7 @@ export const AdminDashboard: React.FC = () => {
                       }
                     }}
                     className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
-                    title="Cost Price এর সাথে +180 বিক্রয় মূল্য ও +200 Regular Price অনুযায়ী সব প্রোডাক্ট আপডেট করুন"
+                    title={`Cost Price এর সাথে +${COST_TO_SELLING_MARKUP_BDT} বিক্রয় মূল্য ও +${SELLING_TO_REGULAR_MARKUP_BDT} Regular Price অনুযায়ী সব প্রোডাক্ট আপডেট করুন`}
                   >
                     <RotateCcw className={`w-3.5 h-3.5 ${isRecalculatingPrices ? 'animate-spin' : ''}`} />
                     <span>{isRecalculatingPrices ? 'আপডেট হচ্ছে...' : 'সব দাম Cost থেকে আপডেট'}</span>

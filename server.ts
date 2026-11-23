@@ -1212,8 +1212,8 @@ app.post('/api/products/recalculate-prices', (_req: Request, res: Response) => {
     const cleanCost =
       typeof p.costPrice === 'number' && p.costPrice > 0
         ? Math.round(p.costPrice)
-        : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - 180));
-    const sellingPrice = cleanCost + 180;
+        : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - 220));
+    const sellingPrice = cleanCost + 220;
     const regularPrice = sellingPrice + 200;
     const discountPercent =
       regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;
@@ -1230,7 +1230,7 @@ app.post('/api/products/recalculate-prices', (_req: Request, res: Response) => {
     'Admin Staff',
     'Pricing Engine',
     'Bulk Price Recalculation',
-    `Recalculated prices (Cost + 180 selling, + 200 regular) across ${products.length} products.`
+    `Recalculated prices (Cost + 220 selling, + 200 regular) across ${products.length} products.`
   );
   res.json({ success: true, count: products.length, data: products });
 });

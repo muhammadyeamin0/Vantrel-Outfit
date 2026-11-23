@@ -97,8 +97,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           typeof (p as Record<string, unknown>).costPrice === 'number' &&
           Number((p as Record<string, unknown>).costPrice) > 0
             ? Math.round(Number((p as Record<string, unknown>).costPrice))
-            : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - 180));
-        const sellingPrice = currentCost + 180;
+            : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - 220));
+        const sellingPrice = currentCost + 220;
         const regularPrice = sellingPrice + 200;
         const discountPercent =
           regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;

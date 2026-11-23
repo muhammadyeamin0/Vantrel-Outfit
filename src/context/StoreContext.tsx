@@ -108,7 +108,7 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
 ]);
 
-export const COST_TO_SELLING_MARKUP_BDT = 180;
+export const COST_TO_SELLING_MARKUP_BDT = 220;
 export const SELLING_TO_REGULAR_MARKUP_BDT = 200;
 
 export function dedupeProductsById(list: Product[]): Product[] {
