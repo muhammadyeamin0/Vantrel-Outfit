@@ -299,7 +299,7 @@ export const CartPage: React.FC = () => {
                 {cart.map((item) => (
                   <div key={item.id} className="py-5 first:pt-4 last:pb-0 flex flex-col sm:flex-row items-start gap-4">
                     <img
-                      src={toDisplayImageUrl(item.image)}
+                      src={toDisplayImageUrl(item.image, 180)}
                       alt={item.name}
                       width={96}
                       height={112}

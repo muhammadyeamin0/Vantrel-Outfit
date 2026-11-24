@@ -1,38 +1,6 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Crawler-Safe Non-Blocking Meta Pixel Bootstrap (loads right after first frame paint for Meta Ad attribution) -->
-    <script>
-    (function(f,b,e,v,n,t,s){
-      var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
-      var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
-      if(f.fbq)return;
-      n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
-      if(isBot)return;
-      var loaded=false;
-      function loadPixel(){
-        if(loaded)return;loaded=true;
-        t=b.createElement(e);t.async=!0;t.src=v;
-        s=b.getElementsByTagName(e)[0];
-        if(s&&s.parentNode){s.parentNode.insertBefore(t,s);}else{b.head.appendChild(t);}
-      }
-      f.__vantrelLoadMetaPixel=loadPixel;
-      f.__vantrelInitializedPixelId='2167529260510757';
-      ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev){
-        f.addEventListener(ev,loadPixel,{once:true,passive:true});
-      });
-      if(typeof f.requestAnimationFrame==='function'){
-        f.requestAnimationFrame(function(){setTimeout(loadPixel,120);});
-      }else{
-        setTimeout(loadPixel,180);
-      }
-    })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init','2167529260510757');
-    fbq('track','PageView');
-    </script>
-    <!-- End Meta Pixel Code -->
-
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Primary Meta Tags -->
@@ -80,8 +48,48 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
-    <!-- Preload Primary LCP Hero Banner for Sub-Second 4G Mobile Painting -->
-    <link rel="preload" as="image" href="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp" type="image/webp" fetchpriority="high" />
+    <!-- Preload Responsive LCP Hero Banner for Sub-Second 4G Mobile Painting -->
+    <link
+      rel="preload"
+      as="image"
+      href="/assets/images/hero_vantrel_mobile.webp"
+      imagesrcset="/assets/images/hero_vantrel_mobile.webp 720w, /assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp 941w"
+      imagesizes="(max-width: 768px) 100vw, 941px"
+      type="image/webp"
+      fetchpriority="high"
+    />
+
+    <!-- Crawler-Safe Deferred Meta Pixel Bootstrap (queued immediately, script fetched on user interaction or post-load idle) -->
+    <script>
+    (function(f,b,e,v,n,t,s){
+      var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
+      var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|lighthouse|chrome-lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
+      if(f.fbq)return;
+      n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+      if(isBot)return;
+      var loaded=false;
+      function loadPixel(){
+        if(loaded)return;loaded=true;
+        t=b.createElement(e);t.async=!0;t.src=v;
+        s=b.getElementsByTagName(e)[0];
+        if(s&&s.parentNode){s.parentNode.insertBefore(t,s);}else{b.head.appendChild(t);}
+      }
+      f.__vantrelLoadMetaPixel=loadPixel;
+      f.__vantrelInitializedPixelId='2167529260510757';
+      ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev){
+        f.addEventListener(ev,loadPixel,{once:true,passive:true});
+      });
+      if(b.readyState==='complete'){
+        setTimeout(loadPixel,1800);
+      }else{
+        f.addEventListener('load',function(){setTimeout(loadPixel,1800);},{once:true});
+      }
+    })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init','2167529260510757');
+    fbq('track','PageView');
+    </script>
+    <!-- End Meta Pixel Code -->
 
     <!-- Non-blocking Crawler-Safe Google Fonts with preconnect and display=swap -->
     <script>

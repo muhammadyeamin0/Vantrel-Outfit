@@ -549,7 +549,9 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
 
     res.statusCode = statusCode;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('CDN-Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
     res.setHeader('X-Robots-Tag', robotsContent.startsWith('noindex') ? 'noindex, follow' : 'all');
     res.end(req.method === 'HEAD' ? undefined : finalHtml);
   } catch (err) {

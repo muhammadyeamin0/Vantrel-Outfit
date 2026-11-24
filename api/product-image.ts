@@ -11,6 +11,46 @@ type VercelReq = IncomingMessage & {
 const decodedCache = new Map<string, { contentType: string; buffer: Buffer; cachedAt: number }>();
 const MAX_CACHE_ENTRIES = 120;
 
+let sharpLoader: Promise<((input: Buffer) => any) | null> | null = null;
+async function getSharp(): Promise<((input: Buffer) => any) | null> {
+  if (!sharpLoader) {
+    sharpLoader = import('sharp')
+      .then((m) => (m.default || m) as unknown as (input: Buffer) => any)
+      .catch(() => null);
+  }
+  return sharpLoader;
+}
+
+async function optimizeProductImageBuffer(
+  rawBuffer: Buffer,
+  contentType: string,
+  targetWidth: number,
+  wantsWebp: boolean
+): Promise<{ buffer: Buffer; contentType: string }> {
+  if (contentType.includes('svg') || contentType.includes('gif')) {
+    return { buffer: rawBuffer, contentType };
+  }
+  if (!wantsWebp && !targetWidth) {
+    return { buffer: rawBuffer, contentType };
+  }
+  try {
+    const sharpFn = await getSharp();
+    if (!sharpFn) return { buffer: rawBuffer, contentType };
+    let pipeline = sharpFn(rawBuffer).rotate();
+    if (targetWidth > 0) {
+      pipeline = pipeline.resize({ width: targetWidth, withoutEnlargement: true });
+    }
+    if (wantsWebp) {
+      const out = await pipeline.webp({ quality: 80, effort: 3 }).toBuffer();
+      return { buffer: out, contentType: 'image/webp' };
+    }
+    const out = await pipeline.toBuffer();
+    return { buffer: out, contentType };
+  } catch {
+    return { buffer: rawBuffer, contentType };
+  }
+}
+
 function getQueryParam(req: VercelReq, key: string): string {
   const val = req.query?.[key];
   if (typeof val === 'string') return val;
@@ -78,6 +118,10 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
   const productId = getQueryParam(req, 'id').trim();
   const idxRaw = parseInt(getQueryParam(req, 'idx') || '0', 10);
   const idx = Number.isFinite(idxRaw) && idxRaw >= 0 ? idxRaw : 0;
+  const widthRaw = parseInt(getQueryParam(req, 'w') || '0', 10);
+  const targetWidth = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.min(1400, Math.max(120, widthRaw)) : 0;
+  const acceptHeader = String(req.headers['accept'] || '').toLowerCase();
+  const wantsWebp = acceptHeader.includes('image/webp') || acceptHeader.includes('image/avif') || targetWidth > 0;
 
   if (!productId) {
     res.statusCode = 400;
@@ -85,13 +129,16 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
     return;
   }
 
-  const cacheKey = `${productId}:${idx}`;
+  const cacheKey = `${productId}:${idx}:w=${targetWidth}:webp=${wantsWebp ? 1 : 0}`;
   const cached = decodedCache.get(cacheKey);
   if (cached) {
     res.statusCode = 200;
     res.setHeader('Content-Type', cached.contentType);
     res.setHeader('Content-Length', String(cached.buffer.length));
-    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000');
+    res.setHeader('Vary', 'Accept');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+    res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
+    res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.end(req.method === 'HEAD' ? undefined : cached.buffer);
@@ -119,14 +166,18 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
     if (src.startsWith('data:image/')) {
       const parsed = parseDataImageUri(src);
       if (parsed) {
-        setCachedImage(cacheKey, parsed);
+        const optimized = await optimizeProductImageBuffer(parsed.buffer, parsed.contentType, targetWidth, wantsWebp);
+        setCachedImage(cacheKey, optimized);
         res.statusCode = 200;
-        res.setHeader('Content-Type', parsed.contentType);
-        res.setHeader('Content-Length', String(parsed.buffer.length));
-        res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000');
+        res.setHeader('Content-Type', optimized.contentType);
+        res.setHeader('Content-Length', String(optimized.buffer.length));
+        res.setHeader('Vary', 'Accept');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+        res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
+        res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(req.method === 'HEAD' ? undefined : parsed.buffer);
+        res.end(req.method === 'HEAD' ? undefined : optimized.buffer);
         return;
       }
     }

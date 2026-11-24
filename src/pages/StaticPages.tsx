@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   CheckCircle2
 } from 'lucide-react';
-import aboutHeroBannerImg from '../assets/images/regenerated_image_1795276283085.png';
 
 export const AboutPage: React.FC = () => {
   const { setCurrentPage } = useStore();
@@ -85,7 +84,7 @@ export const AboutPage: React.FC = () => {
         {/* Hero Editorial Campaign Frame */}
         <div className="relative overflow-hidden border border-white/10 bg-[#141414] aspect-[16/9] shadow-2xl">
           <img
-            src={aboutHeroBannerImg}
+            src="/assets/images/about_vantrel_banner.webp"
             alt="VANTREL — Wear Your Vibe Streetwear Collection"
             width={1376}
             height={768}

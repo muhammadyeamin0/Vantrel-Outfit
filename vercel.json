@@ -154,6 +154,14 @@
       "source": "/api/image-proxy",
       "headers": [
         {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, s-maxage=31536000, immutable"
+        },
+        {
+          "key": "Vary",
+          "value": "Accept"
+        },
+        {
           "key": "Access-Control-Allow-Origin",
           "value": "*"
         },
@@ -172,7 +180,11 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000"
+          "value": "public, max-age=31536000, s-maxage=31536000, immutable"
+        },
+        {
+          "key": "Vary",
+          "value": "Accept"
         },
         {
           "key": "Access-Control-Allow-Origin",
@@ -193,7 +205,7 @@
         },
         {
           "key": "Cache-Control",
-          "value": "public, max-age=3600"
+          "value": "public, max-age=3600, s-maxage=86400"
         }
       ]
     },
@@ -215,7 +227,7 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
+          "value": "public, max-age=31536000, s-maxage=31536000, immutable"
         }
       ]
     },
@@ -224,7 +236,7 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=604800, stale-while-revalidate=86400"
+          "value": "public, max-age=2592000, s-maxage=31536000, immutable"
         }
       ]
     },
@@ -233,7 +245,7 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
+          "value": "public, max-age=0, s-maxage=600, stale-while-revalidate=86400, must-revalidate"
         }
       ]
     }

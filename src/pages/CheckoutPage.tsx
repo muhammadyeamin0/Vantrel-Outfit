@@ -669,7 +669,7 @@ export const CheckoutPage: React.FC = () => {
                 cart.map((item) => (
                   <div key={item.id} className="pt-3 first:pt-0 flex items-center gap-3">
                     <img
-                      src={toDisplayImageUrl(item.image)}
+                      src={toDisplayImageUrl(item.image, 180)}
                       alt={item.name}
                       width={56}
                       height={64}

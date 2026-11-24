@@ -164,7 +164,7 @@ export function toCanonicalSeoImageUrl(
  * - On local dev or AI Studio preview hosts: routes /api/image-proxy?url=... and /assets/... via the active preview server
  *   so every image loads smoothly with 200 OK during preview before/between Vercel deployments.
  */
-export function toDisplayImageUrl(rawUrl: string): string {
+export function toDisplayImageUrl(rawUrl: string, targetWidth?: number): string {
   const trimmed = String(rawUrl || '').trim();
   if (!trimmed) return FALLBACK_PRODUCT_IMAGE;
   if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
@@ -173,13 +173,26 @@ export function toDisplayImageUrl(rawUrl: string): string {
   const currentHost = isBrowser ? window.location.hostname.toLowerCase() : '';
   const isOnCanonicalDomain = isBrowser && isVantrelDomainHostname(currentHost);
 
+  const appendWidth = (url: string): string => {
+    if (!targetWidth || targetWidth <= 0) return url;
+    if (
+      (url.includes(IMAGE_PROXY_ROUTE) || url.includes('/api/product-image')) &&
+      !/[?&]w=\d+/.test(url)
+    ) {
+      return `${url}${url.includes('?') ? '&' : '?'}w=${Math.round(targetWidth)}`;
+    }
+    return url;
+  };
+
   const unwrapped = unwrapProxyImageUrl(trimmed);
   if (unwrapped) {
     const cleanInner = normalizeThirdPartyImageUrl(unwrapped);
     const encoded = encodeURIComponent(cleanInner);
-    return isOnCanonicalDomain || !isBrowser
-      ? `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
-      : `${IMAGE_PROXY_ROUTE}?url=${encoded}`;
+    return appendWidth(
+      isOnCanonicalDomain || !isBrowser
+        ? `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
+        : `${IMAGE_PROXY_ROUTE}?url=${encoded}`
+    );
   }
 
   const normalized = normalizeThirdPartyImageUrl(trimmed);
@@ -189,10 +202,11 @@ export function toDisplayImageUrl(rawUrl: string): string {
     try {
       const parsed = new URL(normalized);
       if (isVantrelDomainHostname(parsed.hostname)) {
-        if (!isOnCanonicalDomain && isBrowser) {
-          return `${parsed.pathname}${parsed.search}`;
-        }
-        return `${VANTREL_CANONICAL_ORIGIN}${parsed.pathname}${parsed.search}`;
+        const baseResolved =
+          !isOnCanonicalDomain && isBrowser
+            ? `${parsed.pathname}${parsed.search}`
+            : `${VANTREL_CANONICAL_ORIGIN}${parsed.pathname}${parsed.search}`;
+        return appendWidth(baseResolved);
       }
     } catch {
       // fall through
@@ -200,17 +214,19 @@ export function toDisplayImageUrl(rawUrl: string): string {
   }
 
   if (normalized.startsWith('/')) {
-    return isOnCanonicalDomain ? `${VANTREL_CANONICAL_ORIGIN}${normalized}` : normalized;
+    return appendWidth(isOnCanonicalDomain ? `${VANTREL_CANONICAL_ORIGIN}${normalized}` : normalized);
   }
 
   if (isExternalThirdPartyImage(normalized, isBrowser ? window.location.host : undefined)) {
     const encoded = encodeURIComponent(normalized);
-    return isOnCanonicalDomain || !isBrowser
-      ? `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
-      : `${IMAGE_PROXY_ROUTE}?url=${encoded}`;
+    return appendWidth(
+      isOnCanonicalDomain || !isBrowser
+        ? `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
+        : `${IMAGE_PROXY_ROUTE}?url=${encoded}`
+    );
   }
 
-  return normalized;
+  return appendWidth(normalized);
 }
 
 /**

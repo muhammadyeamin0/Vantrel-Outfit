@@ -7,9 +7,10 @@ import { Heart, ShoppingBag, Star, Zap, Check } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
+  priority?: boolean;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, priority = false }) => {
   const {
     openProductDetail,
     addToCart,
@@ -60,11 +61,12 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product }) 
       {/* Boxy Square Image Container (Daraz Style) */}
       <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border-b border-white/5">
         <img
-          src={toDisplayImageUrl(product.images[0])}
+          src={toDisplayImageUrl(product.images[0], 560)}
           alt={`${product.name} - ${product.category} by ${product.brand || 'VANTREL OUTFIT'}`}
           width={500}
           height={500}
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
           decoding="async"
           onError={handleProxyImageError}
           referrerPolicy="no-referrer"

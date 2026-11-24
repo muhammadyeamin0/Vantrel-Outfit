@@ -452,8 +452,8 @@ export const ShopPage: React.FC = () => {
               <div className="space-y-8">
                 <h2 className="sr-only">Product Catalog</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                  {filteredProducts.slice(0, visibleCount).map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                  {filteredProducts.slice(0, visibleCount).map((product, idx) => (
+                    <ProductCard key={product.id} product={product} priority={idx < 4} />
                   ))}
                 </div>
 

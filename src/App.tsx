@@ -44,25 +44,27 @@ const MainContent: React.FC = () => {
   } = useStore();
   const [mountChatWidget, setMountChatWidget] = useState(false);
 
-  // Prefetch likely next routes & defer non-critical chat widget during browser idle time
+  // Prefetch secondary routes & mount non-critical chat widget on user interaction or post-load idle
   useEffect(() => {
-    const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const preload = () => {
+    if (isSearchCrawler()) return;
+    let triggered = false;
+    const triggerPreload = () => {
+      if (triggered) return;
+      triggered = true;
       import('./pages/ShopPage').catch(() => {});
       import('./pages/ProductDetailPage').catch(() => {});
       import('./components/CartDrawer').catch(() => {});
       setMountChatWidget(true);
     };
 
-    if (typeof win.requestIdleCallback === 'function') {
-      const idleId = win.requestIdleCallback(preload, { timeout: 2000 });
-      return () => win.cancelIdleCallback?.(idleId);
-    }
-    const timer = window.setTimeout(preload, 1200);
-    return () => window.clearTimeout(timer);
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((ev) => window.addEventListener(ev, triggerPreload, { once: true, passive: true }));
+    const timer = window.setTimeout(triggerPreload, 6000);
+
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, triggerPreload));
+    };
   }, []);
 
   const renderPage = () => {
@@ -146,8 +148,18 @@ export default function App() {
 
   useEffect(() => {
     if (isSearchCrawler()) return;
-    const timer = window.setTimeout(() => setMountAnalytics(true), 2500);
-    return () => window.clearTimeout(timer);
+    let mounted = true;
+    const enable = () => {
+      if (mounted) setMountAnalytics(true);
+    };
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((ev) => window.addEventListener(ev, enable, { once: true, passive: true }));
+    const timer = window.setTimeout(enable, 5500);
+    return () => {
+      mounted = false;
+      window.clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, enable));
+    };
   }, []);
 
   return (

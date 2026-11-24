@@ -13,8 +13,8 @@ type VercelRes = ServerResponse & {
 };
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
-const CACHE_TTL_MS = 10 * 60 * 1000;
-const CACHE_MAX_ITEMS = 60;
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const CACHE_MAX_ITEMS = 120;
 const CACHE_MAX_ITEM_BYTES = 1.5 * 1024 * 1024;
 
 interface CacheEntry {
@@ -25,6 +25,47 @@ interface CacheEntry {
 }
 
 const MEMORY_CACHE = new Map<string, CacheEntry>();
+
+let sharpLoader: Promise<((input: Buffer) => any) | null> | null = null;
+async function getSharp(): Promise<((input: Buffer) => any) | null> {
+  if (!sharpLoader) {
+    sharpLoader = import('sharp')
+      .then((m) => (m.default || m) as unknown as (input: Buffer) => any)
+      .catch(() => null);
+  }
+  return sharpLoader;
+}
+
+async function optimizeProxyBuffer(
+  rawBuffer: Buffer,
+  contentType: string,
+  targetWidth: number,
+  wantsWebp: boolean
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const lowerCt = contentType.toLowerCase();
+  if (lowerCt.includes('svg') || lowerCt.includes('gif')) {
+    return { buffer: rawBuffer, contentType };
+  }
+  if (!wantsWebp && !targetWidth && rawBuffer.length <= 120 * 1024) {
+    return { buffer: rawBuffer, contentType };
+  }
+  try {
+    const sharpFn = await getSharp();
+    if (!sharpFn) return { buffer: rawBuffer, contentType };
+    let pipeline = sharpFn(rawBuffer).rotate();
+    if (targetWidth > 0) {
+      pipeline = pipeline.resize({ width: targetWidth, withoutEnlargement: true });
+    }
+    if (wantsWebp) {
+      const out = await pipeline.webp({ quality: 78, effort: 3 }).toBuffer();
+      return { buffer: out, contentType: 'image/webp' };
+    }
+    const out = await pipeline.toBuffer();
+    return { buffer: out, contentType };
+  } catch {
+    return { buffer: rawBuffer, contentType };
+  }
+}
 
 function normalizeInputUrl(rawInput: string): string {
   const trimmed = String(rawInput || '').trim();
@@ -184,8 +225,10 @@ function writeProxyHeaders(res: VercelRes, contentType: string, contentLength: n
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Length', String(contentLength));
   res.setHeader('ETag', etag);
-  res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
-  res.setHeader('CDN-Cache-Control', 'public, s-maxage=604800');
+  res.setHeader('Vary', 'Accept');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+  res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
+  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('X-Robots-Tag', 'all');
@@ -235,11 +278,30 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     return;
   }
 
+  let rawWidthParam = '';
+  const queryW = req.query?.w;
+  if (typeof queryW === 'string') {
+    rawWidthParam = queryW;
+  } else if (Array.isArray(queryW) && typeof queryW[0] === 'string') {
+    rawWidthParam = queryW[0];
+  } else if (req.url) {
+    try {
+      rawWidthParam = new URL(req.url, 'https://www.vantreloutfit.shop').searchParams.get('w') || '';
+    } catch {
+      rawWidthParam = '';
+    }
+  }
+  const parsedW = parseInt(rawWidthParam, 10);
+  const targetWidth = Number.isFinite(parsedW) && parsedW > 0 ? Math.min(1400, Math.max(120, parsedW)) : 0;
+  const acceptHeader = String(req.headers['accept'] || '').toLowerCase();
+  const wantsWebp = acceptHeader.includes('image/webp') || acceptHeader.includes('image/avif') || targetWidth > 0;
+
+  const cacheKey = `${targetUrl}|w=${targetWidth}|webp=${wantsWebp ? 1 : 0}`;
   const now = Date.now();
-  const cached = MEMORY_CACHE.get(targetUrl);
+  const cached = MEMORY_CACHE.get(cacheKey);
   if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
-    MEMORY_CACHE.delete(targetUrl);
-    MEMORY_CACHE.set(targetUrl, cached);
+    MEMORY_CACHE.delete(cacheKey);
+    MEMORY_CACHE.set(cacheKey, cached);
     writeProxyHeaders(res, cached.contentType, cached.buffer.length, cached.etag);
     if (req.headers['if-none-match'] === cached.etag) {
       res.statusCode = 304;
@@ -270,15 +332,15 @@ export default async function handler(req: VercelReq, res: VercelRes) {
     }
 
     const arrayBuf = await upstream.arrayBuffer();
-    const buffer = Buffer.from(arrayBuf);
-    if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
+    const rawBuffer = Buffer.from(arrayBuf);
+    if (rawBuffer.length === 0 || rawBuffer.length > MAX_IMAGE_BYTES) {
       sendJsonError(res, 502, { success: false, error: 'Invalid or oversized image payload' });
       return;
     }
 
     let contentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (!contentType.startsWith('image/')) {
-      const sniffed = sniffImageMime(buffer);
+      const sniffed = sniffImageMime(rawBuffer);
       if (!sniffed) {
         sendJsonError(res, 502, {
           success: false,
@@ -290,13 +352,17 @@ export default async function handler(req: VercelReq, res: VercelRes) {
       contentType = sniffed;
     }
 
-    const etag = `"vt-${Buffer.from(targetUrl).toString('base64url').slice(0, 16)}-${buffer.length}"`;
+    const optimized = await optimizeProxyBuffer(rawBuffer, contentType, targetWidth, wantsWebp);
+    const buffer = optimized.buffer;
+    contentType = optimized.contentType;
+
+    const etag = `"vt-${Buffer.from(cacheKey).toString('base64url').slice(0, 16)}-${buffer.length}"`;
     if (buffer.length <= CACHE_MAX_ITEM_BYTES) {
       if (MEMORY_CACHE.size >= CACHE_MAX_ITEMS) {
         const oldestKey = MEMORY_CACHE.keys().next().value;
         if (oldestKey) MEMORY_CACHE.delete(oldestKey);
       }
-      MEMORY_CACHE.set(targetUrl, { buffer, contentType, etag, cachedAt: now });
+      MEMORY_CACHE.set(cacheKey, { buffer, contentType, etag, cachedAt: now });
     }
 
     writeProxyHeaders(res, contentType, buffer.length, etag);

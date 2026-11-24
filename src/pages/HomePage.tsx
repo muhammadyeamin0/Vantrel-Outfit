@@ -98,7 +98,7 @@ export const HomePage: React.FC = () => {
       title: item.title,
       category: item.category,
       productName: item.bestProduct.name,
-      image: toDisplayImageUrl(item.image)
+      image: toDisplayImageUrl(item.image, 560)
     }));
   }, [categories, products]);
 
@@ -130,7 +130,7 @@ export const HomePage: React.FC = () => {
       name: p.name,
       price: p.discountPrice || p.regularPrice,
       regularPrice: p.regularPrice,
-      image: toDisplayImageUrl(p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp'),
+      image: toDisplayImageUrl(p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp', 560),
       category: p.category,
       swatches: (p.colors && p.colors.length > 0)
         ? p.colors.map((c) => c.hex)
@@ -188,6 +188,12 @@ export const HomePage: React.FC = () => {
         <div className="absolute inset-0 z-0">
           <img
             src={activeSlide.bgImage}
+            srcSet={
+              currentSlide === 0
+                ? '/assets/images/hero_vantrel_mobile.webp 720w, /assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp 941w'
+                : undefined
+            }
+            sizes={currentSlide === 0 ? '(max-width: 768px) 100vw, 941px' : undefined}
             alt={`${activeSlide.title} - ${activeSlide.tagline1} (${activeSlide.categoryList})`}
             width={941}
             height={1672}

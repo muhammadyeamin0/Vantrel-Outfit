@@ -258,7 +258,7 @@ export const ProductDetailPage: React.FC = () => {
             >
               <img
                 itemProp="image"
-                src={toDisplayImageUrl(product.images[activeImageIndex] || product.images[0])}
+                src={toDisplayImageUrl(product.images[activeImageIndex] || product.images[0], 960)}
                 alt={`${product.name} - ${product.category}${product.fabric ? ` (${product.fabric})` : ''} | ${product.brand || 'VANTREL OUTFIT'}`}
                 width={800}
                 height={1000}
@@ -310,7 +310,7 @@ export const ProductDetailPage: React.FC = () => {
                   }`}
                 >
                   <img
-                    src={toDisplayImageUrl(img)}
+                    src={toDisplayImageUrl(img, 180)}
                     alt={`${product.name} - ${product.category} View ${idx + 1} | ${product.brand || 'VANTREL OUTFIT'}`}
                     width={80}
                     height={96}

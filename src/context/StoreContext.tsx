@@ -41,13 +41,6 @@ import {
 import { rewriteProductImagesToProxy, rewriteToCanonicalProxyUrl } from '../utils/imageProxy';
 import { isSearchCrawler, withTimeout } from '../utils/crawlerDetect';
 import { doesProductMatchCategory } from '../utils/categoryShowcase';
-import {
-  isWebpImageSource,
-  convertImageSourceToWebp,
-  PRODUCT_WEBP_MAX_WIDTH,
-  BANNER_WEBP_MAX_WIDTH,
-  DEFAULT_WEBP_QUALITY
-} from '../utils/webpConverter';
 import { buildCourierTrackingUrl } from '../utils/orderProgress';
 import { findProductByUrlParam } from '../utils/seoSlug';
 import {
@@ -56,26 +49,17 @@ import {
   trackMetaAddToCart,
   trackMetaPurchase
 } from '../utils/metaPixel';
-import { auth, db, IS_GOOGLE_CLOUD_CONNECTED, sanitizeFirestoreData } from '../firebase';
 import {
-  doc,
-  setDoc,
-  deleteDoc,
-  collection,
-  onSnapshot,
-  getDoc,
-  getDocs,
-  getDocFromServer,
-  writeBatch
-} from 'firebase/firestore';
-import {
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut as fbSignOut,
-  onAuthStateChanged,
-  setPersistence,
-  browserLocalPersistence
-} from 'firebase/auth';
+  IS_GOOGLE_CLOUD_CONNECTED,
+  getAuthModule,
+  getCurrentFirebaseUserSync,
+  getFirebaseAuth,
+  getFirebaseDb,
+  getFirestoreModule,
+  sanitizeFirestoreData,
+  signInWithGooglePopup,
+  signOutFirebase
+} from '../firebase';
 
 export enum OperationType {
   CREATE = 'create',
@@ -214,15 +198,16 @@ export function sanitizeProductSizes(prod: Product): Product {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const activeUser = getCurrentFirebaseUserSync();
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth?.currentUser?.uid,
-      email: auth?.currentUser?.email,
-      emailVerified: auth?.currentUser?.emailVerified,
-      isAnonymous: auth?.currentUser?.isAnonymous,
-      tenantId: auth?.currentUser?.tenantId,
-      providerInfo: auth?.currentUser?.providerData?.map((provider: any) => ({
+      userId: activeUser?.uid,
+      email: activeUser?.email,
+      emailVerified: activeUser?.emailVerified,
+      isAnonymous: activeUser?.isAnonymous,
+      tenantId: activeUser?.tenantId,
+      providerInfo: activeUser?.providerData?.map((provider: any) => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
@@ -824,14 +809,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [currentStaffRole, setCurrentStaffRole] = useState<StaffRole>('Super Admin');
-  const [firebaseAuthLoaded, setFirebaseAuthLoaded] = useState(() => Boolean(auth?.currentUser));
-  const [isFirebaseAdminAuthenticated, setIsFirebaseAdminAuthenticated] = useState(() =>
-    Boolean(
-      auth?.currentUser &&
-        auth.currentUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-        auth.currentUser.emailVerified
-    )
-  );
+  const [firebaseAuthLoaded, setFirebaseAuthLoaded] = useState(() => Boolean(getCurrentFirebaseUserSync()));
+  const [isFirebaseAdminAuthenticated, setIsFirebaseAdminAuthenticated] = useState(() => {
+    const syncUser = getCurrentFirebaseUserSync();
+    return Boolean(
+      syncUser &&
+        syncUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        syncUser.emailVerified
+    );
+  });
 
   // SMS Logs & Templates
   const [smsLogs, setSmsLogs] = useState<SmsLog[]>(() => {
@@ -1067,20 +1053,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getAdminAuthHeaders = useCallback(async (extraHeaders?: Record<string, string>) => {
     const headers: Record<string, string> = { ...(extraHeaders || {}) };
-    if (auth) {
-      try {
-        if (typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
-          await (auth as { authStateReady: () => Promise<void> }).authStateReady();
-        }
-        if (auth.currentUser) {
-          const token = await auth.currentUser.getIdToken();
-          if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-          }
-        }
-      } catch {
-        // Proceed without bearer token
+    try {
+      const fbAuth = await getFirebaseAuth();
+      if (typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+        await (fbAuth as { authStateReady: () => Promise<void> }).authStateReady();
       }
+      if (fbAuth.currentUser) {
+        const token = await fbAuth.currentUser.getIdToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+    } catch {
+      // Proceed without bearer token
     }
     return headers;
   }, []);
@@ -1113,19 +1098,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Validate Firestore server connectivity strictly when authenticated Admin enters Admin Dashboard
   useEffect(() => {
+    const syncUser = getCurrentFirebaseUserSync();
     if (
       currentPage !== 'admin' ||
       !IS_GOOGLE_CLOUD_CONNECTED ||
-      !db ||
       isSearchCrawler() ||
-      auth?.currentUser?.email?.toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
-      !auth?.currentUser?.emailVerified
+      syncUser?.email?.toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
+      !syncUser?.emailVerified
     ) {
       return;
     }
     let cancelled = false;
     async function testConnection() {
       try {
+        const [db, { doc, getDocFromServer }] = await Promise.all([
+          getFirebaseDb(),
+          getFirestoreModule()
+        ]);
+        if (cancelled) return;
         await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 4000, 'Connection check timed out');
       } catch (error) {
         if (!cancelled && error instanceof Error && error.message.includes('the client is offline')) {
@@ -1137,7 +1127,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       cancelled = true;
     };
-  }, [currentPage, currentUser?.email]);
+  }, [currentPage, currentUser?.email, isFirebaseAdminAuthenticated]);
 
   // Public Storefront Products Loading: Uses embedded SSR catalog or clean /api/products REST endpoint
   // (Eliminates client-side Firestore Listen/channel WebChannel XHR streams during Googlebot indexing & public visits)
@@ -1301,12 +1291,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } catch (err) {
         // Emergency Firestore fallback ONLY for non-crawler browser sessions if /api/products fails
-        if (!isMounted || isSearchCrawler() || !IS_GOOGLE_CLOUD_CONNECTED || !db) {
+        if (!isMounted || isSearchCrawler() || !IS_GOOGLE_CLOUD_CONNECTED) {
           if (isMounted) setIsProductsLoading(false);
           console.warn('Products API load notice:', err);
           return;
         }
         try {
+          const [db, { collection, getDocs }] = await Promise.all([
+            getFirebaseDb(),
+            getFirestoreModule()
+          ]);
           const snapshot = await withTimeout(
             getDocs(collection(db, 'products')),
             5000,
@@ -1344,130 +1338,176 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       loadFromProductsApi();
     }
 
-    if (IS_GOOGLE_CLOUD_CONNECTED && db && !isSearchCrawler()) {
-      getDoc(doc(db, 'settings', 'categories'))
-        .then((snap) => {
-          if (!isMounted || hasLocalCategoryMutationRef.current || !snap.exists()) return;
-          const data = snap.data() as { list?: unknown; deleted?: unknown };
-          const remoteDeleted = Array.isArray(data.deleted)
-            ? data.deleted.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean)
-            : [];
-          deletedCategoriesRef.current = remoteDeleted;
-          setDeletedCategories(remoteDeleted);
-          localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(remoteDeleted));
+    // Defer secondary Firestore settings/categories sync on public pages until interaction or idle
+    // so vendor-firebase (179 KiB) stays completely off the initial FCP/LCP critical path.
+    let firestoreHydrateStarted = false;
+    let hydrateTimer: number | undefined;
+    const interactionEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
 
-          if (Array.isArray(data.list) && data.list.length > 0) {
-            const cleanList = data.list.map((c) => String(c || '').trim()).filter(Boolean);
-            const withAll = cleanList.some((c) => c.toLowerCase() === 'all')
-              ? cleanList
-              : ['All', ...cleanList];
-            categoriesRef.current = withAll;
-            setCategories(withAll);
-            localStorage.setItem('vt_categories_v2', JSON.stringify(withAll));
-          }
-        })
-        .catch((err) => {
-          console.warn('Firestore categories load notice:', err);
-        });
+    const hydrateRemoteSettings = async () => {
+      if (!isMounted || firestoreHydrateStarted || !IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) return;
+      firestoreHydrateStarted = true;
+      try {
+        const [db, { doc, getDoc }] = await Promise.all([
+          getFirebaseDb(),
+          getFirestoreModule()
+        ]);
+        if (!isMounted) return;
 
-      // Hydrate public storefront settings (Meta Pixel ID, announcement, delivery fees) non-blockingly
-      withTimeout(getDoc(doc(db, 'settings', 'store')), 4000, 'Public store settings timeout')
-        .then((snap) => {
-          if (!isMounted || !snap.exists()) return;
-          const remoteCfg = snap.data() as Partial<StoreSettings>;
-          setSettings((prev) => ({
-            ...prev,
-            metaPixelId: remoteCfg.metaPixelId ? sanitizeMetaPixelId(remoteCfg.metaPixelId) : prev.metaPixelId,
-            isMetaPixelEnabled:
-              typeof remoteCfg.isMetaPixelEnabled === 'boolean'
-                ? remoteCfg.isMetaPixelEnabled
-                : prev.isMetaPixelEnabled,
-            announcementText: remoteCfg.announcementText || prev.announcementText,
-            deliveryFeeInsideDhaka:
-              typeof remoteCfg.deliveryFeeInsideDhaka === 'number'
-                ? remoteCfg.deliveryFeeInsideDhaka
-                : prev.deliveryFeeInsideDhaka,
-            deliveryFeeDhakaSubArea:
-              typeof remoteCfg.deliveryFeeDhakaSubArea === 'number'
-                ? remoteCfg.deliveryFeeDhakaSubArea
-                : prev.deliveryFeeDhakaSubArea,
-            deliveryFeeOutsideDhaka:
-              typeof remoteCfg.deliveryFeeOutsideDhaka === 'number'
-                ? remoteCfg.deliveryFeeOutsideDhaka
-                : prev.deliveryFeeOutsideDhaka,
-            freeShippingThreshold:
-              typeof remoteCfg.freeShippingThreshold === 'number'
-                ? remoteCfg.freeShippingThreshold
-                : prev.freeShippingThreshold,
-            isBkashActive:
-              typeof remoteCfg.isBkashActive === 'boolean' ? remoteCfg.isBkashActive : prev.isBkashActive,
-            bKashStatus: remoteCfg.bKashStatus || prev.bKashStatus,
-            bKashMerchantNumber: remoteCfg.bKashMerchantNumber ?? prev.bKashMerchantNumber,
-            whatsapp: remoteCfg.whatsapp || prev.whatsapp,
-            address: remoteCfg.address || prev.address
-          }));
-        })
-        .catch(() => {
-          // Retain local settings cache seamlessly
-        });
+        getDoc(doc(db, 'settings', 'categories'))
+          .then((snap) => {
+            if (!isMounted || hasLocalCategoryMutationRef.current || !snap.exists()) return;
+            const data = snap.data() as { list?: unknown; deleted?: unknown };
+            const remoteDeleted = Array.isArray(data.deleted)
+              ? data.deleted.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean)
+              : [];
+            deletedCategoriesRef.current = remoteDeleted;
+            setDeletedCategories(remoteDeleted);
+            localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(remoteDeleted));
+
+            if (Array.isArray(data.list) && data.list.length > 0) {
+              const cleanList = data.list.map((c) => String(c || '').trim()).filter(Boolean);
+              const withAll = cleanList.some((c) => c.toLowerCase() === 'all')
+                ? cleanList
+                : ['All', ...cleanList];
+              categoriesRef.current = withAll;
+              setCategories(withAll);
+              localStorage.setItem('vt_categories_v2', JSON.stringify(withAll));
+            }
+          })
+          .catch((err) => {
+            console.warn('Firestore categories load notice:', err);
+          });
+
+        // Hydrate public storefront settings (Meta Pixel ID, announcement, delivery fees) non-blockingly
+        withTimeout(getDoc(doc(db, 'settings', 'store')), 4000, 'Public store settings timeout')
+          .then((snap) => {
+            if (!isMounted || !snap.exists()) return;
+            const remoteCfg = snap.data() as Partial<StoreSettings>;
+            setSettings((prev) => ({
+              ...prev,
+              metaPixelId: remoteCfg.metaPixelId ? sanitizeMetaPixelId(remoteCfg.metaPixelId) : prev.metaPixelId,
+              isMetaPixelEnabled:
+                typeof remoteCfg.isMetaPixelEnabled === 'boolean'
+                  ? remoteCfg.isMetaPixelEnabled
+                  : prev.isMetaPixelEnabled,
+              announcementText: remoteCfg.announcementText || prev.announcementText,
+              deliveryFeeInsideDhaka:
+                typeof remoteCfg.deliveryFeeInsideDhaka === 'number'
+                  ? remoteCfg.deliveryFeeInsideDhaka
+                  : prev.deliveryFeeInsideDhaka,
+              deliveryFeeDhakaSubArea:
+                typeof remoteCfg.deliveryFeeDhakaSubArea === 'number'
+                  ? remoteCfg.deliveryFeeDhakaSubArea
+                  : prev.deliveryFeeDhakaSubArea,
+              deliveryFeeOutsideDhaka:
+                typeof remoteCfg.deliveryFeeOutsideDhaka === 'number'
+                  ? remoteCfg.deliveryFeeOutsideDhaka
+                  : prev.deliveryFeeOutsideDhaka,
+              freeShippingThreshold:
+                typeof remoteCfg.freeShippingThreshold === 'number'
+                  ? remoteCfg.freeShippingThreshold
+                  : prev.freeShippingThreshold,
+              isBkashActive:
+                typeof remoteCfg.isBkashActive === 'boolean' ? remoteCfg.isBkashActive : prev.isBkashActive,
+              bKashStatus: remoteCfg.bKashStatus || prev.bKashStatus,
+              bKashMerchantNumber: remoteCfg.bKashMerchantNumber ?? prev.bKashMerchantNumber,
+              whatsapp: remoteCfg.whatsapp || prev.whatsapp,
+              address: remoteCfg.address || prev.address
+            }));
+          })
+          .catch(() => {
+            // Retain local settings cache seamlessly
+          });
+      } catch {
+        // Ignore deferred Firebase settings hydration error
+      }
+    };
+
+    if (IS_GOOGLE_CLOUD_CONNECTED && !isSearchCrawler()) {
+      const isAdminPath =
+        typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/admin');
+      if (isAdminPath) {
+        void hydrateRemoteSettings();
+      } else {
+        interactionEvents.forEach((ev) =>
+          window.addEventListener(ev, hydrateRemoteSettings, { once: true, passive: true })
+        );
+        hydrateTimer = window.setTimeout(hydrateRemoteSettings, 5800);
+      }
     }
 
     return () => {
       isMounted = false;
+      if (hydrateTimer) window.clearTimeout(hydrateTimer);
+      interactionEvents.forEach((ev) => window.removeEventListener(ev, hydrateRemoteSettings));
     };
   }, []);
 
   // Scoped Real-Time Firestore Products Sync: Only active inside Admin Dashboard for non-crawler sessions
   useEffect(() => {
-    if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) {
+    if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) {
       return;
     }
 
     let isMounted = true;
-    const productsCol = collection(db, 'products');
+    let unsubscribe: (() => void) | undefined;
 
-    const unsubscribe = onSnapshot(
-      productsCol,
-      (snapshot) => {
+    (async () => {
+      try {
+        const [db, { collection, onSnapshot }] = await Promise.all([
+          getFirebaseDb(),
+          getFirestoreModule()
+        ]);
         if (!isMounted) return;
-        if (snapshot.empty) {
-          if (snapshot.metadata.fromCache) return;
-          setProducts([]);
-          return;
-        }
+        const productsCol = collection(db, 'products');
 
-        const remoteProducts: Product[] = [];
-        snapshot.forEach((docSnap) => {
-          if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-          const data = docSnap.data() as Product;
-          remoteProducts.push(
-            sanitizeProductSizes({
-              ...data,
-              id: docSnap.id,
-              isArchived: Boolean(data.isArchived || data.status === 'archived')
-            })
-          );
-        });
+        unsubscribe = onSnapshot(
+          productsCol,
+          (snapshot) => {
+            if (!isMounted) return;
+            if (snapshot.empty) {
+              if (snapshot.metadata.fromCache) return;
+              setProducts([]);
+              return;
+            }
 
-        remoteProducts.sort((a, b) => {
-          if (a.isPinned && !b.isPinned) return -1;
-          if (!a.isPinned && b.isPinned) return 1;
-          if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
-            return a.sortOrder - b.sortOrder;
+            const remoteProducts: Product[] = [];
+            snapshot.forEach((docSnap) => {
+              if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+              const data = docSnap.data() as Product;
+              remoteProducts.push(
+                sanitizeProductSizes({
+                  ...data,
+                  id: docSnap.id,
+                  isArchived: Boolean(data.isArchived || data.status === 'archived')
+                })
+              );
+            });
+
+            remoteProducts.sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+                return a.sortOrder - b.sortOrder;
+              }
+              return 0;
+            });
+
+            setProducts(dedupeProductsById(remoteProducts));
+          },
+          (error) => {
+            console.warn('Admin Firestore products sync notice:', error.message);
           }
-          return 0;
-        });
-
-        setProducts(dedupeProductsById(remoteProducts));
-      },
-      (error) => {
-        console.warn('Admin Firestore products sync notice:', error.message);
+        );
+      } catch (e) {
+        console.warn('Admin Firestore products sync init notice:', e);
       }
-    );
+    })();
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, [currentPage]);
 
@@ -1505,11 +1545,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const staticWebpAuditDoneRef = useRef(false);
   useEffect(() => {
+    const syncUser = getCurrentFirebaseUserSync();
     const isAdminContext =
       currentPage === 'admin' ||
       isFirebaseAdminAuthenticated ||
-      (auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-        Boolean(auth?.currentUser?.emailVerified));
+      (syncUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        Boolean(syncUser?.emailVerified));
 
     if (!isAdminContext || staticWebpAuditDoneRef.current || isSearchCrawler() || typeof window === 'undefined') {
       return;
@@ -1519,6 +1560,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const timer = window.setTimeout(async () => {
       try {
+        const {
+          isWebpImageSource,
+          convertImageSourceToWebp,
+          PRODUCT_WEBP_MAX_WIDTH,
+          BANNER_WEBP_MAX_WIDTH,
+          DEFAULT_WEBP_QUALITY
+        } = await import('../utils/webpConverter');
+        if (cancelled) return;
+
         // 1. Check Store Logo in settings
         if (
           settings.logoUrl &&
@@ -1616,11 +1666,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const productWebpMigrationRunningRef = useRef(false);
   const productWebpCheckedSigRef = useRef<Map<string, string>>(new Map());
   useEffect(() => {
+    const syncUser = getCurrentFirebaseUserSync();
     const isAdminContext =
       currentPage === 'admin' ||
       isFirebaseAdminAuthenticated ||
-      (auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-        Boolean(auth?.currentUser?.emailVerified));
+      (syncUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        Boolean(syncUser?.emailVerified));
 
     if (
       !isAdminContext ||
@@ -1632,31 +1683,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const candidates = products.filter((p) => {
-      if (!Array.isArray(p.images) || p.images.length === 0) return false;
-      const sig = p.images.join('|');
-      if (productWebpCheckedSigRef.current.get(p.id) === sig) return false;
-      return p.images.some((img) => {
-        if (!img || isWebpImageSource(img) || webpSkippedUrlsRef.current.has(img)) return false;
-        return true;
-      });
-    });
-
-    const queue = candidates;
-    if (queue.length === 0) return;
-
     let cancelled = false;
-    const delayMs = isAdminContext ? 1200 : 2800;
+    const delayMs = 1200;
 
     const timer = window.setTimeout(async () => {
       if (cancelled || productWebpMigrationRunningRef.current) return;
       productWebpMigrationRunningRef.current = true;
 
       try {
+        const {
+          isWebpImageSource,
+          convertImageSourceToWebp,
+          PRODUCT_WEBP_MAX_WIDTH,
+          DEFAULT_WEBP_QUALITY
+        } = await import('../utils/webpConverter');
+        if (cancelled) return;
+
+        const queue = products.filter((p) => {
+          if (!Array.isArray(p.images) || p.images.length === 0) return false;
+          const sig = p.images.join('|');
+          if (productWebpCheckedSigRef.current.get(p.id) === sig) return false;
+          return p.images.some((img) => {
+            if (!img || isWebpImageSource(img) || webpSkippedUrlsRef.current.has(img)) return false;
+            return true;
+          });
+        });
+        if (queue.length === 0) return;
+
+        const fbUser = getCurrentFirebaseUserSync();
         const canWriteFirestore =
-          Boolean(db) &&
-          auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-          Boolean(auth?.currentUser?.emailVerified);
+          fbUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+          Boolean(fbUser?.emailVerified);
+        const [db, firestoreMod] = canWriteFirestore
+          ? await Promise.all([getFirebaseDb(), getFirestoreModule()])
+          : [null, null];
         const adminHeaders = isAdminContext
           ? await getAdminAuthHeaders({ 'Content-Type': 'application/json' })
           : null;
@@ -1679,7 +1739,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const originalSig = (prod.images || []).join('|');
               productWebpCheckedSigRef.current.set(prod.id, originalSig);
 
-              // Guard localStorage (~5MB cap) when not writing to Firestore/server permanently
               if (!isAdminContext && approxProductsBytes > 3_200_000) {
                 return;
               }
@@ -1715,7 +1774,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const payload = sanitizeFirestoreData(updatedProd);
               const payloadBytes = new Blob([JSON.stringify(payload)]).size;
               if (payloadBytes > 950_000) {
-                // Skip persisting oversized multi-image document to protect Firestore 1MB limit
                 return;
               }
 
@@ -1724,9 +1782,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 prev.map((item) => (item.id === prod.id ? { ...item, images: nextImages } : item))
               );
 
-              if (canWriteFirestore && db) {
+              if (canWriteFirestore && db && firestoreMod) {
                 try {
-                  await setDoc(doc(db, 'products', prod.id), payload, { merge: true });
+                  await firestoreMod.setDoc(firestoreMod.doc(db, 'products', prod.id), payload, { merge: true });
                 } catch {
                   // Ignore Firestore permission/network error cleanly
                 }
@@ -1812,39 +1870,46 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Real-time orders stream is scoped strictly to Admin Dashboard
     let firestoreUnsub: (() => void) | undefined;
-    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
-      try {
-        const ordersCol = collection(db, 'orders');
-        firestoreUnsub = onSnapshot(
-          ordersCol,
-          (snapshot) => {
-            if (!isMounted || snapshot.empty) return;
-            const remoteOrders: Order[] = [];
-            snapshot.forEach((docSnap) => {
-              const remote = docSnap.data() as Order;
-              remoteOrders.push({ ...remote, id: docSnap.id });
-            });
-            remoteOrders.sort(
-              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            );
-            const nextSig = remoteOrders
-              .map(
-                (o) =>
-                  `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
-              )
-              .join('|');
-            if (nextSig !== lastSig) {
-              lastSig = nextSig;
-              setOrders(remoteOrders);
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      (async () => {
+        try {
+          const [db, { collection, onSnapshot }] = await Promise.all([
+            getFirebaseDb(),
+            getFirestoreModule()
+          ]);
+          if (!isMounted) return;
+          const ordersCol = collection(db, 'orders');
+          firestoreUnsub = onSnapshot(
+            ordersCol,
+            (snapshot) => {
+              if (!isMounted || snapshot.empty) return;
+              const remoteOrders: Order[] = [];
+              snapshot.forEach((docSnap) => {
+                const remote = docSnap.data() as Order;
+                remoteOrders.push({ ...remote, id: docSnap.id });
+              });
+              remoteOrders.sort(
+                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              );
+              const nextSig = remoteOrders
+                .map(
+                  (o) =>
+                    `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
+                )
+                .join('|');
+              if (nextSig !== lastSig) {
+                lastSig = nextSig;
+                setOrders(remoteOrders);
+              }
+            },
+            (error) => {
+              console.warn('Firestore orders onSnapshot notice:', error.message);
             }
-          },
-          (error) => {
-            console.warn('Firestore orders onSnapshot notice:', error.message);
-          }
-        );
-      } catch (e) {
-        console.warn('Firestore orders sync notice:', e);
-      }
+          );
+        } catch (e) {
+          console.warn('Firestore orders sync notice:', e);
+        }
+      })();
     }
 
     return () => {
@@ -1854,99 +1919,178 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [currentPage, currentUser?.email, currentUser?.emailVerified, getAdminAuthHeaders]);
 
-  // Listen to Firebase Auth state changes once on mount (skipped for search crawlers)
+  // Listen to Firebase Auth state changes lazily (deferred on public storefront unless prior session or auth route)
+  const firebaseAuthListenerAttachedRef = useRef(false);
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth || isSearchCrawler()) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler() || firebaseAuthListenerAttachedRef.current) return;
     let mounted = true;
+    let unsubscribe: (() => void) | undefined;
+    let delayTimer: number | undefined;
+    const interactionEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
 
-    const authWithReady = auth as typeof auth & { authStateReady?: () => Promise<void> };
-    if (typeof authWithReady.authStateReady === 'function') {
-      void authWithReady.authStateReady().then(() => {
+    const attachAuthListener = async () => {
+      if (!mounted || firebaseAuthListenerAttachedRef.current) return;
+      firebaseAuthListenerAttachedRef.current = true;
+      try {
+        const [fbAuth, { onAuthStateChanged }] = await Promise.all([
+          getFirebaseAuth(),
+          getAuthModule()
+        ]);
         if (!mounted) return;
-        const activeUser = auth.currentUser;
-        const isSuperAdminAccount = Boolean(
-          activeUser &&
-            activeUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-            activeUser.emailVerified
-        );
-        setIsFirebaseAdminAuthenticated(isSuperAdminAccount);
-        setFirebaseAuthLoaded(true);
-      }).catch(() => {
+
+        const authWithReady = fbAuth as typeof fbAuth & { authStateReady?: () => Promise<void> };
+        if (typeof authWithReady.authStateReady === 'function') {
+          void authWithReady.authStateReady().then(() => {
+            if (!mounted) return;
+            const activeUser = fbAuth.currentUser;
+            const isSuperAdminAccount = Boolean(
+              activeUser &&
+                activeUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+                activeUser.emailVerified
+            );
+            setIsFirebaseAdminAuthenticated(isSuperAdminAccount);
+            setFirebaseAuthLoaded(true);
+          }).catch(() => {
+            if (mounted) setFirebaseAuthLoaded(true);
+          });
+        }
+
+        unsubscribe = onAuthStateChanged(fbAuth, (fbUser) => {
+          if (!mounted) return;
+          setFirebaseAuthLoaded(true);
+          if (fbUser) {
+            try {
+              localStorage.setItem('vt_has_fb_session', '1');
+            } catch {
+              // ignore storage error
+            }
+          }
+          const isSuperAdminAccount = Boolean(
+            fbUser &&
+              fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+              fbUser.emailVerified
+          );
+          setIsFirebaseAdminAuthenticated(isSuperAdminAccount);
+
+          if (fbUser) {
+            setCurrentUser((prev) => {
+              if (
+                prev &&
+                prev.id === fbUser.uid &&
+                (!isSuperAdminAccount || prev.role === 'Super Admin')
+              ) {
+                return prev;
+              }
+              const userObj: User = {
+                id: fbUser.uid,
+                name: fbUser.displayName || prev?.name || (isSuperAdminAccount ? 'Muhammad Yeamin (Super Admin)' : 'VANTREL Member'),
+                email: fbUser.email || prev?.email || '',
+                phone: fbUser.phoneNumber || prev?.phone || '',
+                role: isSuperAdminAccount ? 'Super Admin' : (prev?.role || 'customer'),
+                joinedDate: prev?.joinedDate || new Date().toISOString().split('T')[0],
+                totalOrders: prev?.totalOrders || 0,
+                totalSpent: prev?.totalSpent || 0,
+                status: 'Active',
+                loyaltyPoints: prev?.loyaltyPoints || 100,
+                referralCode: prev?.referralCode || `VT-REF-${Math.floor(1000 + Math.random() * 9000)}`,
+                isVerified: Boolean(fbUser.emailVerified || fbUser.phoneNumber),
+                emailVerified: Boolean(fbUser.emailVerified),
+                phoneVerified: Boolean(fbUser.phoneNumber),
+                verificationMethod: 'google',
+                verifiedAt: new Date().toISOString(),
+                verificationCertificateId: prev?.verificationCertificateId || `VT-CERT-${Math.floor(100000 + Math.random() * 900000)}`,
+                savedAddresses: prev?.savedAddresses || []
+              };
+              return userObj;
+            });
+          }
+        });
+      } catch {
         if (mounted) setFirebaseAuthLoaded(true);
-      });
+      }
+    };
+
+    const hasPriorSession = (() => {
+      try {
+        return localStorage.getItem('vt_has_fb_session') === '1';
+      } catch {
+        return false;
+      }
+    })();
+
+    const shouldInitImmediately =
+      currentPage === 'admin' ||
+      currentPage === 'account' ||
+      currentPage === 'checkout' ||
+      hasPriorSession ||
+      (typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/admin'));
+
+    if (shouldInitImmediately) {
+      void attachAuthListener();
+    } else {
+      interactionEvents.forEach((ev) =>
+        window.addEventListener(ev, attachAuthListener, { once: true, passive: true })
+      );
+      delayTimer = window.setTimeout(attachAuthListener, 5800);
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      if (!mounted) return;
-      setFirebaseAuthLoaded(true);
-      const isSuperAdminAccount = Boolean(
-        fbUser &&
-          fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-          fbUser.emailVerified
-      );
-      setIsFirebaseAdminAuthenticated(isSuperAdminAccount);
-
-      if (fbUser) {
-        setCurrentUser((prev) => {
-          if (
-            prev &&
-            prev.id === fbUser.uid &&
-            (!isSuperAdminAccount || prev.role === 'Super Admin')
-          ) {
-            return prev;
-          }
-          const userObj: User = {
-            id: fbUser.uid,
-            name: fbUser.displayName || prev?.name || (isSuperAdminAccount ? 'Muhammad Yeamin (Super Admin)' : 'VANTREL Member'),
-            email: fbUser.email || prev?.email || '',
-            phone: fbUser.phoneNumber || prev?.phone || '',
-            role: isSuperAdminAccount ? 'Super Admin' : (prev?.role || 'customer'),
-            joinedDate: prev?.joinedDate || new Date().toISOString().split('T')[0],
-            totalOrders: prev?.totalOrders || 0,
-            totalSpent: prev?.totalSpent || 0,
-            status: 'Active',
-            loyaltyPoints: prev?.loyaltyPoints || 100,
-            referralCode: prev?.referralCode || `VT-REF-${Math.floor(1000 + Math.random() * 9000)}`,
-            isVerified: Boolean(fbUser.emailVerified || fbUser.phoneNumber),
-            emailVerified: Boolean(fbUser.emailVerified),
-            phoneVerified: Boolean(fbUser.phoneNumber),
-            verificationMethod: 'google',
-            verifiedAt: new Date().toISOString(),
-            verificationCertificateId: prev?.verificationCertificateId || `VT-CERT-${Math.floor(100000 + Math.random() * 900000)}`,
-            savedAddresses: prev?.savedAddresses || []
-          };
-          return userObj;
-        });
-      }
-    });
     return () => {
       mounted = false;
-      unsubscribe();
+      if (delayTimer) window.clearTimeout(delayTimer);
+      interactionEvents.forEach((ev) => window.removeEventListener(ev, attachAuthListener));
+      if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [currentPage]);
 
   // Real-time Firestore Wishlist Sync for authenticated / logged-in user (human sessions only)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !db || isSearchCrawler()) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) return;
+    let hasSessionFlag = false;
+    try {
+      hasSessionFlag = localStorage.getItem('vt_has_fb_session') === '1';
+    } catch {
+      hasSessionFlag = false;
+    }
+    const syncUid = getCurrentFirebaseUserSync()?.uid;
+    if (!syncUid && !hasSessionFlag) return;
 
-    const firebaseUid = auth?.currentUser?.uid;
-    if (!firebaseUid) return;
+    let mounted = true;
+    let unsubscribe: (() => void) | undefined;
 
-    const wishlistCol = collection(db, 'users', firebaseUid, 'wishlist');
-    const unsubscribe = onSnapshot(
-      wishlistCol,
-      (snapshot) => {
-        const itemIds = snapshot.docs.map((d) => d.id);
-        if (itemIds.length > 0 || !snapshot.metadata.fromCache) {
-          setWishlist(itemIds);
-        }
-      },
-      (error) => {
-        console.warn('Firestore wishlist sync notice:', error.message);
+    (async () => {
+      try {
+        const fbAuth = await getFirebaseAuth();
+        const firebaseUid = fbAuth.currentUser?.uid;
+        if (!mounted || !firebaseUid) return;
+
+        const [db, { collection, onSnapshot }] = await Promise.all([
+          getFirebaseDb(),
+          getFirestoreModule()
+        ]);
+        if (!mounted) return;
+
+        const wishlistCol = collection(db, 'users', firebaseUid, 'wishlist');
+        unsubscribe = onSnapshot(
+          wishlistCol,
+          (snapshot) => {
+            const itemIds = snapshot.docs.map((d) => d.id);
+            if (itemIds.length > 0 || !snapshot.metadata.fromCache) {
+              setWishlist(itemIds);
+            }
+          },
+          (error) => {
+            console.warn('Firestore wishlist sync notice:', error.message);
+          }
+        );
+      } catch (e) {
+        console.warn('Firestore wishlist sync init notice:', e);
       }
-    );
+    })();
 
-    return () => unsubscribe();
+    return () => {
+      mounted = false;
+      if (unsubscribe) unsubscribe();
+    };
   }, [currentUser?.id]);
 
   // Toast Handler
@@ -2321,11 +2465,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       exists ? 'info' : 'success'
     );
 
-    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
-      const firebaseUid = auth?.currentUser?.uid;
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      const firebaseUid = getCurrentFirebaseUserSync()?.uid;
       if (firebaseUid) {
         const docPath = `users/${firebaseUid}/wishlist/${productId}`;
         try {
+          const [db, { doc, deleteDoc, setDoc }] = await Promise.all([
+            getFirebaseDb(),
+            getFirestoreModule()
+          ]);
           if (exists) {
             await deleteDoc(doc(db, 'users', firebaseUid, 'wishlist', productId));
           } else {
@@ -2514,16 +2662,17 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
   const logFirestoreErrorInfo = useCallback(
     (error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo => {
+      const activeUser = getCurrentFirebaseUserSync();
       const errInfo: FirestoreErrorInfo = {
         error: error instanceof Error ? error.message : String(error),
         authInfo: {
-          userId: auth?.currentUser?.uid ?? null,
-          email: auth?.currentUser?.email ?? null,
-          emailVerified: auth?.currentUser?.emailVerified ?? null,
-          isAnonymous: auth?.currentUser?.isAnonymous ?? null,
-          tenantId: auth?.currentUser?.tenantId ?? null,
+          userId: activeUser?.uid ?? null,
+          email: activeUser?.email ?? null,
+          emailVerified: activeUser?.emailVerified ?? null,
+          isAnonymous: activeUser?.isAnonymous ?? null,
+          tenantId: activeUser?.tenantId ?? null,
           providerInfo:
-            auth?.currentUser?.providerData?.map((provider) => ({
+            activeUser?.providerData?.map((provider) => ({
               providerId: provider.providerId,
               email: provider.email
             })) || []
@@ -2561,8 +2710,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   const addProduct = async (
     newProd: Omit<Product, 'id' | 'createdDate'>
   ): Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }> => {
-    if (auth && typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
-      await (auth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
+    const fbAuth = await getFirebaseAuth().catch(() => null);
+    if (fbAuth && typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+      await (fbAuth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
     }
 
     const id = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -2636,8 +2786,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     let firestoreSynced = false;
     let firestoreErrMsg = '';
-    if (db) {
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
       try {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await setDoc(doc(db, 'products', product.id), payload);
         firestoreSynced = true;
       } catch (e) {
@@ -2698,8 +2849,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     id: string,
     updated: Partial<Product>
   ): Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }> => {
-    if (auth && typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
-      await (auth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
+    const fbAuth = await getFirebaseAuth().catch(() => null);
+    if (fbAuth && typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+      await (fbAuth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
     }
 
     const existingProduct = products.find((p) => p.id === id);
@@ -2749,8 +2901,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     let firestoreSynced = false;
     let firestoreErrMsg = '';
-    if (db) {
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
       try {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await setDoc(doc(db, 'products', id), firestoreDocPayload, { merge: true });
         firestoreSynced = true;
       } catch (e) {
@@ -2819,7 +2972,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // Save to Firebase Firestore
     try {
-      if (db) {
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         const payload = sanitizeFirestoreData(duplicated);
         await setDoc(doc(db, 'products', duplicated.id), payload);
       }
@@ -2858,7 +3012,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // Save directly to Firebase Firestore
     try {
-      if (db) {
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await setDoc(doc(db, 'products', id), archivePayload, { merge: true });
       }
     } catch (e) {
@@ -2896,7 +3051,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // Save directly to Firebase Firestore
     try {
-      if (db) {
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await setDoc(doc(db, 'products', id), restorePayload, { merge: true });
       }
     } catch (e) {
@@ -2927,7 +3083,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // Delete directly from Firebase Firestore
     try {
-      if (db) {
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        const [db, { doc, deleteDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await deleteDoc(doc(db, 'products', id));
       }
     } catch (e) {
@@ -2954,8 +3111,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     const idsToDelete = products.map((p) => p.id);
     setProducts([]);
 
-    if (db && idsToDelete.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && idsToDelete.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         for (let i = 0; i < idsToDelete.length; i += 450) {
           const chunk = idsToDelete.slice(i, i + 450);
           const batch = writeBatch(db);
@@ -2999,8 +3157,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     setProducts(updatedList);
 
-    if (db && updatedList.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && updatedList.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         for (let i = 0; i < updatedList.length; i += 450) {
           const chunk = updatedList.slice(i, i + 450);
           const batch = writeBatch(db);
@@ -3056,8 +3215,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       return copy;
     });
 
-    if (db && reordered.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && reordered.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         const batch = writeBatch(db);
         reordered.forEach((p, idx) => {
           batch.set(doc(db, 'products', p.id), { sortOrder: idx }, { merge: true });
@@ -3084,8 +3244,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       return copy;
     });
 
-    if (db && reordered.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && reordered.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         const batch = writeBatch(db);
         reordered.forEach((p, idx) => {
           batch.set(doc(db, 'products', p.id), { sortOrder: idx }, { merge: true });
@@ -3110,8 +3271,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       return reordered;
     });
 
-    if (db && reordered.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && reordered.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         const batch = writeBatch(db);
         reordered.forEach((p, idx) => {
           batch.set(doc(db, 'products', p.id), { sortOrder: idx }, { merge: true });
@@ -3141,7 +3303,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     });
 
     try {
-      if (db) {
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await setDoc(doc(db, 'products', id), { isPinned: willPin }, { merge: true });
       }
     } catch (e) {
@@ -3165,7 +3328,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     );
 
     try {
-      if (db) {
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await setDoc(doc(db, 'products', id), { isTopProduct: willBeTop }, { merge: true });
       }
     } catch (e) {
@@ -3224,25 +3388,30 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
   // Categories & Banners
   const syncCategoriesToFirestore = (nextList: ProductCategory[], nextDeleted: string[]) => {
+    const activeUser = getCurrentFirebaseUserSync();
     if (
       !IS_GOOGLE_CLOUD_CONNECTED ||
-      !db ||
-      auth?.currentUser?.email?.trim().toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
-      !auth?.currentUser?.emailVerified
+      activeUser?.email?.trim().toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
+      !activeUser?.emailVerified
     ) {
       return;
     }
-    setDoc(
-      doc(db, 'settings', 'categories'),
-      {
-        list: nextList,
-        deleted: nextDeleted,
-        updatedAt: new Date().toISOString()
-      },
-      { merge: true }
-    ).catch((err) => {
-      console.warn('Firestore categories sync notice:', err);
-    });
+    void (async () => {
+      try {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+        await setDoc(
+          doc(db, 'settings', 'categories'),
+          {
+            list: nextList,
+            deleted: nextDeleted,
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn('Firestore categories sync notice:', err);
+      }
+    })();
   };
 
   const addCategory = (name: ProductCategory) => {
@@ -3454,8 +3623,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       return reorderedFullList;
     });
 
-    if (db && reorderedFullList.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && reorderedFullList.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         const batch = writeBatch(db);
         reorderedFullList.forEach((p, idx) => {
           batch.set(doc(db, 'products', p.id), { sortOrder: idx }, { merge: true });
@@ -3484,8 +3654,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       })
     );
 
-    if (db && affectedProducts.length > 0) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && affectedProducts.length > 0) {
       try {
+        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         const batch = writeBatch(db);
         affectedProducts.forEach(({ id, nextVal }) => {
           batch.set(doc(db, 'products', id), { isCategoryShowcase: nextVal }, { merge: true });
@@ -3565,11 +3736,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
 
       // Persist public storefront config (never secrets!) to Firestore settings/store when authenticated as Admin
+      const activeUser = getCurrentFirebaseUserSync();
       if (
         IS_GOOGLE_CLOUD_CONNECTED &&
-        db &&
-        auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-        auth?.currentUser?.emailVerified
+        activeUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        activeUser?.emailVerified
       ) {
         const publicStorePayload = sanitizeFirestoreData({
           storeName: merged.storeName,
@@ -3588,9 +3759,14 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           isMetaPixelEnabled: merged.isMetaPixelEnabled ?? true,
           updatedAt: new Date().toISOString()
         });
-        setDoc(doc(db, 'settings', 'store'), publicStorePayload, { merge: true }).catch((err) => {
-          console.warn('Firestore public settings save notice:', err);
-        });
+        void (async () => {
+          try {
+            const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+            await setDoc(doc(db, 'settings', 'store'), publicStorePayload, { merge: true });
+          } catch (err) {
+            console.warn('Firestore public settings save notice:', err);
+          }
+        })();
       }
 
       return merged;
@@ -3816,18 +3992,19 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     // 2. Sync to Google Cloud Firestore orders collection
-    try {
-      if (db) {
-        const cleanOrderPayload = sanitizeFirestoreData({
-          ...newOrder,
-          savedToFirestoreAt: new Date().toISOString()
-        });
-        setDoc(doc(db, 'orders', newOrder.id), cleanOrderPayload).catch((err) => {
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      const cleanOrderPayload = sanitizeFirestoreData({
+        ...newOrder,
+        savedToFirestoreAt: new Date().toISOString()
+      });
+      void (async () => {
+        try {
+          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          await setDoc(doc(db, 'orders', newOrder.id), cleanOrderPayload);
+        } catch (err) {
           console.warn('Firestore order save background warning:', err);
-        });
-      }
-    } catch (e) {
-      console.warn('Firestore order save warning:', e);
+        }
+      })();
     }
 
     // 3. Automatically dispatch order notification to Gmail (muhammadeyamin0@gmail.com)
@@ -3945,20 +4122,23 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
 
       // Sync cancellation to Firestore
-      try {
-        if (db) {
-          setDoc(
-            doc(db, 'orders', orderId),
-            {
-              orderStatus: 'Cancelled',
-              cancellationReason: reason,
-              cancelledAt: new Date().toISOString()
-            },
-            { merge: true }
-          ).catch(() => {});
-        }
-      } catch (e) {
-        // silent
+      if (IS_GOOGLE_CLOUD_CONNECTED) {
+        void (async () => {
+          try {
+            const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+            await setDoc(
+              doc(db, 'orders', orderId),
+              {
+                orderStatus: 'Cancelled',
+                cancellationReason: reason,
+                cancelledAt: new Date().toISOString()
+              },
+              { merge: true }
+            );
+          } catch {
+            // silent
+          }
+        })();
       }
 
       sendOrderSms(order, 'order_cancelled');
@@ -4059,20 +4239,23 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       )
       .catch((err) => console.warn('Order approve backend sync notice:', err));
 
-    if (db) {
-      try {
-        setDoc(
-          doc(db, 'orders', order.id),
-          sanitizeFirestoreData({
-            orderStatus: 'Order Confirmed',
-            currentLocationNote: confirmNote,
-            statusHistory: nextHistory
-          }),
-          { merge: true }
-        ).catch((err) => console.warn('Firestore order approve notice:', err));
-      } catch {
-        // ignore Firestore sync error
-      }
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      void (async () => {
+        try {
+          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          await setDoc(
+            doc(db, 'orders', order.id),
+            sanitizeFirestoreData({
+              orderStatus: 'Order Confirmed',
+              currentLocationNote: confirmNote,
+              statusHistory: nextHistory
+            }),
+            { merge: true }
+          );
+        } catch (err) {
+          console.warn('Firestore order approve notice:', err);
+        }
+      })();
     }
 
     sendOrderSms(updatedOrder, 'order_confirmed');
@@ -4156,25 +4339,28 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       )
       .catch((err) => console.warn('Courier tracking backend sync notice:', err));
 
-    if (db) {
-      try {
-        setDoc(
-          doc(db, 'orders', order.id),
-          sanitizeFirestoreData({
-            orderStatus: nextStatus,
-            courierName: resolvedCourier,
-            trackingNumber: cleanCode,
-            courierTrackingCode: cleanCode,
-            trackingUrl,
-            trackingAssignedAt: assignedAt,
-            currentLocationNote: assignNote,
-            statusHistory: nextHistory
-          }),
-          { merge: true }
-        ).catch((err) => console.warn('Firestore courier tracking sync notice:', err));
-      } catch {
-        // ignore Firestore sync error
-      }
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      void (async () => {
+        try {
+          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          await setDoc(
+            doc(db, 'orders', order.id),
+            sanitizeFirestoreData({
+              orderStatus: nextStatus,
+              courierName: resolvedCourier,
+              trackingNumber: cleanCode,
+              courierTrackingCode: cleanCode,
+              trackingUrl,
+              trackingAssignedAt: assignedAt,
+              currentLocationNote: assignNote,
+              statusHistory: nextHistory
+            }),
+            { merge: true }
+          );
+        } catch (err) {
+          console.warn('Firestore courier tracking sync notice:', err);
+        }
+      })();
     }
 
     sendOrderSms(updatedOrder, 'order_shipped');
@@ -4246,20 +4432,23 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       )
       .catch((err) => console.warn('Order status backend sync notice:', err));
 
-    if (db) {
-      try {
-        setDoc(
-          doc(db, 'orders', order.id),
-          sanitizeFirestoreData({
-            orderStatus: status,
-            currentLocationNote: statusNote,
-            statusHistory: nextHistory
-          }),
-          { merge: true }
-        ).catch((err) => console.warn('Firestore order status sync notice:', err));
-      } catch {
-        // ignore Firestore sync error
-      }
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      void (async () => {
+        try {
+          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          await setDoc(
+            doc(db, 'orders', order.id),
+            sanitizeFirestoreData({
+              orderStatus: status,
+              currentLocationNote: statusNote,
+              statusHistory: nextHistory
+            }),
+            { merge: true }
+          );
+        } catch (err) {
+          console.warn('Firestore order status sync notice:', err);
+        }
+      })();
     }
 
     // Auto trigger specific SMS events
@@ -4297,19 +4486,22 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           }
         : prev
     );
-    if (db) {
-      try {
-        setDoc(
-          doc(db, 'orders', orderId),
-          sanitizeFirestoreData({
-            paymentStatus: status,
-            ...(transactionId ? { transactionId } : {})
-          }),
-          { merge: true }
-        ).catch(() => {});
-      } catch {
-        // ignore Firestore sync error
-      }
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      void (async () => {
+        try {
+          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          await setDoc(
+            doc(db, 'orders', orderId),
+            sanitizeFirestoreData({
+              paymentStatus: status,
+              ...(transactionId ? { transactionId } : {})
+            }),
+            { merge: true }
+          );
+        } catch {
+          // ignore Firestore sync error
+        }
+      })();
     }
     addAuditLog('PAYMENT_UPDATE', `Order payment updated to ${status}`);
     showToast('Payment Updated', `Payment marked as ${status}`, 'success');
@@ -4407,8 +4599,12 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     // 2. Purge from Firebase Firestore if connected
-    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
       try {
+        const [db, { collection, doc, getDocs, writeBatch }] = await Promise.all([
+          getFirebaseDb(),
+          getFirestoreModule()
+        ]);
         const snapshot = await getDocs(collection(db, 'orders'));
         if (!snapshot.empty) {
           const batch = writeBatch(db);
@@ -4442,8 +4638,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     // 2. Delete on Firestore
-    if (IS_GOOGLE_CLOUD_CONNECTED && db) {
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
       try {
+        const [db, { doc, deleteDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
         await deleteDoc(doc(db, 'orders', id));
       } catch (e) {
         console.warn('Firestore order delete error:', e);
@@ -4541,15 +4738,18 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
     // Real Google Firebase Popup Authentication
     if (provider === 'google' && !profileData) {
-      if (!IS_GOOGLE_CLOUD_CONNECTED || !auth) {
+      if (!IS_GOOGLE_CLOUD_CONNECTED) {
         showToast('Authentication Unavailable', 'Firebase authentication is not connected.', 'error');
         return null;
       }
       try {
-        await setPersistence(auth, browserLocalPersistence).catch(() => {});
-        const gProvider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, gProvider);
+        const result = await signInWithGooglePopup(false);
         const fbUser = result.user;
+        try {
+          localStorage.setItem('vt_has_fb_session', '1');
+        } catch {
+          // ignore storage error
+        }
         const isSuperAdminAccount =
           fbUser.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
           Boolean(fbUser.emailVerified);
@@ -4580,23 +4780,22 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           savedAddresses: []
         };
 
-        if (db) {
-          try {
-            await setDoc(
-              doc(db, 'users', fbUser.uid),
-              sanitizeFirestoreData({
-                id: fbUser.uid,
-                name: authenticatedUser.name,
-                email: authenticatedUser.email,
-                phone: authenticatedUser.phone,
-                role: authenticatedUser.role,
-                loyaltyPoints: authenticatedUser.loyaltyPoints
-              }),
-              { merge: true }
-            );
-          } catch (err) {
-            console.warn('Firestore user profile sync warning:', err);
-          }
+        try {
+          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          await setDoc(
+            doc(db, 'users', fbUser.uid),
+            sanitizeFirestoreData({
+              id: fbUser.uid,
+              name: authenticatedUser.name,
+              email: authenticatedUser.email,
+              phone: authenticatedUser.phone,
+              role: authenticatedUser.role,
+              loyaltyPoints: authenticatedUser.loyaltyPoints
+            }),
+            { merge: true }
+          );
+        } catch (err) {
+          console.warn('Firestore user profile sync warning:', err);
         }
 
         setCurrentUser(authenticatedUser);
@@ -4633,7 +4832,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     const phone = (profileData?.phone || '').trim();
 
     const verifiedUser: User = {
-      id: auth?.currentUser?.uid || `usr-${provider}-${Date.now()}`,
+      id: getCurrentFirebaseUserSync()?.uid || `usr-${provider}-${Date.now()}`,
       name,
       email,
       phone,
@@ -4762,7 +4961,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const signInAdminWithGoogle = async (): Promise<{ success: boolean; message?: string }> => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || !auth) {
+    if (!IS_GOOGLE_CLOUD_CONNECTED) {
       return {
         success: false,
         message: 'ফায়ারবেস অথেনটিকেশন কনফিগার করা নেই।'
@@ -4770,20 +4969,28 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     try {
-      await setPersistence(auth, browserLocalPersistence).catch(() => {});
-      const gProvider = new GoogleAuthProvider();
-      gProvider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, gProvider);
+      const result = await signInWithGooglePopup(true);
       const fbUser = result.user;
       const verifiedEmail = fbUser.email?.trim().toLowerCase() || '';
 
       if (verifiedEmail !== 'muhammadeyamin0@gmail.com' || !fbUser.emailVerified) {
-        await fbSignOut(auth).catch(() => {});
+        await signOutFirebase().catch(() => {});
+        try {
+          localStorage.removeItem('vt_has_fb_session');
+        } catch {
+          // ignore storage error
+        }
         setIsFirebaseAdminAuthenticated(false);
         return {
           success: false,
           message: `'${verifiedEmail || 'Unknown'}' ইমেইলটি অ্যাডমিন হিসেবে অনুমোদিত নয়। শুধুমাত্র ভেরিফাইড muhammadeyamin0@gmail.com দিয়ে প্রবেশ করুন।`
         };
+      }
+
+      try {
+        localStorage.setItem('vt_has_fb_session', '1');
+      } catch {
+        // ignore storage error
       }
 
       const adminUser: User = {
@@ -4801,23 +5008,22 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         verificationMethod: 'google'
       };
 
-      if (db) {
-        try {
-          await setDoc(
-            doc(db, 'users', fbUser.uid),
-            sanitizeFirestoreData({
-              id: fbUser.uid,
-              name: adminUser.name,
-              email: adminUser.email,
-              phone: adminUser.phone,
-              role: 'Super Admin',
-              loyaltyPoints: 0
-            }),
-            { merge: true }
-          );
-        } catch (err) {
-          console.warn('Admin profile Firestore sync notice:', err);
-        }
+      try {
+        const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+        await setDoc(
+          doc(db, 'users', fbUser.uid),
+          sanitizeFirestoreData({
+            id: fbUser.uid,
+            name: adminUser.name,
+            email: adminUser.email,
+            phone: adminUser.phone,
+            role: 'Super Admin',
+            loyaltyPoints: 0
+          }),
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn('Admin profile Firestore sync notice:', err);
       }
 
       setIsFirebaseAdminAuthenticated(true);
@@ -4846,8 +5052,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const logout = () => {
-    if (IS_GOOGLE_CLOUD_CONNECTED && auth) {
-      fbSignOut(auth).catch(() => {});
+    try {
+      localStorage.removeItem('vt_has_fb_session');
+    } catch {
+      // ignore storage error
+    }
+    if (IS_GOOGLE_CLOUD_CONNECTED) {
+      signOutFirebase().catch(() => {});
     }
     setCurrentUser(null);
     setWishlist([]);

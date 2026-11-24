@@ -1013,11 +1013,53 @@ async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; 
   return { buffer, contentType };
 }
 
+let serverSharpLoader: Promise<((input: Buffer) => any) | null> | null = null;
+async function getServerSharp(): Promise<((input: Buffer) => any) | null> {
+  if (!serverSharpLoader) {
+    serverSharpLoader = import('sharp')
+      .then((m) => (m.default || m) as unknown as (input: Buffer) => any)
+      .catch(() => null);
+  }
+  return serverSharpLoader;
+}
+
+async function optimizeServerImageBuffer(
+  rawBuffer: Buffer,
+  contentType: string,
+  targetWidth: number,
+  wantsWebp: boolean
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const lowerCt = contentType.toLowerCase();
+  if (lowerCt.includes('svg') || lowerCt.includes('gif')) {
+    return { buffer: rawBuffer, contentType };
+  }
+  if (!wantsWebp && !targetWidth && rawBuffer.length <= 120 * 1024) {
+    return { buffer: rawBuffer, contentType };
+  }
+  try {
+    const sharpFn = await getServerSharp();
+    if (!sharpFn) return { buffer: rawBuffer, contentType };
+    let pipeline = sharpFn(rawBuffer).rotate();
+    if (targetWidth > 0) {
+      pipeline = pipeline.resize({ width: targetWidth, withoutEnlargement: true });
+    }
+    if (wantsWebp) {
+      const out = await pipeline.webp({ quality: 78, effort: 3 }).toBuffer();
+      return { buffer: out, contentType: 'image/webp' };
+    }
+    const out = await pipeline.toBuffer();
+    return { buffer: out, contentType };
+  } catch {
+    return { buffer: rawBuffer, contentType };
+  }
+}
+
 function setProxyResponseHeaders(res: Response, contentType: string, contentLength: number, etag: string) {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Length', String(contentLength));
   res.setHeader('ETag', etag);
-  res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
+  res.setHeader('Vary', 'Accept');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('X-Robots-Tag', 'all');
@@ -1038,12 +1080,18 @@ async function handleImageProxyRequest(req: Request, res: Response) {
     return res.status(400).json({ success: false, error: 'Invalid image URL protocol' });
   }
 
+  const parsedW = parseInt(String(req.query.w || '0'), 10);
+  const targetWidth = Number.isFinite(parsedW) && parsedW > 0 ? Math.min(1400, Math.max(120, parsedW)) : 0;
+  const acceptHeader = String(req.headers['accept'] || '').toLowerCase();
+  const wantsWebp = acceptHeader.includes('image/webp') || acceptHeader.includes('image/avif') || targetWidth > 0;
+  const cacheKey = `${targetUrl}|w=${targetWidth}|webp=${wantsWebp ? 1 : 0}`;
+
   const now = Date.now();
-  const cached = IMAGE_PROXY_CACHE.get(targetUrl);
+  const cached = IMAGE_PROXY_CACHE.get(cacheKey);
   if (cached && now - cached.cachedAt < IMAGE_PROXY_CACHE_TTL_MS) {
     // Refresh LRU order
-    IMAGE_PROXY_CACHE.delete(targetUrl);
-    IMAGE_PROXY_CACHE.set(targetUrl, cached);
+    IMAGE_PROXY_CACHE.delete(cacheKey);
+    IMAGE_PROXY_CACHE.set(cacheKey, cached);
     setProxyResponseHeaders(res, cached.contentType, cached.buffer.length, cached.etag);
     if (req.headers['if-none-match'] === cached.etag) {
       return res.status(304).end();
@@ -1059,15 +1107,23 @@ async function handleImageProxyRequest(req: Request, res: Response) {
       });
       IN_FLIGHT_PROXY_FETCHES.set(targetUrl, inflight);
     }
-    const { buffer, contentType } = await inflight;
-    const etag = `"vt-${Buffer.from(targetUrl).toString('base64url').slice(0, 16)}-${buffer.length}"`;
+    const fetched = await inflight;
+    const optimized = await optimizeServerImageBuffer(
+      fetched.buffer,
+      fetched.contentType,
+      targetWidth,
+      wantsWebp
+    );
+    const buffer = optimized.buffer;
+    const contentType = optimized.contentType;
+    const etag = `"vt-${Buffer.from(cacheKey).toString('base64url').slice(0, 16)}-${buffer.length}"`;
 
     if (buffer.length <= IMAGE_PROXY_CACHE_MAX_BYTES) {
       if (IMAGE_PROXY_CACHE.size >= IMAGE_PROXY_CACHE_MAX_ITEMS) {
         const oldestKey = IMAGE_PROXY_CACHE.keys().next().value;
         if (oldestKey) IMAGE_PROXY_CACHE.delete(oldestKey);
       }
-      IMAGE_PROXY_CACHE.set(targetUrl, {
+      IMAGE_PROXY_CACHE.set(cacheKey, {
         buffer,
         contentType,
         etag,
@@ -1111,10 +1167,14 @@ function slimProductForServerCatalog(prod: Product): Product {
   return hasDataUri ? { ...prod, images: slimImages } : prod;
 }
 
-function handleProductImageRequest(req: Request, res: Response) {
+async function handleProductImageRequest(req: Request, res: Response) {
   const id = String(req.query.id || '').trim();
   const idxRaw = parseInt(String(req.query.idx || '0'), 10);
   const idx = Number.isFinite(idxRaw) && idxRaw >= 0 ? idxRaw : 0;
+  const widthRaw = parseInt(String(req.query.w || '0'), 10);
+  const targetWidth = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.min(1400, Math.max(120, widthRaw)) : 0;
+  const acceptHeader = String(req.headers['accept'] || '').toLowerCase();
+  const wantsWebp = acceptHeader.includes('image/webp') || acceptHeader.includes('image/avif') || targetWidth > 0;
   if (!id) {
     return res.status(400).send('Missing product id');
   }
@@ -1126,15 +1186,13 @@ function handleProductImageRequest(req: Request, res: Response) {
   }
 
   if (src.startsWith('data:image/')) {
-    const cacheKey = `${found!.id}:${idx}:${src.length}`;
+    const cacheKey = `${found!.id}:${idx}:${src.length}:w=${targetWidth}:webp=${wantsWebp ? 1 : 0}`;
     let entry = productImageBinaryCache.get(cacheKey);
     if (!entry) {
       const match = src.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/);
       if (match) {
-        entry = {
-          contentType: match[1].toLowerCase(),
-          buffer: Buffer.from(match[2].replace(/\s+/g, ''), 'base64')
-        };
+        const rawBuf = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+        entry = await optimizeServerImageBuffer(rawBuf, match[1].toLowerCase(), targetWidth, wantsWebp);
         if (productImageBinaryCache.size >= 150) {
           const oldest = productImageBinaryCache.keys().next().value;
           if (oldest) productImageBinaryCache.delete(oldest);
@@ -1145,7 +1203,8 @@ function handleProductImageRequest(req: Request, res: Response) {
     if (entry) {
       res.setHeader('Content-Type', entry.contentType);
       res.setHeader('Content-Length', String(entry.buffer.length));
-      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.setHeader('Vary', 'Accept');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Access-Control-Allow-Origin', '*');
       return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(entry.buffer);

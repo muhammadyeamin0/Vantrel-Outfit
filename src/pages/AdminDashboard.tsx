@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { auth } from '../firebase';
+import { getFirebaseAuth } from '../firebase';
 import {
   useStore,
   computePricesFromCost,
@@ -1315,11 +1315,12 @@ export const AdminDashboard: React.FC = () => {
         });
       }
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (auth) {
-        if (typeof (auth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
-          await (auth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
+      const fbAuth = await getFirebaseAuth().catch(() => null);
+      if (fbAuth) {
+        if (typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+          await (fbAuth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => undefined);
         }
-        const token = await auth.currentUser?.getIdToken().catch(() => '');
+        const token = await fbAuth.currentUser?.getIdToken().catch(() => '');
         if (token) {
           headers.Authorization = `Bearer ${token}`;
         }
