@@ -287,6 +287,8 @@ export interface StoreSettings {
   orderNotificationEmail?: string;
   gmailNotificationUser?: string;
   gmailNotificationAppPassword?: string;
+  metaPixelId?: string;
+  isMetaPixelEnabled?: boolean;
 }
 
 export type StaffRole =

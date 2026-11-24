@@ -49,6 +49,13 @@ import {
   DEFAULT_WEBP_QUALITY
 } from '../utils/webpConverter';
 import { buildCourierTrackingUrl } from '../utils/orderProgress';
+import { findProductByUrlParam } from '../utils/seoSlug';
+import {
+  ensureMetaPixelLoaded,
+  sanitizeMetaPixelId,
+  trackMetaAddToCart,
+  trackMetaPurchase
+} from '../utils/metaPixel';
 import { auth, db, IS_GOOGLE_CLOUD_CONNECTED, sanitizeFirestoreData } from '../firebase';
 import {
   doc,
@@ -264,6 +271,7 @@ export interface StoreContextType {
   setSelectedCategory: (category: ProductCategory) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  isProductsLoading: boolean;
 
   // Cart
   cart: CartItem[];
@@ -530,11 +538,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
           const parsedSsr: Product[] = JSON.parse(ssrScript.textContent);
           if (Array.isArray(parsedSsr) && parsedSsr.length > 0) {
-            return dedupeProductsById(
+            const hydratedSsr = dedupeProductsById(
               parsedSsr
                 .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
                 .map(sanitizeProductSizes)
             );
+            // If SSR payload is partial (deep-link speed optimization), merge any locally cached items immediately
+            if (ssrScript.getAttribute('data-partial') === 'true') {
+              try {
+                const cachedRaw = localStorage.getItem('vt_products_v4');
+                if (cachedRaw) {
+                  const cachedParsed = JSON.parse(cachedRaw) as Product[];
+                  if (Array.isArray(cachedParsed) && cachedParsed.length > 0) {
+                    return dedupeProductsById([
+                      ...hydratedSsr,
+                      ...cachedParsed
+                        .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+                        .map(sanitizeProductSizes)
+                    ]);
+                  }
+                }
+              } catch {
+                // ignore cache merge error
+              }
+            }
+            return hydratedSsr;
           }
         } catch {
           // fallback below
@@ -558,6 +586,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return [];
   });
+  const [isProductsLoading, setIsProductsLoading] = useState<boolean>(() => products.length === 0);
 
   // Categories
   const [categories, setCategories] = useState<ProductCategory[]>(() => {
@@ -924,10 +953,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Persist State to LocalStorage
+  // Persist State to LocalStorage (slim inline base64 strings if large so 5MB quota never blocks boot)
   useEffect(() => {
     try {
-      localStorage.setItem('vt_products_v4', JSON.stringify(products));
+      const serialized = JSON.stringify(products);
+      if (serialized.length <= 2_600_000) {
+        localStorage.setItem('vt_products_v4', serialized);
+      } else {
+        const slimmed = products.map((p) => ({
+          ...p,
+          images: (p.images || []).map((img, idx) =>
+            typeof img === 'string' && img.startsWith('data:image/')
+              ? `/api/product-image?id=${encodeURIComponent(p.id)}&idx=${idx}`
+              : img
+          )
+        }));
+        localStorage.setItem('vt_products_v4', JSON.stringify(slimmed));
+      }
     } catch (err) {
       console.warn('Products localStorage cache warning:', err);
     }
@@ -1150,10 +1192,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 1. Check for server-embedded catalog first (zero XHR needed on SSR/Googlebot routes)
     let hasSsrCatalog = false;
+    let isPartialSsrCatalog = false;
     if (typeof document !== 'undefined') {
       const ssrScript = document.getElementById('vantrel-ssr-products');
       if (ssrScript && ssrScript.textContent) {
         try {
+          isPartialSsrCatalog = ssrScript.getAttribute('data-partial') === 'true';
           const parsedSsr = JSON.parse(ssrScript.textContent) as Product[];
           if (Array.isArray(parsedSsr) && parsedSsr.length > 0) {
             hasSsrCatalog = true;
@@ -1169,7 +1213,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   )
               )
             );
-            setProducts(cleanSsr);
+            setProducts((prev) => dedupeProductsById([...cleanSsr, ...prev]));
+            setIsProductsLoading(false);
             mergeDynamicCategories(cleanSsr);
           }
         } catch {
@@ -1180,17 +1225,58 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Search crawlers with SSR catalog already embedded do not need any additional XHR requests
     if (isSearchCrawler() && hasSsrCatalog) {
+      setIsProductsLoading(false);
       return () => {
         isMounted = false;
       };
     }
 
-    // 2. Clean single-shot HTTP fetch to /api/products (never aborted prematurely by short client timer)
-    const loadFromProductsApi = async () => {
+    // 1b. Fast single-product deep-link lookup if visitor arrived on /product/:slug before catalog arrived
+    if (typeof window !== 'undefined') {
       try {
-        const res = await fetch(`/api/products${currentPage === 'admin' ? '?fresh=1' : ''}`, {
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const searchParams = new URLSearchParams(window.location.search);
+        const deepLinkParam =
+          (pathParts[0]?.toLowerCase() === 'product' && pathParts[1]
+            ? decodeURIComponent(pathParts[1])
+            : null) ||
+          searchParams.get('product') ||
+          searchParams.get('productId') ||
+          (searchParams.get('page') === 'product' ? searchParams.get('id') : null);
+
+        if (deepLinkParam && !findProductByUrlParam(deepLinkParam, products)) {
+          fetch(`/api/products?id=${encodeURIComponent(deepLinkParam)}`, {
+            headers: { Accept: 'application/json' },
+            cache: 'default'
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((json) => {
+              if (!isMounted || !json?.success || !json?.data) return;
+              const singleProd = sanitizeProductSizes({
+                ...(json.data as Product),
+                isArchived: Boolean(json.data.isArchived || json.data.status === 'archived')
+              });
+              setProducts((prev) => dedupeProductsById([singleProd, ...prev]));
+              setIsProductsLoading(false);
+            })
+            .catch(() => {
+              // Full catalog fetch below will populate
+            });
+        }
+      } catch {
+        // Ignore deep-link URL parse edge cases
+      }
+    }
+
+    // 2. Clean single-shot HTTP fetch to /api/products (uses CDN/HTTP cache for public ad traffic!)
+    const loadFromProductsApi = async () => {
+      const isAdminEntry =
+        typeof window !== 'undefined' &&
+        (window.location.pathname.toLowerCase().startsWith('/admin') || currentPage === 'admin');
+      try {
+        const res = await fetch(`/api/products${isAdminEntry ? '?fresh=1' : ''}`, {
           headers: { Accept: 'application/json' },
-          cache: 'no-store'
+          cache: isAdminEntry ? 'no-store' : 'default'
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -1208,11 +1294,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             )
           );
           setProducts(serverProducts);
+          setIsProductsLoading(false);
           mergeDynamicCategories(serverProducts);
+        } else if (isMounted) {
+          setIsProductsLoading(false);
         }
       } catch (err) {
         // Emergency Firestore fallback ONLY for non-crawler browser sessions if /api/products fails
         if (!isMounted || isSearchCrawler() || !IS_GOOGLE_CLOUD_CONNECTED || !db) {
+          if (isMounted) setIsProductsLoading(false);
           console.warn('Products API load notice:', err);
           return;
         }
@@ -1222,7 +1312,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             5000,
             'Firestore fallback read timed out'
           );
-          if (!isMounted || snapshot.empty) return;
+          if (!isMounted) return;
+          if (snapshot.empty) {
+            setIsProductsLoading(false);
+            return;
+          }
           const remoteProducts: Product[] = [];
           snapshot.forEach((docSnap) => {
             if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
@@ -1237,14 +1331,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
           const sorted = sortProductsList(dedupeProductsById(remoteProducts));
           setProducts(sorted);
+          setIsProductsLoading(false);
           mergeDynamicCategories(sorted);
         } catch (fbErr) {
+          if (isMounted) setIsProductsLoading(false);
           console.warn('Products fallback load notice:', fbErr);
         }
       }
     };
 
-    loadFromProductsApi();
+    if (!isSearchCrawler() || isPartialSsrCatalog || !hasSsrCatalog) {
+      loadFromProductsApi();
+    }
 
     if (IS_GOOGLE_CLOUD_CONNECTED && db && !isSearchCrawler()) {
       getDoc(doc(db, 'settings', 'categories'))
@@ -1270,6 +1368,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         })
         .catch((err) => {
           console.warn('Firestore categories load notice:', err);
+        });
+
+      // Hydrate public storefront settings (Meta Pixel ID, announcement, delivery fees) non-blockingly
+      withTimeout(getDoc(doc(db, 'settings', 'store')), 4000, 'Public store settings timeout')
+        .then((snap) => {
+          if (!isMounted || !snap.exists()) return;
+          const remoteCfg = snap.data() as Partial<StoreSettings>;
+          setSettings((prev) => ({
+            ...prev,
+            metaPixelId: remoteCfg.metaPixelId ? sanitizeMetaPixelId(remoteCfg.metaPixelId) : prev.metaPixelId,
+            isMetaPixelEnabled:
+              typeof remoteCfg.isMetaPixelEnabled === 'boolean'
+                ? remoteCfg.isMetaPixelEnabled
+                : prev.isMetaPixelEnabled,
+            announcementText: remoteCfg.announcementText || prev.announcementText,
+            deliveryFeeInsideDhaka:
+              typeof remoteCfg.deliveryFeeInsideDhaka === 'number'
+                ? remoteCfg.deliveryFeeInsideDhaka
+                : prev.deliveryFeeInsideDhaka,
+            deliveryFeeDhakaSubArea:
+              typeof remoteCfg.deliveryFeeDhakaSubArea === 'number'
+                ? remoteCfg.deliveryFeeDhakaSubArea
+                : prev.deliveryFeeDhakaSubArea,
+            deliveryFeeOutsideDhaka:
+              typeof remoteCfg.deliveryFeeOutsideDhaka === 'number'
+                ? remoteCfg.deliveryFeeOutsideDhaka
+                : prev.deliveryFeeOutsideDhaka,
+            freeShippingThreshold:
+              typeof remoteCfg.freeShippingThreshold === 'number'
+                ? remoteCfg.freeShippingThreshold
+                : prev.freeShippingThreshold,
+            isBkashActive:
+              typeof remoteCfg.isBkashActive === 'boolean' ? remoteCfg.isBkashActive : prev.isBkashActive,
+            bKashStatus: remoteCfg.bKashStatus || prev.bKashStatus,
+            bKashMerchantNumber: remoteCfg.bKashMerchantNumber ?? prev.bKashMerchantNumber,
+            whatsapp: remoteCfg.whatsapp || prev.whatsapp,
+            address: remoteCfg.address || prev.address
+          }));
+        })
+        .catch(() => {
+          // Retain local settings cache seamlessly
         });
     }
 
@@ -1366,7 +1505,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const staticWebpAuditDoneRef = useRef(false);
   useEffect(() => {
-    if (staticWebpAuditDoneRef.current || isSearchCrawler() || typeof window === 'undefined') {
+    const isAdminContext =
+      currentPage === 'admin' ||
+      isFirebaseAdminAuthenticated ||
+      (auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        Boolean(auth?.currentUser?.emailVerified));
+
+    if (!isAdminContext || staticWebpAuditDoneRef.current || isSearchCrawler() || typeof window === 'undefined') {
       return;
     }
     staticWebpAuditDoneRef.current = true;
@@ -1466,12 +1611,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [banners, banners3D, settings.logoUrl, recordSkippedWebpUrl]);
+  }, [banners, banners3D, settings.logoUrl, recordSkippedWebpUrl, currentPage, isFirebaseAdminAuthenticated]);
 
   const productWebpMigrationRunningRef = useRef(false);
   const productWebpCheckedSigRef = useRef<Map<string, string>>(new Map());
   useEffect(() => {
+    const isAdminContext =
+      currentPage === 'admin' ||
+      isFirebaseAdminAuthenticated ||
+      (auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        Boolean(auth?.currentUser?.emailVerified));
+
     if (
+      !isAdminContext ||
       isSearchCrawler() ||
       typeof window === 'undefined' ||
       products.length === 0 ||
@@ -1480,44 +1632,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const isAdminContext =
-      currentPage === 'admin' ||
-      isFirebaseAdminAuthenticated ||
-      (auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-        Boolean(auth?.currentUser?.emailVerified));
-
     const candidates = products.filter((p) => {
       if (!Array.isArray(p.images) || p.images.length === 0) return false;
       const sig = p.images.join('|');
       if (productWebpCheckedSigRef.current.get(p.id) === sig) return false;
       return p.images.some((img) => {
         if (!img || isWebpImageSource(img) || webpSkippedUrlsRef.current.has(img)) return false;
-        if (isAdminContext) return true;
-        // On public app load, migrate inline non-WebP data URLs, local /assets non-WebP paths, and top un-migrated storefront items
-        return (
-          img.startsWith('data:image/') ||
-          img.startsWith('/assets/') ||
-          img.includes('vantreloutfit.shop/assets/')
-        );
+        return true;
       });
     });
 
-    // Public app load: also allow converting up to 6 visible external non-WebP products per session if localStorage stays light
-    const extraPublicExternalCandidates =
-      !isAdminContext && candidates.length === 0
-        ? products
-            .filter((p) => {
-              if (!Array.isArray(p.images) || p.images.length === 0) return false;
-              const sig = p.images.join('|');
-              if (productWebpCheckedSigRef.current.get(p.id) === sig) return false;
-              return p.images.some(
-                (img) => img && !isWebpImageSource(img) && !webpSkippedUrlsRef.current.has(img)
-              );
-            })
-            .slice(0, 6)
-        : [];
-
-    const queue = candidates.length > 0 ? candidates : extraPublicExternalCandidates;
+    const queue = candidates;
     if (queue.length === 0) return;
 
     let cancelled = false;
@@ -2136,6 +2261,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       showToast('Added to Bag', `${product.name} (${selectedSize} / ${selectedColor})`, 'success');
       setIsCartDrawerOpen(true);
     }
+
+    trackMetaAddToCart(
+      product,
+      selectedSize,
+      selectedColor,
+      quantity,
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
     return true;
   };
 
@@ -3403,9 +3537,14 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     if (typeof cleanedPatch.gmailNotificationUser === 'string') {
       cleanedPatch.gmailNotificationUser = cleanedPatch.gmailNotificationUser.trim();
     }
+    if (typeof cleanedPatch.metaPixelId === 'string') {
+      cleanedPatch.metaPixelId = sanitizeMetaPixelId(cleanedPatch.metaPixelId);
+    }
 
     setSettings((prev) => {
       const merged = { ...prev, ...cleanedPatch };
+      ensureMetaPixelLoaded(merged.metaPixelId, merged.isMetaPixelEnabled ?? true);
+
       if (
         cleanedPatch.gmailNotificationAppPassword !== undefined ||
         cleanedPatch.orderNotificationEmail !== undefined ||
@@ -3424,6 +3563,36 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           }).catch((err) => console.warn('SMTP fallback sync skipped:', err));
         });
       }
+
+      // Persist public storefront config (never secrets!) to Firestore settings/store when authenticated as Admin
+      if (
+        IS_GOOGLE_CLOUD_CONNECTED &&
+        db &&
+        auth?.currentUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+        auth?.currentUser?.emailVerified
+      ) {
+        const publicStorePayload = sanitizeFirestoreData({
+          storeName: merged.storeName,
+          slogan: merged.slogan,
+          announcementText: merged.announcementText,
+          deliveryFeeInsideDhaka: merged.deliveryFeeInsideDhaka,
+          deliveryFeeDhakaSubArea: merged.deliveryFeeDhakaSubArea,
+          deliveryFeeOutsideDhaka: merged.deliveryFeeOutsideDhaka,
+          freeShippingThreshold: merged.freeShippingThreshold,
+          isBkashActive: Boolean(merged.isBkashActive),
+          bKashStatus: merged.bKashStatus || (merged.isBkashActive ? 'active' : 'pending'),
+          bKashMerchantNumber: merged.bKashMerchantNumber || '',
+          whatsapp: merged.whatsapp || '',
+          address: merged.address || '',
+          metaPixelId: sanitizeMetaPixelId(merged.metaPixelId),
+          isMetaPixelEnabled: merged.isMetaPixelEnabled ?? true,
+          updatedAt: new Date().toISOString()
+        });
+        setDoc(doc(db, 'settings', 'store'), publicStorePayload, { merge: true }).catch((err) => {
+          console.warn('Firestore public settings save notice:', err);
+        });
+      }
+
       return merged;
     });
 
@@ -3691,6 +3860,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     });
 
     addAuditLog('ORDER_PLACED', `New order #${newOrder.orderNumber} placed for ৳${newOrder.total}`);
+
+    trackMetaPurchase(newOrder, settings.metaPixelId, settings.isMetaPixelEnabled ?? true);
 
     return { success: true, order: newOrder };
   };
@@ -5034,6 +5205,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         updateSettings,
         calculateDeliveryFee,
         products,
+        isProductsLoading,
         activeProducts,
         archivedProducts,
         addProduct,

@@ -7,6 +7,7 @@ import {
   getCategorySlug,
   findCategoryBySlug
 } from '../utils/seoSlug';
+import { ensureMetaPixelLoaded, trackMetaPageView } from '../utils/metaPixel';
 
 function truncateSeoDescription(text: string, maxLen: number = 158): string {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
@@ -28,7 +29,8 @@ export const DynamicMetaTags: React.FC = () => {
     selectedCategory,
     setSelectedCategory,
     categories,
-    products
+    products,
+    settings
   } = useStore();
 
   // 1. Parse incoming URL (/product/:slug, /category/:slug, /shop, or ?product= / ?page= / ?category=) on mount & product load
@@ -519,6 +521,17 @@ export const DynamicMetaTags: React.FC = () => {
       schemaScript.textContent = JSON.stringify(storeSchema);
     }
   }, [currentPage, selectedProductId, selectedCategory, products]);
+
+  // 4. Synchronize Meta Pixel initialization and fire SPA PageView events
+  useEffect(() => {
+    const pixelEnabled = settings.isMetaPixelEnabled ?? true;
+    ensureMetaPixelLoaded(settings.metaPixelId, pixelEnabled);
+    trackMetaPageView(
+      `${currentPage}:${selectedProductId || ''}:${selectedCategory || ''}`,
+      settings.metaPixelId,
+      pixelEnabled
+    );
+  }, [currentPage, selectedProductId, selectedCategory, settings.metaPixelId, settings.isMetaPixelEnabled]);
 
   return null;
 };

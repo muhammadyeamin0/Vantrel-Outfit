@@ -5,7 +5,8 @@ import {
   findProductByUrlParam,
   findCategoryBySlug,
   getProductSeoSlug,
-  getCategorySlug
+  getCategorySlug,
+  slimProductForCatalog
 } from './_lib/seoUtils.js';
 import {
   getLiveProducts,
@@ -27,7 +28,10 @@ let cachedShellAt = 0;
 const SHELL_CACHE_MS = 5 * 60 * 1000;
 
 const SOCIAL_PREVIEW_BOT_REGEX =
-  /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|TelegramBot|Discordbot|Slackbot|Twitterbot|LinkedInBot|Pinterest|Viber|Line|Snapchat|redditbot|Instagram|SkypeUriPreview|vkShare|Embedly/i;
+  /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|TelegramBot|Discordbot|Slackbot|Twitterbot|LinkedInBot|Pinterest|Viber|Line|Snapchat|redditbot|SkypeUriPreview|vkShare|Embedly/i;
+
+const SEARCH_CRAWLER_BOT_REGEX =
+  /bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|slurp|duckduckbot|baiduspider|yandex|applebot|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|perplexitybot|chrome-lighthouse|lighthouse|pagespeed|gtmetrix|headlesschrome/i;
 
 async function getAppShellHtml(req: VercelReq): Promise<string | null> {
   const now = Date.now();
@@ -127,9 +131,11 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
     let ogImage = defaultOgImage;
     let ogImageAlt = 'VANTREL OUTFIT Official Storefront';
     let robotsContent = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+    const isCrawlerAgent = isSocialLinkPreviewBot || SEARCH_CRAWLER_BOT_REGEX.test(userAgent);
     let extraHeadMeta = '';
     let jsonLdPayloads: Record<string, unknown>[] = [];
     let ssrRootHtml = '';
+    let focusedSsrProducts = published.slice(0, 16);
 
     const productLookupParam = routeParam === 'product' ? slugParam : legacyProductParam;
 
@@ -193,7 +199,8 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
 
         const related = published
           .filter((p) => p.id !== matchedProduct.id && p.category === matchedProduct.category)
-          .slice(0, 6);
+          .slice(0, 8);
+        focusedSsrProducts = [matchedProduct, ...related];
 
         ssrRootHtml = `<main itemscope itemtype="https://schema.org/Product" style="max-width:1100px;margin:0 auto;padding:24px;font-family:sans-serif;color:#f5f5f5;background:#0a0a0a;">
   <nav aria-label="Breadcrumb">
@@ -266,6 +273,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         : ogImage;
       ogImage = leadImage;
       ogImageAlt = `${displayCat} - VANTREL OUTFIT`;
+      focusedSsrProducts = catProducts.slice(0, 20);
 
       jsonLdPayloads = [
         {
@@ -424,13 +432,13 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
           ).replace(/</g, '\\u003c')}</script>`
         : '';
 
-    // Embed catalog JSON just before </body> (never in <head>) and omit for pure social preview bots
+    // Embed focused, slimmed catalog JSON (no inline base64 blobs) so product/category deep links paint immediately
+    const slimmedFocusedProducts = focusedSsrProducts.map((p) => slimProductForCatalog(p));
     const ssrProductsScript =
-      published.length > 0 && !isSocialLinkPreviewBot
-        ? `<script type="application/json" id="vantrel-ssr-products">${JSON.stringify(published).replace(
-            /</g,
-            '\\u003c'
-          )}</script>`
+      slimmedFocusedProducts.length > 0 && !isSocialLinkPreviewBot
+        ? `<script type="application/json" id="vantrel-ssr-products" data-partial="true">${JSON.stringify(
+            slimmedFocusedProducts
+          ).replace(/</g, '\\u003c')}</script>`
         : '';
 
     const isDefaultBanner = ogImage === defaultOgImage;
@@ -499,7 +507,10 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
 
       finalHtml = finalHtml
         .replace('</head>', `${extraHeadMeta}\n  ${jsonLdScript}\n  </head>`)
-        .replace('<div id="root"></div>', `<div id="root">${ssrRootHtml}</div>`)
+        .replace(
+          '<div id="root"></div>',
+          isCrawlerAgent ? `<div id="root">${ssrRootHtml}</div>` : '<div id="root"></div>'
+        )
         .replace('</body>', `${ssrProductsScript ? `\n  ${ssrProductsScript}\n  ` : ''}</body>`);
     } else {
       finalHtml = `<!doctype html>

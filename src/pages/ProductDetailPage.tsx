@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { trackMetaViewContent } from '../utils/metaPixel';
 import {
   Heart,
   ShoppingBag,
@@ -34,29 +35,21 @@ export const ProductDetailPage: React.FC = () => {
     setIsSizeGuideOpen,
     settings,
     products,
+    isProductsLoading,
     showToast
   } = useStore();
 
-  const targetProductId = selectedProductId || products[0]?.id || '';
+  const hasDeepLinkProductUrl =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.toLowerCase().startsWith('/product/') ||
+      new URLSearchParams(window.location.search).has('product') ||
+      new URLSearchParams(window.location.search).has('productId'));
+
+  const targetProductId = selectedProductId || (!hasDeepLinkProductUrl ? products[0]?.id || '' : '');
   const product = targetProductId ? getProductById(targetProductId) : undefined;
 
-  // Fallback if product not found
-  if (!product) {
-    return (
-      <div className="bg-[#0A0A0A] text-white min-h-[60vh] max-w-7xl mx-auto px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold text-white">Product not found</h1>
-        <button
-          onClick={() => setCurrentPage('shop')}
-          className="mt-4 px-6 py-2.5 bg-[#FF762E] text-white rounded-lg font-semibold cursor-pointer"
-        >
-          Return to Shop
-        </button>
-      </div>
-    );
-  }
-
-  const isSingleImageProduct = (product.images?.length || 0) <= 1 || (product.colors?.length || 0) <= 1;
-  const defaultInitialColor = product.colors?.[0]?.name || 'Standard';
+  const isSingleImageProduct = (product?.images?.length || 0) <= 1 || (product?.colors?.length || 0) <= 1;
+  const defaultInitialColor = product?.colors?.[0]?.name || 'Standard';
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -76,6 +69,67 @@ export const ProductDetailPage: React.FC = () => {
   const [newReviewPhoto, setNewReviewPhoto] = useState('');
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
+  // Structured Data (JSON-LD Product Schema), title, and OpenGraph tags are managed centrally by DynamicMetaTags.tsx
+  useEffect(() => {
+    setActiveImageIndex(0);
+    setSelectedSize('');
+    setSizeError(false);
+    setSelectedColor(product?.colors?.[0]?.name || 'Standard');
+  }, [product?.id]);
+
+  // Fire Meta Pixel ViewContent for Ad attribution & dynamic product remarketing
+  useEffect(() => {
+    if (!product?.id) return;
+    trackMetaViewContent(
+      product,
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
+  }, [product?.id, settings.metaPixelId, settings.isMetaPixelEnabled]);
+
+  // Show fast dark skeleton while deep-linked /product/:slug resolves instead of flashing "Product not found"
+  if (!product && (isProductsLoading || (hasDeepLinkProductUrl && !selectedProductId))) {
+    return (
+      <div className="bg-[#0A0A0A] text-white min-h-[75vh] py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-pulse">
+          <div className="h-4 w-32 bg-white/10 rounded" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+            <div className="lg:col-span-7">
+              <div className="aspect-[4/5] bg-white/5 rounded-3xl border border-white/10" />
+            </div>
+            <div className="lg:col-span-5 space-y-5 bg-[#141414] p-6 sm:p-8 rounded-3xl border border-white/10">
+              <div className="h-3 w-40 bg-white/10 rounded" />
+              <div className="h-8 w-3/4 bg-white/15 rounded" />
+              <div className="h-10 w-36 bg-white/10 rounded" />
+              <div className="grid grid-cols-5 gap-2 pt-4">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <div key={n} className="h-10 bg-white/10 rounded-xl" />
+                ))}
+              </div>
+              <div className="h-12 bg-white/10 rounded-xl mt-4" />
+              <div className="h-12 bg-[#FF762E]/30 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback if product genuinely does not exist
+  if (!product) {
+    return (
+      <div className="bg-[#0A0A0A] text-white min-h-[60vh] max-w-7xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-white">Product not found</h1>
+        <button
+          onClick={() => setCurrentPage('shop')}
+          className="mt-4 px-6 py-2.5 bg-[#FF762E] text-white rounded-lg font-semibold cursor-pointer"
+        >
+          Return to Shop
+        </button>
+      </div>
+    );
+  }
+
   // Effective color: auto-fallback to default so customers can order without choosing color
   const effectiveColor = selectedColor || defaultInitialColor;
 
@@ -90,14 +144,6 @@ export const ProductDetailPage: React.FC = () => {
   const price = product.discountPrice ?? product.regularPrice;
   const hasDiscount = product.discountPrice && product.discountPrice < product.regularPrice;
   const inWishlist = isInWishlist(product.id);
-
-  // Structured Data (JSON-LD Product Schema), title, and OpenGraph tags are managed centrally by DynamicMetaTags.tsx
-  useEffect(() => {
-    setActiveImageIndex(0);
-    setSelectedSize('');
-    setSizeError(false);
-    setSelectedColor(product.colors?.[0]?.name || 'Standard');
-  }, [product?.id]);
 
   const handleAddToCart = () => {
     if (!selectedSize) {

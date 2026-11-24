@@ -139,7 +139,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(Googlebot|Google-InspectionTool|GoogleOther|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|whatsapp|TelegramBot|Discordbot|Slackbot|Twitterbot|LinkedInBot|Pinterest|Viber|Snapchat|redditbot|Instagram|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
+          "value": ".*(Googlebot|Google-InspectionTool|GoogleOther|AdsBot-Google|Storebot-Google|Bingbot|DuckDuckBot|facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|whatsapp|TelegramBot|Discordbot|Slackbot|Twitterbot|LinkedInBot|Pinterest|Viber|Snapchat|redditbot|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|anthropic-ai|PerplexityBot|Applebot).*"
         }
       ],
       "destination": "/api/seo-page?route=home"
@@ -164,6 +164,23 @@
         {
           "key": "X-Robots-Tag",
           "value": "all"
+        }
+      ]
+    },
+    {
+      "source": "/api/product-image",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "cross-origin"
         }
       ]
     },

@@ -1087,6 +1087,79 @@ async function handleImageProxyRequest(req: Request, res: Response) {
 app.get('/api/image-proxy', handleImageProxyRequest);
 app.head('/api/image-proxy', handleImageProxyRequest);
 
+const productImageBinaryCache = new Map<string, { contentType: string; buffer: Buffer }>();
+function fastServerImageFingerprint(input: string): string {
+  let hash = 2166136261;
+  const step = Math.max(1, Math.floor(input.length / 64));
+  for (let i = 0; i < input.length; i += step) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${input.length.toString(36)}-${(hash >>> 0).toString(36)}`;
+}
+
+function slimProductForServerCatalog(prod: Product): Product {
+  if (!prod || !Array.isArray(prod.images) || prod.images.length === 0) return prod;
+  let hasDataUri = false;
+  const slimImages = prod.images.map((img, idx) => {
+    if (typeof img === 'string' && img.startsWith('data:image/')) {
+      hasDataUri = true;
+      return `/api/product-image?id=${encodeURIComponent(prod.id)}&idx=${idx}&h=${fastServerImageFingerprint(img)}`;
+    }
+    return img;
+  });
+  return hasDataUri ? { ...prod, images: slimImages } : prod;
+}
+
+function handleProductImageRequest(req: Request, res: Response) {
+  const id = String(req.query.id || '').trim();
+  const idxRaw = parseInt(String(req.query.idx || '0'), 10);
+  const idx = Number.isFinite(idxRaw) && idxRaw >= 0 ? idxRaw : 0;
+  if (!id) {
+    return res.status(400).send('Missing product id');
+  }
+
+  const found = findProductByUrlParam(id, products) || products.find((p) => p.id === id);
+  const src = found?.images?.[idx] || found?.images?.[0] || '';
+  if (!src) {
+    return res.redirect(302, '/assets/images/vantrel-logo.webp');
+  }
+
+  if (src.startsWith('data:image/')) {
+    const cacheKey = `${found!.id}:${idx}:${src.length}`;
+    let entry = productImageBinaryCache.get(cacheKey);
+    if (!entry) {
+      const match = src.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/);
+      if (match) {
+        entry = {
+          contentType: match[1].toLowerCase(),
+          buffer: Buffer.from(match[2].replace(/\s+/g, ''), 'base64')
+        };
+        if (productImageBinaryCache.size >= 150) {
+          const oldest = productImageBinaryCache.keys().next().value;
+          if (oldest) productImageBinaryCache.delete(oldest);
+        }
+        productImageBinaryCache.set(cacheKey, entry);
+      }
+    }
+    if (entry) {
+      res.setHeader('Content-Type', entry.contentType);
+      res.setHeader('Content-Length', String(entry.buffer.length));
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(entry.buffer);
+    }
+  }
+
+  const resolvedUrl = src.startsWith('/') ? src : toCanonicalSeoImageUrl(src, VANTREL_CANONICAL_ORIGIN);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  return res.redirect(302, resolvedUrl);
+}
+
+app.get('/api/product-image', handleProductImageRequest);
+app.head('/api/product-image', handleProductImageRequest);
+
 // ==========================================
 // REST API ROUTES
 // ==========================================
@@ -1111,7 +1184,19 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // 2. Products Endpoints
 app.get(['/api/products', '/api/product'], (req: Request, res: Response) => {
-  const { category, search, sort } = req.query;
+  const { category, search, sort, fresh, inline, id } = req.query;
+  const forceFresh = fresh === '1';
+  const includeInline = inline === '1' || forceFresh;
+
+  if (typeof id === 'string' && id.trim()) {
+    const single = findProductByUrlParam(id.trim(), products) || products.find((p) => p.id === id.trim());
+    if (!single) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    res.setHeader('Cache-Control', forceFresh ? 'no-cache' : 'public, max-age=60, stale-while-revalidate=300');
+    return res.json({ success: true, data: includeInline ? single : slimProductForServerCatalog(single) });
+  }
+
   let result = [...products];
 
   if (category && category !== 'All') {
@@ -1136,18 +1221,24 @@ app.get(['/api/products', '/api/product'], (req: Request, res: Response) => {
     result.sort((a, b) => b.rating - a.rating);
   }
 
-  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  const finalResult = includeInline ? result : result.map((p) => slimProductForServerCatalog(p));
+
+  res.setHeader('Cache-Control', forceFresh ? 'no-cache' : 'public, max-age=60, stale-while-revalidate=300');
   res.setHeader('X-Robots-Tag', 'all');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.json({ success: true, count: result.length, data: result });
+  res.json({ success: true, count: finalResult.length, data: finalResult });
 });
 
 app.get('/api/products/:id', (req: Request, res: Response) => {
-  const found = products.find((p) => p.id === req.params.id || p.slug === req.params.id);
+  const includeInline = req.query.inline === '1' || req.query.fresh === '1';
+  const found =
+    findProductByUrlParam(req.params.id, products) ||
+    products.find((p) => p.id === req.params.id || p.slug === req.params.id);
   if (!found) {
     return res.status(404).json({ success: false, error: 'Product not found' });
   }
-  res.json({ success: true, data: found });
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json({ success: true, data: includeInline ? found : slimProductForServerCatalog(found) });
 });
 
 app.post('/api/products', (req: Request, res: Response) => {
@@ -2679,7 +2770,7 @@ function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unkn
 
 app.get('*', (req: Request, res: Response, next) => {
   const userAgent = req.headers['user-agent'] || '';
-  const isSocialCrawler = /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot|Viber|Snapchat|redditbot|Instagram|SkypeUriPreview|Embedly/i.test(userAgent);
+  const isSocialCrawler = /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot|Viber|Snapchat|redditbot|SkypeUriPreview|Embedly/i.test(userAgent);
 
   if (!isSocialCrawler) {
     return next();
@@ -2849,8 +2940,8 @@ app.get('*', (req: Request, res: Response, next) => {
 // VITE DEV SERVER OR PRODUCTION SERVING
 // ==========================================
 async function startServer() {
-  // Always hydrate latest Admin products from Firebase Firestore on server startup
-  await syncProductsFromFirestore();
+  // Hydrate latest Admin products from Firebase Firestore asynchronously so HTTP server listens immediately
+  void syncProductsFromFirestore().catch(() => {});
   setInterval(() => {
     syncProductsFromFirestore().catch(() => {});
   }, 5 * 60 * 1000);
@@ -2890,6 +2981,9 @@ async function startServer() {
           const productDesc = escapeHtmlAttr((matchedProduct.description || matchedProduct.tagline || matchedProduct.name).trim());
           const rawImg = matchedProduct.images?.[0] || '/assets/images/vantrel-logo.png';
           const absImg = escapeHtmlAttr(toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN));
+          const slimFocused = [matchedProduct, ...products.filter((p) => p.id !== matchedProduct.id && p.category === matchedProduct.category).slice(0, 6)]
+            .map((p) => slimProductForServerCatalog(p));
+          const ssrScript = `<script type="application/json" id="vantrel-ssr-products" data-partial="true">${JSON.stringify(slimFocused).replace(/</g, '\\u003c')}</script>`;
 
           let html = fs.readFileSync(distIndexPath, 'utf-8');
           html = html
@@ -2899,7 +2993,8 @@ async function startServer() {
             .replace(
               '</head>',
               `  <script type="application/ld+json" id="vantrel-product-jsonld">${safeJsonLd}</script>\n  </head>`
-            );
+            )
+            .replace('</body>', `  ${ssrScript}\n  </body>`);
           return res.type('text/html').send(html);
         } catch (err) {
           console.warn('Production product HTML injection warning:', err);

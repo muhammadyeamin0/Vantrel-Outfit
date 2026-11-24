@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Crawler-Safe Meta Pixel Queue Stub (loads on first interaction or idle after window.load to preserve mobile LCP/TBT) -->
+    <!-- Crawler-Safe Non-Blocking Meta Pixel Bootstrap (loads right after first frame paint for Meta Ad attribution) -->
     <script>
     (function(f,b,e,v,n,t,s){
       var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
-      var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
+      var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
       if(f.fbq)return;
       n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
@@ -14,12 +14,19 @@
       function loadPixel(){
         if(loaded)return;loaded=true;
         t=b.createElement(e);t.async=!0;t.src=v;
-        s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
+        s=b.getElementsByTagName(e)[0];
+        if(s&&s.parentNode){s.parentNode.insertBefore(t,s);}else{b.head.appendChild(t);}
       }
+      f.__vantrelLoadMetaPixel=loadPixel;
+      f.__vantrelInitializedPixelId='2167529260510757';
       ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev){
         f.addEventListener(ev,loadPixel,{once:true,passive:true});
       });
-      f.addEventListener('load',function(){setTimeout(loadPixel,3500);});
+      if(typeof f.requestAnimationFrame==='function'){
+        f.requestAnimationFrame(function(){setTimeout(loadPixel,120);});
+      }else{
+        setTimeout(loadPixel,180);
+      }
     })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     fbq('init','2167529260510757');
     fbq('track','PageView');

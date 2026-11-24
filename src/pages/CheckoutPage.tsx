@@ -4,6 +4,7 @@ import { BANGLADESH_DIVISIONS, resolveDeliveryZone } from '../data/bangladeshDat
 import { PaymentMethod, Address, User } from '../types';
 import { getSavedAddresses, saveAddressLocally, removeAddressLocally } from '../utils/addressStorage';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { trackMetaInitiateCheckout } from '../utils/metaPixel';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -58,6 +59,18 @@ export const CheckoutPage: React.FC = () => {
       setCurrentPage('shop');
     }
   }, [cart, setCurrentPage]);
+
+  // Fire Meta Pixel InitiateCheckout once per cart signature
+  useEffect(() => {
+    if (cart.length > 0 && !orderPlacedRef.current) {
+      trackMetaInitiateCheckout(
+        cart,
+        cartSubtotal,
+        settings.metaPixelId,
+        settings.isMetaPixelEnabled ?? true
+      );
+    }
+  }, [cart, cartSubtotal, settings.metaPixelId, settings.isMetaPixelEnabled]);
 
   // Mandatory Customer Information (Only 5 essential fields)
   const [fullName, setFullName] = useState(currentUser?.name && currentUser.name !== 'VANTREL Member' ? currentUser.name : '');

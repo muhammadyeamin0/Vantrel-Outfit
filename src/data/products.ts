@@ -82,7 +82,9 @@ export const INITIAL_SETTINGS: StoreSettings = {
   smsSenderId: 'VANTREL OUTFIT',
   orderNotificationEmail: 'muhammadeyamin0@gmail.com',
   gmailNotificationUser: 'muhammadeyamin0@gmail.com',
-  gmailNotificationAppPassword: ''
+  gmailNotificationAppPassword: '',
+  metaPixelId: '2167529260510757',
+  isMetaPixelEnabled: true
 };
 
 export const INITIAL_CUSTOMERS: User[] = [

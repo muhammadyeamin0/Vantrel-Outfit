@@ -32,6 +32,7 @@ import {
   getTrackingCode,
   getOrderProgressInfo
 } from '../utils/orderProgress';
+import { DEFAULT_META_PIXEL_ID, sanitizeMetaPixelId } from '../utils/metaPixel';
 import {
   ShieldCheck,
   TrendingUp,
@@ -82,7 +83,9 @@ import {
   Pin,
   Star,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  FileSpreadsheet,
+  Activity
 } from 'lucide-react';
 import { FinancesTab } from '../components/admin/FinancesTab';
 import { ModeratorsTab } from '../components/admin/ModeratorsTab';
@@ -260,6 +263,10 @@ export const AdminDashboard: React.FC = () => {
   const [confirmDeleteAllProducts, setConfirmDeleteAllProducts] = useState<boolean>(false);
   const [isRecalculatingPrices, setIsRecalculatingPrices] = useState<boolean>(false);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
+  const [orderSheetSearch, setOrderSheetSearch] = useState<string>('');
+  const [orderSheetFilter, setOrderSheetFilter] = useState<'all' | 'successful'>('all');
+  const [orderSheetSort, setOrderSheetSort] = useState<'asc' | 'desc'>('asc');
+  const [copiedSheetPhone, setCopiedSheetPhone] = useState<string | null>(null);
 
   // Order Detail Inspection Modal
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
@@ -512,6 +519,120 @@ export const AdminDashboard: React.FC = () => {
   const deliveredOrders = orders.filter((o) => o.orderStatus === 'Delivered').length;
   const cancelledOrders = orders.filter((o) => o.orderStatus === 'Cancelled' || o.orderStatus === 'Cancellation Requested').length;
   const lowStockProducts = products.filter((p) => p.totalStock < 25);
+
+  // Delivery Charge (৳70 per successful order) & Separate Normal Delivery Fee Analytics
+  const successfulOrdersList = orders.filter(
+    (o) => o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Refunded'
+  );
+  const totalDeliveryCharge70 = successfulOrdersList.length * 70;
+  const deliveredDeliveryCharge70 = deliveredOrders * 70;
+  const totalNormalDeliveryFee = successfulOrdersList.reduce(
+    (sum, o) => sum + (Number(o.deliveryFee) || 0),
+    0
+  );
+  const dhakaFreeOrdersCount = successfulOrdersList.filter(
+    (o) => (Number(o.deliveryFee) || 0) === 0
+  ).length;
+  const paidDeliveryOrdersCount = successfulOrdersList.filter(
+    (o) => (Number(o.deliveryFee) || 0) > 0
+  ).length;
+
+  // All-Time Chronological Customer Order Sheet (Permanent Serial 1, 2, 3...)
+  const allTimeOrderSheetRows = useMemo(() => {
+    const uniqueMap = new Map<string, Order>();
+    orders.forEach((o) => {
+      if (o && o.id) uniqueMap.set(o.id, o);
+    });
+    const chronological = Array.from(uniqueMap.values()).sort(
+      (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+    );
+    return chronological.map((o, idx) => {
+      const isSuccessful = o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Refunded';
+      return {
+        serialNo: idx + 1,
+        order: o,
+        isSuccessful,
+        deliveryCharge70: isSuccessful ? 70 : 0,
+        normalDeliveryFee: Number(o.deliveryFee) || 0
+      };
+    });
+  }, [orders]);
+
+  const filteredOrderSheetRows = useMemo(() => {
+    const q = orderSheetSearch.trim().toLowerCase();
+    const list = allTimeOrderSheetRows.filter((row) => {
+      if (orderSheetFilter === 'successful' && !row.isSuccessful) return false;
+      if (!q) return true;
+      const o = row.order;
+      const itemsText = o.items
+        .map((it) => `${it.name} ${it.size} ${it.color}`)
+        .join(' ')
+        .toLowerCase();
+      return (
+        String(row.serialNo) === q ||
+        o.orderNumber.toLowerCase().includes(q) ||
+        o.customer.fullName.toLowerCase().includes(q) ||
+        o.customer.phone.toLowerCase().includes(q) ||
+        o.customer.district.toLowerCase().includes(q) ||
+        o.customer.upazila.toLowerCase().includes(q) ||
+        o.customer.streetAddress.toLowerCase().includes(q) ||
+        itemsText.includes(q)
+      );
+    });
+    return orderSheetSort === 'desc' ? [...list].reverse() : list;
+  }, [allTimeOrderSheetRows, orderSheetFilter, orderSheetSearch, orderSheetSort]);
+
+  const handleExportOrderSheetCSV = () => {
+    const headers = [
+      'Serial No',
+      'Order Number',
+      'Date & Time',
+      'Customer Name',
+      'Mobile Number',
+      'District',
+      'Upazila',
+      'Full Address',
+      'Product Details',
+      'Normal Delivery Fee (BDT)',
+      'Success Delivery Charge 70 (BDT)',
+      'Total Bill (BDT)',
+      'Payment Method',
+      'Order Status'
+    ];
+    const rows = filteredOrderSheetRows.map((row) => {
+      const o = row.order;
+      const itemSummary = o.items
+        .map((it) => `${it.name} (${[it.size, it.color].filter(Boolean).join('/')}) x${it.quantity}`)
+        .join(' | ');
+      return [
+        row.serialNo,
+        o.orderNumber,
+        `"${new Date(o.createdAt).toLocaleString('en-GB')}"`,
+        `"${o.customer.fullName.replace(/"/g, '""')}"`,
+        `'${o.customer.phone}`,
+        `"${o.customer.district.replace(/"/g, '""')}"`,
+        `"${o.customer.upazila.replace(/"/g, '""')}"`,
+        `"${o.customer.streetAddress.replace(/"/g, '""')}"`,
+        `"${itemSummary.replace(/"/g, '""')}"`,
+        row.normalDeliveryFee,
+        row.deliveryCharge70,
+        o.total,
+        `"${o.paymentMethod}"`,
+        `"${o.orderStatus}"`
+      ];
+    });
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `VANTREL_Order_Sheet_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Sheet Exported', '১, ২, ৩ সিরিয়াল অনুযায়ী কাস্টমার অর্ডার ও ডেলিভারি চার্জ শিট ডাউনলোড হয়েছে।', 'success');
+  };
 
   // Top Selling Products calculation
   const topSellingProducts = [...products]
@@ -1164,10 +1285,13 @@ export const AdminDashboard: React.FC = () => {
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanedPass = (localSettings.gmailNotificationAppPassword || '').replace(/\s+/g, '');
+    const cleanedPixelId = sanitizeMetaPixelId(localSettings.metaPixelId);
     const cleanedSettings = {
       ...localSettings,
       orderNotificationEmail: (localSettings.orderNotificationEmail || 'muhammadeyamin0@gmail.com').trim(),
-      gmailNotificationAppPassword: cleanedPass
+      gmailNotificationAppPassword: cleanedPass,
+      metaPixelId: cleanedPixelId,
+      isMetaPixelEnabled: localSettings.isMetaPixelEnabled ?? true
     };
     setLocalSettings(cleanedSettings);
     updateSettings(cleanedSettings);
@@ -1700,8 +1824,8 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Sales & Operational Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Sales, Delivery Charge & Operational Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-5 bg-white rounded-3xl border border-[#E5E1D5] shadow-2xs space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#202522]/60">
                   Gross Sales
@@ -1735,6 +1859,36 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="text-[11px] text-[#202522]/60">
                   {pendingOrders} Pending · {shippedOrders + deliveredOrders} Dispatched
+                </div>
+              </div>
+
+              <div className="p-5 bg-amber-50/70 rounded-3xl border border-amber-300 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">
+                    Delivery Charge (৳৭০/সফল)
+                  </span>
+                  <Truck className="w-4 h-4 text-[#FF762E] shrink-0" />
+                </div>
+                <div className="text-2xl font-black text-[#14221C] tabular-nums">
+                  ৳{totalDeliveryCharge70.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-amber-900/80 font-semibold leading-snug">
+                  {successfulOrdersList.length}টি সফল অর্ডার × ৳৭০ · ডেলিভার্ড: {deliveredOrders}টি (৳{deliveredDeliveryCharge70.toLocaleString()})
+                </div>
+              </div>
+
+              <div className="p-5 bg-emerald-50/60 rounded-3xl border border-emerald-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">
+                    Normal Delivery Fee
+                  </span>
+                  <DollarSign className="w-4 h-4 text-emerald-700 shrink-0" />
+                </div>
+                <div className="text-2xl font-black text-emerald-900 tabular-nums">
+                  ৳{totalNormalDeliveryFee.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-emerald-800 font-semibold leading-snug">
+                  ঢাকা ফ্রি (৳০): {dhakaFreeOrdersCount}টি · ৳৫০ জোন: {paidDeliveryOrdersCount}টি
                 </div>
               </div>
 
@@ -1772,6 +1926,250 @@ export const AdminDashboard: React.FC = () => {
                 <div className="text-[11px] text-emerald-600 font-medium">
                   Verified BD profiles
                 </div>
+              </div>
+            </div>
+
+            {/* ALL-TIME CUSTOMER ORDER SHEET (1, 2, 3... SERIAL LEDGER) */}
+            <div className="bg-white p-5 sm:p-8 rounded-3xl border border-[#E5E1D5] shadow-xs space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#E5E1D5]">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#14221C] text-[#FF762E] flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-heading text-lg font-bold text-[#14221C] uppercase tracking-tight">
+                        Customer Order &amp; Delivery Sheet (অল-টাইম শিট)
+                      </h3>
+                      <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-full text-[10px] font-extrabold">
+                        মোট {allTimeOrderSheetRows.length}টি অর্ডার স্থায়ীভাবে সেভড
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#202522]/65 mt-0.5">
+                      কেউ অর্ডার করলে স্বয়ংক্রিয়ভাবে ১, ২, ৩... ক্রমিক নম্বর, মোবাইল নাম্বার, ঠিকানা, পণ্যের ডিটেইলস, নরমাল ফি ও ৳৭০ ডেলিভারি চার্জসহ স্থায়ীভাবে সেভ হয়।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrderSheetSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                    className="px-3 py-2 bg-[#F7F5EF] hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    {orderSheetSort === 'asc' ? 'ক্রম: ১ → ' + allTimeOrderSheetRows.length : 'ক্রম: নতুন আগে'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportOrderSheetCSV}
+                    className="px-3.5 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#FF762E]" />
+                    <span>Sheet CSV ডাউনলোড</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sheet Search & Filter Toolbar */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-8 relative">
+                  <Search className="w-4 h-4 text-[#202522]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="সিরিয়াল নং (1, 2, 3), কাস্টমারের নাম, মোবাইল নাম্বার, অর্ডার নং বা ঠিকানা দিয়ে খুঁজুন..."
+                    value={orderSheetSearch}
+                    onChange={(e) => setOrderSheetSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs text-[#14221C] focus:outline-none focus:border-[#FF762E]"
+                  />
+                </div>
+                <div className="sm:col-span-4">
+                  <select
+                    value={orderSheetFilter}
+                    onChange={(e) => setOrderSheetFilter(e.target.value as 'all' | 'successful')}
+                    className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl text-xs font-bold text-[#14221C] cursor-pointer focus:outline-none focus:border-[#FF762E]"
+                  >
+                    <option value="all">সব অর্ডার শিট ({allTimeOrderSheetRows.length})</option>
+                    <option value="successful">শুধু সফল অর্ডার ৳৭০ চার্জ ({successfulOrdersList.length})</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Spreadsheet Table */}
+              <div className="overflow-x-auto border border-[#E5E1D5] rounded-2xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-[#14221C] text-white uppercase text-[10px] tracking-wider">
+                    <tr className="divide-x divide-white/15">
+                      <th className="px-3 py-3 text-center w-14">নং</th>
+                      <th className="px-3 py-3 whitespace-nowrap">অর্ডার ও তারিখ</th>
+                      <th className="px-3 py-3 whitespace-nowrap">কাস্টমার ও মোবাইল নাম্বার</th>
+                      <th className="px-3 py-3 min-w-[200px]">বিস্তারিত ঠিকানা</th>
+                      <th className="px-3 py-3 min-w-[220px]">পণ্যের ডিটেইলস</th>
+                      <th className="px-3 py-3 text-right whitespace-nowrap">নরমাল ফি</th>
+                      <th className="px-3 py-3 text-right whitespace-nowrap">ডেলিভারি চার্জ (৳৭০)</th>
+                      <th className="px-3 py-3 text-right whitespace-nowrap">মোট বিল</th>
+                      <th className="px-3 py-3 whitespace-nowrap">স্ট্যাটাস</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E1D5] bg-white">
+                    {filteredOrderSheetRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-10 text-center text-xs text-[#202522]/60">
+                          কোনো অর্ডার পাওয়া যায়নি। নতুন কোনো কাস্টমার অর্ডার করলে এখানে ১, ২, ৩ সিরিয়াল অনুযায়ী সেভ হবে।
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOrderSheetRows.map((row, rowIdx) => {
+                        const o = row.order;
+                        return (
+                          <tr
+                            key={o.id}
+                            className={`divide-x divide-[#E5E1D5] transition-colors hover:bg-amber-50/40 ${
+                              rowIdx % 2 === 1 ? 'bg-[#F7F5EF]/45' : 'bg-white'
+                            }`}
+                          >
+                            <td className="px-3 py-3 text-center font-black text-[#14221C] tabular-nums bg-[#F7F5EF]/70">
+                              {row.serialNo}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              <span className="font-mono font-bold text-[#14221C] block">
+                                {o.orderNumber}
+                              </span>
+                              <span className="text-[10px] text-[#202522]/60">
+                                {new Date(o.createdAt).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: '2-digit'
+                                })}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="font-bold text-[#14221C]">{o.customer.fullName}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <a
+                                  href={`tel:${o.customer.phone}`}
+                                  className="font-mono text-[11px] font-bold text-emerald-800 hover:underline"
+                                >
+                                  {o.customer.phone}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(o.customer.phone);
+                                    setCopiedSheetPhone(o.id);
+                                    setTimeout(() => setCopiedSheetPhone(null), 1500);
+                                  }}
+                                  className="p-1 text-stone-400 hover:text-[#14221C] rounded cursor-pointer"
+                                  title="Copy Phone Number"
+                                >
+                                  {copiedSheetPhone === o.id ? (
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-[11px] text-[#202522]/85 leading-snug">
+                              <span className="font-bold text-[#14221C]">{o.customer.district}</span>
+                              {o.customer.upazila ? ` · ${o.customer.upazila}` : ''}
+                              <span className="block text-[#202522]/70 mt-0.5">
+                                {o.customer.streetAddress}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-[11px] text-[#14221C] space-y-1">
+                              {o.items.map((it, itemIdx) => (
+                                <div key={`${o.id}-${itemIdx}`} className="leading-snug">
+                                  <span className="font-semibold">{it.name}</span>
+                                  <span className="text-[#202522]/70">
+                                    {' '}
+                                    ({[it.size, it.color].filter(Boolean).join('/')}) ×{it.quantity}
+                                  </span>
+                                </div>
+                              ))}
+                            </td>
+                            <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                              {row.normalDeliveryFee === 0 ? (
+                                <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
+                                  ৳০ (ফ্রি)
+                                </span>
+                              ) : (
+                                <span className="font-bold text-[#14221C]">
+                                  ৳{row.normalDeliveryFee.toLocaleString()}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                              {row.isSuccessful ? (
+                                <span className="font-extrabold text-[#FF762E]">
+                                  ৳{row.deliveryCharge70}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-stone-400">
+                                  ৳০ ({o.orderStatus})
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                              <span className="font-black text-[#14221C] block">
+                                ৳{o.total.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-[#202522]/60">
+                                {o.paymentMethod === 'Cash on Delivery (COD)' ? 'COD' : o.paymentMethod}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    row.isSuccessful
+                                      ? o.orderStatus === 'Delivered'
+                                        ? 'bg-emerald-700 text-white'
+                                        : 'bg-[#14221C] text-white'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {o.orderStatus}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInspectingOrder(o);
+                                    setTrackingInput(o.trackingNumber || '');
+                                  }}
+                                  className="px-2 py-0.5 bg-[#F7F5EF] hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-[10px] font-bold rounded cursor-pointer"
+                                >
+                                  দেখুন
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  {filteredOrderSheetRows.length > 0 && (
+                    <tfoot className="bg-[#F7F5EF] border-t-2 border-[#14221C]/20 font-bold text-xs text-[#14221C]">
+                      <tr className="divide-x divide-[#E5E1D5]">
+                        <td colSpan={5} className="px-3 py-3 text-right uppercase tracking-wider text-[11px]">
+                          মোট শিট হিসাব ({filteredOrderSheetRows.length}টি অর্ডার):
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-emerald-900">
+                          ৳{filteredOrderSheetRows.reduce((s, r) => s + (r.isSuccessful ? r.normalDeliveryFee : 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-[#FF762E]">
+                          ৳{filteredOrderSheetRows.reduce((s, r) => s + r.deliveryCharge70, 0).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums font-black">
+                          ৳{filteredOrderSheetRows.reduce((s, r) => s + (r.isSuccessful ? r.order.total : 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-3 text-[10px] text-[#202522]/60">
+                          সফল অর্ডার: {filteredOrderSheetRows.filter((r) => r.isSuccessful).length}টি
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
               </div>
             </div>
 
@@ -5149,6 +5547,68 @@ service cloud.firestore {
                   onChange={(e) => setLocalSettings({ ...localSettings, address: e.target.value })}
                   className="w-full px-4 py-2.5 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl"
                 />
+              </div>
+
+              {/* Meta Pixel & Ads Conversion Tracking */}
+              <div className="p-4 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-[#FF762E]" />
+                    <span className="font-bold text-[#14221C] text-sm">
+                      Meta Pixel & Ads Conversion Tracking
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={localSettings.isMetaPixelEnabled ?? true}
+                      onChange={(e) =>
+                        setLocalSettings({
+                          ...localSettings,
+                          isMetaPixelEnabled: e.target.checked
+                        })
+                      }
+                      className="w-4 h-4 accent-[#14221C] rounded cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-[#14221C]">
+                      {(localSettings.isMetaPixelEnabled ?? true) ? 'Enabled' : 'Paused'}
+                    </span>
+                  </label>
+                </div>
+
+                <p className="text-[11px] text-[#202522]/70 leading-relaxed">
+                  Facebook ও Instagram বিজ্ঞাপনের ভিজিটররা সরাসরি লিংকে ক্লিক করে ঢুকলে নিচের Pixel ID দিয়ে স্বয়ংক্রিয়ভাবে ফুল-ফানেল ইভেন্ট ট্র্যাক হবে।
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                  <div>
+                    <label className="block font-bold text-[#14221C] mb-1">
+                      Meta Pixel ID
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={localSettings.metaPixelId ?? DEFAULT_META_PIXEL_ID}
+                      onChange={(e) =>
+                        setLocalSettings({
+                          ...localSettings,
+                          metaPixelId: e.target.value.replace(/[^\d]/g, '')
+                        })
+                      }
+                      placeholder={DEFAULT_META_PIXEL_ID}
+                      className="w-full px-3 py-2 bg-white border border-[#E5E1D5] rounded-xl font-mono text-xs text-[#14221C] focus:outline-none focus:border-[#FF762E]"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-white border border-[#E5E1D5] rounded-xl space-y-1">
+                    <div className="text-[11px] font-bold text-[#14221C] uppercase tracking-wider">
+                      Tracked Funnel Events (BDT)
+                    </div>
+                    <div className="text-[11px] text-[#202522]/75 font-mono leading-relaxed">
+                      PageView · ViewContent · AddToCart · InitiateCheckout · Purchase
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Order Email Notifications */}

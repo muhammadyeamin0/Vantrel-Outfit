@@ -151,6 +151,33 @@ export function rewriteProductImagesToProxy(images?: string[]): string[] {
   return result;
 }
 
+function fastStringFingerprint(input: string): string {
+  let hash = 2166136261;
+  const step = Math.max(1, Math.floor(input.length / 64));
+  for (let i = 0; i < input.length; i += step) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${input.length.toString(36)}-${(hash >>> 0).toString(36)}`;
+}
+
+export function slimProductForCatalog<T extends MinimalProductRecord>(prod: T): T {
+  if (!prod || !Array.isArray(prod.images) || prod.images.length === 0) return prod;
+  let hasDataUri = false;
+  const slimImages = prod.images.map((img, idx) => {
+    if (typeof img === 'string' && img.startsWith('data:image/')) {
+      hasDataUri = true;
+      return `/api/product-image?id=${encodeURIComponent(prod.id)}&idx=${idx}&h=${fastStringFingerprint(img)}`;
+    }
+    return img;
+  });
+  if (!hasDataUri) return prod;
+  return {
+    ...prod,
+    images: slimImages
+  };
+}
+
 export function toCleanSlug(raw: string): string {
   return String(raw || '')
     .toLowerCase()

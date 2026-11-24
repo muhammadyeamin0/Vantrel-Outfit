@@ -21,9 +21,10 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
 ]);
 
-const CACHE_TTL_MS = 15 * 1000;
+const CACHE_TTL_MS = 60 * 1000;
 let cachedProducts: ProductRecord[] | null = null;
 let cachedAt = 0;
+let refreshPromise: Promise<ProductRecord[]> | null = null;
 
 function resolveRepoFilePath(relativePath: string): string | null {
   const candidates: string[] = [path.resolve(process.cwd(), relativePath)];
@@ -88,55 +89,83 @@ function normalizeProductsList(list: ProductRecord[]): ProductRecord[] {
   return normalized;
 }
 
+async function refreshFromFirestoreBackground(): Promise<ProductRecord[]> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const firebaseConfig = readJsonFile<{
+        apiKey?: string;
+        authDomain?: string;
+        projectId?: string;
+        storageBucket?: string;
+        messagingSenderId?: string;
+        appId?: string;
+        firestoreDatabaseId?: string;
+      }>('firebase-applet-config.json');
+
+      if (firebaseConfig && firebaseConfig.projectId) {
+        const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        const db = firebaseConfig.firestoreDatabaseId
+          ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+          : getFirestore(app);
+
+        const snapshot = await Promise.race([
+          getDocs(collection(db, 'products')),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore read timeout')), 2500)
+          )
+        ]);
+
+        const remote: ProductRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+          const data = docSnap.data() as ProductRecord;
+          remote.push({
+            ...data,
+            id: docSnap.id
+          });
+        });
+
+        if (remote.length > 0) {
+          cachedProducts = normalizeProductsList(remote);
+          cachedAt = Date.now();
+          return cachedProducts;
+        }
+      }
+    } catch (err) {
+      console.warn('[VANTREL SEO] Background Firestore refresh notice:', err instanceof Error ? err.message : err);
+    } finally {
+      refreshPromise = null;
+    }
+    return cachedProducts || [];
+  })();
+  return refreshPromise;
+}
+
 export async function getLiveProducts(forceRefresh = false): Promise<ProductRecord[]> {
   const now = Date.now();
   if (!forceRefresh && cachedProducts && now - cachedAt < CACHE_TTL_MS) {
     return cachedProducts;
   }
 
-  try {
-    const firebaseConfig = readJsonFile<{
-      apiKey?: string;
-      authDomain?: string;
-      projectId?: string;
-      storageBucket?: string;
-      messagingSenderId?: string;
-      appId?: string;
-      firestoreDatabaseId?: string;
-    }>('firebase-applet-config.json');
-
-    if (firebaseConfig && firebaseConfig.projectId) {
-      const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-      const db = firebaseConfig.firestoreDatabaseId
-        ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-        : getFirestore(app);
-
-      const snapshot = await Promise.race([
-        getDocs(collection(db, 'products')),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore read timeout')), 3500)
-        )
-      ]);
-
-      const remote: ProductRecord[] = [];
-      snapshot.forEach((docSnap) => {
-        if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-        const data = docSnap.data() as ProductRecord;
-        remote.push({
-          ...data,
-          id: docSnap.id
-        });
-      });
-
-      if (remote.length > 0) {
-        cachedProducts = normalizeProductsList(remote);
-        cachedAt = now;
-        return cachedProducts;
-      }
+  // Instant stale-while-revalidate: serve warm cache or local disk catalog in <2ms while syncing Firestore in background
+  if (!forceRefresh) {
+    if (cachedProducts && cachedProducts.length > 0) {
+      cachedAt = now;
+      void refreshFromFirestoreBackground();
+      return cachedProducts;
     }
-  } catch (err) {
-    console.warn('[VANTREL SEO] Firestore live fetch fallback to bundled store:', err instanceof Error ? err.message : err);
+    const fallbackData = readJsonFile<ProductRecord[]>('data/products_store.json');
+    if (Array.isArray(fallbackData) && fallbackData.length > 0) {
+      cachedProducts = normalizeProductsList(fallbackData);
+      cachedAt = now;
+      void refreshFromFirestoreBackground();
+      return cachedProducts;
+    }
   }
+
+  const fresh = await refreshFromFirestoreBackground();
+  if (fresh.length > 0) return fresh;
 
   const fallbackData = readJsonFile<ProductRecord[]>('data/products_store.json');
   const fallbackList = Array.isArray(fallbackData) ? fallbackData : [];

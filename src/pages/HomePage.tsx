@@ -37,7 +37,8 @@ export const HomePage: React.FC = () => {
     addToCart,
     buyNow,
     showToast,
-    setIsCartDrawerOpen
+    setIsCartDrawerOpen,
+    isProductsLoading
   } = useStore();
 
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -413,7 +414,22 @@ export const HomePage: React.FC = () => {
 
           {/* 5-Column Product Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4 lg:gap-5">
-            {popularItems.map((item) => {
+            {isProductsLoading && popularItems.length === 0
+              ? [1, 2, 3, 4, 5].map((slot) => (
+                  <div
+                    key={slot}
+                    className="bg-white p-3 border border-neutral-300 animate-pulse space-y-3"
+                  >
+                    <div className="aspect-[4/5] bg-neutral-200" />
+                    <div className="h-3.5 w-3/4 bg-neutral-200 rounded" />
+                    <div className="h-4 w-1/2 bg-neutral-200 rounded" />
+                    <div className="grid grid-cols-2 gap-1.5 pt-2">
+                      <div className="h-10 bg-neutral-200" />
+                      <div className="h-10 bg-neutral-200" />
+                    </div>
+                  </div>
+                ))
+              : popularItems.map((item) => {
               const activeSwatch = selectedSwatches[item.id] || 0;
               const isAdding = addingId === item.id;
               const regularPrice = item.regularPrice || Math.round(item.price * 1.25);

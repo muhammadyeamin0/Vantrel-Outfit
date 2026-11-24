@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { getLiveProducts, type ProductRecord } from './_lib/storeCatalog.js';
-import { rewriteProductImagesToProxy } from './_lib/seoUtils.js';
+import { rewriteProductImagesToProxy, slimProductForCatalog, findProductByUrlParam } from './_lib/seoUtils.js';
 import { getRequestUrl, readJsonBody, sendJson, verifyAdminRequest } from './_lib/httpUtils.js';
 
 let runtimeProductsOverlay: ProductRecord[] | null = null;
@@ -22,6 +22,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const idParam = (url.searchParams.get('id') || '').trim();
   const actionParam = (url.searchParams.get('action') || '').trim();
   const forceFresh = url.searchParams.get('fresh') === '1' || url.searchParams.get('refresh') === '1';
+  const includeInline = url.searchParams.get('inline') === '1' || forceFresh;
   const pathname = url.pathname.replace(/\/+$/, '');
 
   // Handle single GET or list GET/HEAD (preserving crawler & public storefront contract)
@@ -33,12 +34,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const allProducts = await loadProductsSnapshot();
 
       if (idParam) {
-        const found = allProducts.find((p) => p.id === idParam || p.slug === idParam);
+        const found = findProductByUrlParam(idParam, allProducts);
         if (!found) {
           sendJson(res, 404, { success: false, error: 'Product not found' });
           return;
         }
-        sendJson(res, 200, { success: true, data: found });
+        const payload = includeInline ? found : slimProductForCatalog(found);
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader(
+          'Cache-Control',
+          forceFresh ? 'no-cache' : 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+        );
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ success: true, data: payload }));
         return;
       }
 
@@ -58,15 +67,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         );
       }
 
+      const finalResult = includeInline ? result : result.map((p) => slimProductForCatalog(p));
+
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300');
+      res.setHeader(
+        'Cache-Control',
+        forceFresh ? 'no-cache' : 'public, max-age=60, s-maxage=180, stale-while-revalidate=600'
+      );
       res.setHeader('X-Robots-Tag', 'all');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.end(
         req.method === 'HEAD'
           ? undefined
-          : JSON.stringify({ success: true, count: result.length, data: result })
+          : JSON.stringify({ success: true, count: finalResult.length, data: finalResult })
       );
       return;
     } catch (err) {
