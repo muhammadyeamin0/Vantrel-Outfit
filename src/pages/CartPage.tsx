@@ -4,6 +4,7 @@ import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../da
 import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { isProductOutOfStock } from '../utils/stockVisibility';
 import {
   ShoppingBag,
   Trash2,
@@ -25,6 +26,7 @@ import {
 
 export const CartPage: React.FC = () => {
   const {
+    products,
     cart,
     updateCartQuantity,
     removeFromCart,
@@ -126,9 +128,34 @@ export const CartPage: React.FC = () => {
   const deliveryFee = calculateDeliveryFee(deliveryZone, cartSubtotal);
   const grandTotal = cartSubtotal + deliveryFee;
 
+  // Live stock availability check for every cart item
+  const getCartItemAvailability = (item: (typeof cart)[number]) => {
+    const liveProd = products.find((p) => p.id === item.productId);
+    if (!liveProd || liveProd.isArchived || liveProd.status === 'archived' || isProductOutOfStock(liveProd)) {
+      return { isUnavailable: true, reason: 'Out of Stock · স্টক শেষ', availableStock: 0 };
+    }
+    const variant = liveProd.variants?.find((v) => v.size === item.size && v.color === item.color);
+    const availableStock = variant ? variant.stock : liveProd.totalStock;
+    if (availableStock <= 0) {
+      return { isUnavailable: true, reason: 'এই সাইজটি Out of Stock', availableStock: 0 };
+    }
+    if (item.quantity > availableStock) {
+      return { isUnavailable: true, reason: `সর্বোচ্চ ${availableStock} টি স্টকে আছে`, availableStock };
+    }
+    return { isUnavailable: false, reason: '', availableStock };
+  };
+
+  const hasUnavailableCartItems = cart.some((item) => getCartItemAvailability(item).isUnavailable);
+
   // Direct Order Submission (Zero checkout hassle)
   const handleDirectOrder = (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasUnavailableCartItems) {
+      const msg = 'আপনার কার্টে Out of Stock পণ্য রয়েছে। অর্ডার করতে অনুগ্রহ করে সেগুলো কার্ট থেকে সরান।';
+      setErrors({ submit: msg });
+      showToast('Out of Stock', msg, 'error');
+      return;
+    }
     const newErrors: { [key: string]: string } = {};
 
     if (!fullName.trim() || fullName.trim().length < 2) {
@@ -296,8 +323,10 @@ export const CartPage: React.FC = () => {
               </div>
 
               <div className="divide-y divide-[#E5E1D5]">
-                {cart.map((item) => (
-                  <div key={item.id} className="py-5 first:pt-4 last:pb-0 flex flex-col sm:flex-row items-start gap-4">
+                {cart.map((item) => {
+                  const avail = getCartItemAvailability(item);
+                  return (
+                  <div key={item.id} className={`py-5 first:pt-4 last:pb-0 flex flex-col sm:flex-row items-start gap-4 ${avail.isUnavailable ? 'opacity-90' : ''}`}>
                     <img
                       src={toDisplayImageUrl(item.image, 180)}
                       alt={item.name}
@@ -306,7 +335,7 @@ export const CartPage: React.FC = () => {
                       loading="lazy"
                       decoding="async"
                       onError={handleProxyImageError}
-                      className="w-20 h-24 sm:w-24 sm:h-28 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
+                      className={`w-20 h-24 sm:w-24 sm:h-28 object-cover rounded-xl bg-stone-100 border shrink-0 ${avail.isUnavailable ? 'border-rose-400 grayscale-[35%]' : 'border-[#E5E1D5]'}`}
                       referrerPolicy="no-referrer"
                     />
 
@@ -324,6 +353,13 @@ export const CartPage: React.FC = () => {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+
+                        {avail.isUnavailable && (
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{avail.reason} — কার্ট থেকে সরান</span>
+                          </div>
+                        )}
 
                         <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#202522]/70 mt-1">
                           <span className="bg-[#F7F5EF] px-2 py-0.5 rounded border border-[#E5E1D5]">
@@ -353,7 +389,8 @@ export const CartPage: React.FC = () => {
                           </span>
                           <button
                             onClick={() => updateCartQuantity(item.id, 1)}
-                            className="px-2.5 py-1 text-sm font-bold text-[#202522] hover:bg-stone-200 cursor-pointer"
+                            disabled={avail.isUnavailable || item.quantity >= avail.availableStock}
+                            className="px-2.5 py-1 text-sm font-bold text-[#202522] hover:bg-stone-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             aria-label="Increase quantity"
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -374,7 +411,8 @@ export const CartPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -403,6 +441,15 @@ export const CartPage: React.FC = () => {
                 কোনো জটিল চেকআউট নেই। শুধু নাম ও ঠিকানা লিখুন, পার্সেল পৌঁছালে টাকা দিন।
               </p>
             </div>
+
+            {hasUnavailableCartItems && (
+              <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-800 font-semibold flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>
+                  কার্টে থাকা এক বা একাধিক পণ্য বর্তমানে Out of Stock। অর্ডার সম্পন্ন করতে সেগুলো কার্ট থেকে সরিয়ে নিন।
+                </span>
+              </div>
+            )}
 
             {errors.submit && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
@@ -644,10 +691,12 @@ export const CartPage: React.FC = () => {
               {/* Direct Order Confirmation CTA Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-4 px-6 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs sm:text-sm font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={isSubmitting || hasUnavailableCartItems}
+                className="w-full py-4 px-6 bg-[#FF762E] hover:bg-[#e8631c] disabled:bg-stone-400 text-white text-xs sm:text-sm font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {isSubmitting ? (
+                {hasUnavailableCartItems ? (
+                  <span>Out of Stock পণ্য রয়েছে — অর্ডার বন্ধ</span>
+                ) : isSubmitting ? (
                   <span>অর্ডার প্রসেস হচ্ছে...</span>
                 ) : (
                   <>

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import {
   VANTREL_CANONICAL_ORIGIN,
   normalizeThirdPartyImageUrl,
@@ -23,6 +23,7 @@ import {
   getCategorySlug,
   findCategoryBySlug
 } from './src/utils/seoSlug.ts';
+import { shouldHideProductFromPublic } from './src/utils/stockVisibility.ts';
 import { verifyAdminRequest } from './api/_lib/httpUtils.ts';
 import {
   INITIAL_ORDERS,
@@ -120,7 +121,16 @@ async function syncProductsFromFirestore() {
       ? getFirestore(fbApp, firebaseConfig.firestoreDatabaseId)
       : getFirestore(fbApp);
 
-    const snapshot = await getDocs(collection(firestoreDb, 'products'));
+    const [snapshot, storeSettingsSnap] = await Promise.all([
+      getDocs(collection(firestoreDb, 'products')),
+      getDoc(doc(firestoreDb, 'settings', 'store')).catch(() => null)
+    ]);
+    if (storeSettingsSnap && storeSettingsSnap.exists()) {
+      const sData = storeSettingsSnap.data() as Record<string, unknown>;
+      if (sData?.outOfStockDefaultBehavior === 'hide' || sData?.outOfStockDefaultBehavior === 'show') {
+        settings.outOfStockDefaultBehavior = sData.outOfStockDefaultBehavior;
+      }
+    }
     const remoteProducts: Product[] = [];
     snapshot.forEach((docSnap) => {
       if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
@@ -180,6 +190,8 @@ let customers: User[] = [...INITIAL_CUSTOMERS];
 let smsLogs: SmsLog[] = [...INITIAL_SMS_LOGS];
 let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
 let settings = { ...INITIAL_SETTINGS };
+const isServerProductHiddenFromPublic = (p: Product): boolean =>
+  shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior);
 let financialRecords: FinancialRecord[] = [...INITIAL_FINANCIAL_RECORDS];
 let staffModerators: StaffModerator[] = [...INITIAL_MODERATORS];
 let themeConfig: ThemeConfig = { ...INITIAL_THEME };
@@ -862,10 +874,12 @@ interface CachedProxyImage {
 }
 
 const IMAGE_PROXY_CACHE = new Map<string, CachedProxyImage>();
-const IMAGE_PROXY_CACHE_MAX_ITEMS = 80;
+const IMAGE_PROXY_CACHE_MAX_ITEMS = 220;
 const IMAGE_PROXY_CACHE_MAX_BYTES = 1.5 * 1024 * 1024;
-const IMAGE_PROXY_CACHE_TTL_MS = 10 * 60 * 1000;
+const IMAGE_PROXY_CACHE_TTL_MS = 60 * 60 * 1000;
 const IMAGE_PROXY_MAX_BYTES = 15 * 1024 * 1024;
+const SERVER_SAFE_HOST_CACHE = new Map<string, number>();
+const SERVER_DNS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function isPrivateOrDisallowedIp(ip: string): boolean {
   if (!ip) return true;
@@ -911,10 +925,15 @@ async function assertSafeExternalUrl(targetUrl: string): Promise<URL> {
     }
     return parsed;
   }
+  const cachedSafeAt = SERVER_SAFE_HOST_CACHE.get(hostname);
+  if (cachedSafeAt && Date.now() - cachedSafeAt < SERVER_DNS_CACHE_TTL_MS) {
+    return parsed;
+  }
   const resolved = await dns.lookup(hostname, { all: true });
   if (!resolved || resolved.length === 0 || resolved.some((entry) => isPrivateOrDisallowedIp(entry.address))) {
     throw new Error('Resolved host points to a restricted network address');
   }
+  SERVER_SAFE_HOST_CACHE.set(hostname, Date.now());
   return parsed;
 }
 
@@ -953,7 +972,7 @@ async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; 
         method: 'GET',
         headers: commonHeaders,
         redirect: 'follow',
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(6500)
       });
 
       // Some dropshipping/CDN servers require matching Referer header on hotlink checks
@@ -965,7 +984,7 @@ async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; 
             Referer: `${safeUrl.protocol}//${safeUrl.host}/`
           },
           redirect: 'follow',
-          signal: AbortSignal.timeout(15000)
+          signal: AbortSignal.timeout(6500)
         });
       }
 
@@ -978,7 +997,7 @@ async function fetchUpstreamImage(targetUrl: string): Promise<{ buffer: Buffer; 
       lastErr = err;
     }
     if (attempt === 0) {
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 150));
     }
   }
 
@@ -1044,7 +1063,7 @@ async function optimizeServerImageBuffer(
       pipeline = pipeline.resize({ width: targetWidth, withoutEnlargement: true });
     }
     if (wantsWebp) {
-      const out = await pipeline.webp({ quality: 78, effort: 3 }).toBuffer();
+      const out = await pipeline.webp({ quality: 75, effort: 1 }).toBuffer();
       return { buffer: out, contentType: 'image/webp' };
     }
     const out = await pipeline.toBuffer();
@@ -1054,11 +1073,19 @@ async function optimizeServerImageBuffer(
   }
 }
 
-function setProxyResponseHeaders(res: Response, contentType: string, contentLength: number, etag: string) {
+function setProxyResponseHeaders(
+  res: Response,
+  contentType: string,
+  contentLength: number,
+  etag: string,
+  targetWidth: number
+) {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Length', String(contentLength));
   res.setHeader('ETag', etag);
-  res.setHeader('Vary', 'Accept');
+  if (targetWidth <= 0) {
+    res.setHeader('Vary', 'Accept');
+  }
   res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -1092,7 +1119,7 @@ async function handleImageProxyRequest(req: Request, res: Response) {
     // Refresh LRU order
     IMAGE_PROXY_CACHE.delete(cacheKey);
     IMAGE_PROXY_CACHE.set(cacheKey, cached);
-    setProxyResponseHeaders(res, cached.contentType, cached.buffer.length, cached.etag);
+    setProxyResponseHeaders(res, cached.contentType, cached.buffer.length, cached.etag, targetWidth);
     if (req.headers['if-none-match'] === cached.etag) {
       return res.status(304).end();
     }
@@ -1131,7 +1158,7 @@ async function handleImageProxyRequest(req: Request, res: Response) {
       });
     }
 
-    setProxyResponseHeaders(res, contentType, buffer.length, etag);
+    setProxyResponseHeaders(res, contentType, buffer.length, etag, targetWidth);
     return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(buffer);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to proxy external image';
@@ -1143,7 +1170,8 @@ async function handleImageProxyRequest(req: Request, res: Response) {
 app.get('/api/image-proxy', handleImageProxyRequest);
 app.head('/api/image-proxy', handleImageProxyRequest);
 
-const productImageBinaryCache = new Map<string, { contentType: string; buffer: Buffer }>();
+const productImageBinaryCache = new Map<string, { contentType: string; buffer: Buffer; etag: string }>();
+const inFlightProductImages = new Map<string, Promise<{ contentType: string; buffer: Buffer; etag: string } | null>>();
 function fastServerImageFingerprint(input: string): string {
   let hash = 2166136261;
   const step = Math.max(1, Math.floor(input.length / 64));
@@ -1189,30 +1217,47 @@ async function handleProductImageRequest(req: Request, res: Response) {
     const cacheKey = `${found!.id}:${idx}:${src.length}:w=${targetWidth}:webp=${wantsWebp ? 1 : 0}`;
     let entry = productImageBinaryCache.get(cacheKey);
     if (!entry) {
-      const match = src.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/);
-      if (match) {
-        const rawBuf = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
-        entry = await optimizeServerImageBuffer(rawBuf, match[1].toLowerCase(), targetWidth, wantsWebp);
-        if (productImageBinaryCache.size >= 150) {
-          const oldest = productImageBinaryCache.keys().next().value;
-          if (oldest) productImageBinaryCache.delete(oldest);
-        }
-        productImageBinaryCache.set(cacheKey, entry);
+      let inflight = inFlightProductImages.get(cacheKey);
+      if (!inflight) {
+        inflight = (async () => {
+          const match = src.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/);
+          if (!match) return null;
+          const rawBuf = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+          const optimized = await optimizeServerImageBuffer(rawBuf, match[1].toLowerCase(), targetWidth, wantsWebp);
+          const etag = `"vt-pi-${Buffer.from(cacheKey).toString('base64url').slice(0, 14)}-${optimized.buffer.length}"`;
+          const cachedObj = { ...optimized, etag };
+          if (productImageBinaryCache.size >= 240) {
+            const oldest = productImageBinaryCache.keys().next().value;
+            if (oldest) productImageBinaryCache.delete(oldest);
+          }
+          productImageBinaryCache.set(cacheKey, cachedObj);
+          return cachedObj;
+        })().finally(() => {
+          inFlightProductImages.delete(cacheKey);
+        });
+        inFlightProductImages.set(cacheKey, inflight);
       }
+      entry = (await inflight) || undefined;
     }
     if (entry) {
       res.setHeader('Content-Type', entry.contentType);
       res.setHeader('Content-Length', String(entry.buffer.length));
-      res.setHeader('Vary', 'Accept');
+      res.setHeader('ETag', entry.etag);
+      if (targetWidth <= 0) {
+        res.setHeader('Vary', 'Accept');
+      }
       res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      if (req.headers['if-none-match'] === entry.etag) {
+        return res.status(304).end();
+      }
       return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(entry.buffer);
     }
   }
 
   const resolvedUrl = src.startsWith('/') ? src : toCanonicalSeoImageUrl(src, VANTREL_CANONICAL_ORIGIN);
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
   return res.redirect(302, resolvedUrl);
 }
 
@@ -1327,8 +1372,8 @@ app.post('/api/products', (req: Request, res: Response) => {
     sizes: Array.isArray(body.sizes) && body.sizes.length > 0 ? body.sizes : ['M', 'L', 'XL', 'XXL'],
     colors: Array.isArray(body.colors) ? body.colors : [],
     variants: body.variants || [],
-    fabric: body.fabric || '420 GSM 100% Cotton',
-    gsm: body.gsm !== undefined && body.gsm !== null ? Number(body.gsm) : undefined,
+    fabric: body.fabric || '100% Cotton',
+    gsm: body.gsm !== undefined && body.gsm !== null && Number(body.gsm) > 0 ? Number(body.gsm) : undefined,
     fit: body.fit || 'Relaxed Oversized Fit',
     care: body.care || ['Machine wash cold', 'Dry flat in shade'],
     tags: body.tags || ['VANTREL', 'Streetwear'],
@@ -1337,10 +1382,14 @@ app.post('/api/products', (req: Request, res: Response) => {
     isBestSeller: body.isBestSeller ?? false,
     isPinned: Boolean(body.isPinned),
     isTopProduct: Boolean(body.isTopProduct),
+    outOfStockBehavior:
+      body.outOfStockBehavior === 'hide' || body.outOfStockBehavior === 'show'
+        ? body.outOfStockBehavior
+        : 'default',
     sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : -1,
     rating: body.rating || 5.0,
     reviewCount: body.reviewCount || 0,
-    totalStock: Number(body.totalStock ?? 50),
+    totalStock: body.totalStock !== undefined && body.totalStock !== null ? Math.max(0, Number(body.totalStock)) : 50,
     createdDate: body.createdDate || new Date().toISOString()
   };
 
@@ -1394,8 +1443,8 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
       name: req.body.name || 'Unnamed Product',
       sku: req.body.sku || `VT-${Date.now().toString().slice(-4)}`,
       regularPrice: req.body.regularPrice || 1000,
-      totalStock: req.body.totalStock || 20,
       ...req.body,
+      totalStock: req.body.totalStock !== undefined && req.body.totalStock !== null ? Math.max(0, Number(req.body.totalStock)) : 20,
       images: rewriteProductImagesToProxy(Array.isArray(req.body.images) ? req.body.images : [])
     };
     products.unshift(created);
@@ -1405,6 +1454,9 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
   }
 
   const nextBody = { ...req.body };
+  if (nextBody.totalStock !== undefined && nextBody.totalStock !== null) {
+    nextBody.totalStock = Math.max(0, Number(nextBody.totalStock));
+  }
   if (Array.isArray(nextBody.images)) {
     nextBody.images = rewriteProductImagesToProxy(nextBody.images);
   }
@@ -1507,6 +1559,20 @@ app.post('/api/orders', (req: Request, res: Response) => {
     if (existingIndex >= 0) {
       orders[existingIndex] = { ...orders[existingIndex], ...incomingOrder };
     } else {
+      // Validate stock for newly submitted orders
+      for (const ordItem of incomingOrder.items) {
+        const prod = products.find((p) => p.id === ordItem.productId);
+        if (prod) {
+          const variant = prod.variants?.find((v) => v.size === ordItem.size && v.color === ordItem.color);
+          const avail = variant ? variant.stock : prod.totalStock;
+          if (prod.isArchived || prod.status === 'archived' || prod.totalStock <= 0 || avail <= 0 || ordItem.quantity > avail) {
+            return res.status(400).json({
+              success: false,
+              error: `${ordItem.name || prod.name} বর্তমানে Out of Stock (${avail}টি স্টকে আছে)।`
+            });
+          }
+        }
+      }
       orders.unshift(incomingOrder);
       // Deduct variant and total stocks if new
       incomingOrder.items.forEach((ordItem: any) => {
@@ -1519,6 +1585,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
           }
         }
       });
+      saveProductsToDisk();
     }
 
     saveOrdersToDisk();
@@ -1554,6 +1621,21 @@ app.post('/api/orders', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'Customer details and items are required' });
   }
 
+  // Validate stock before creating direct API order
+  for (const ordItem of items) {
+    const prod = products.find((p) => p.id === ordItem.productId);
+    if (prod) {
+      const variant = prod.variants?.find((v) => v.size === ordItem.size && v.color === ordItem.color);
+      const avail = variant ? variant.stock : prod.totalStock;
+      if (prod.isArchived || prod.status === 'archived' || prod.totalStock <= 0 || avail <= 0 || ordItem.quantity > avail) {
+        return res.status(400).json({
+          success: false,
+          error: `${ordItem.name || prod.name} বর্তমানে Out of Stock (${avail}টি স্টকে আছে)।`
+        });
+      }
+    }
+  }
+
   const subtotal = items.reduce((acc: number, item: any) => acc + item.price * item.quantity, 0);
   const deliveryCharge = customer.deliveryCharge || (customer.district === 'Dhaka' ? 70 : 130);
   const total = Math.max(0, subtotal + deliveryCharge - discountAmount - loyaltyPointsRedeemed - referralDiscount);
@@ -1573,6 +1655,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
       }
     }
   });
+  saveProductsToDisk();
 
   const newOrder: Order = {
     id: `ord-${Date.now()}`,
@@ -1836,6 +1919,7 @@ app.post('/api/orders/:id/cancel', (req: Request, res: Response) => {
     }
   ];
 
+  saveProductsToDisk();
   saveOrdersToDisk();
 
   recordAudit(
@@ -2528,7 +2612,7 @@ Sitemap: ${protocol}://${host}/sitemap.xml
 app.get('/sitemap.xml', (req: Request, res: Response) => {
   const baseUrl = VANTREL_CANONICAL_ORIGIN;
   const now = new Date().toISOString();
-  const published = products.filter((prod) => !prod.isArchived && prod.status !== 'archived');
+  const published = products.filter((prod) => !isServerProductHiddenFromPublic(prod));
 
   const staticUrls = [
     { loc: `${baseUrl}/`, priority: '1.0', changefreq: 'daily' },
@@ -2607,7 +2691,7 @@ app.get('/api/public/products-feed.json', (req: Request, res: Response) => {
   const baseUrl = `${protocol}://${host}`;
 
   const feed = products
-    .filter((p) => !p.isArchived && p.status !== 'archived')
+    .filter((p) => !isServerProductHiddenFromPublic(p))
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
       const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN) : '';
@@ -2646,7 +2730,7 @@ app.get('/api/public/google-product-feed.xml', (req: Request, res: Response) => 
   const baseUrl = `${protocol}://${host}`;
 
   const itemsXml = products
-    .filter((p) => !p.isArchived && p.status !== 'archived')
+    .filter((p) => !isServerProductHiddenFromPublic(p))
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
       const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN).replace(/&/g, '&amp;') : '';
@@ -2715,7 +2799,7 @@ app.get('/api/public/meta-catalog.csv', (req: Request, res: Response) => {
   ];
 
   const rows = products
-    .filter((p) => !p.isArchived && p.status !== 'archived')
+    .filter((p) => !isServerProductHiddenFromPublic(p))
     .map((p) => {
       const rawImg = p.images && p.images[0] ? p.images[0] : '';
       const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN) : '';
@@ -2762,7 +2846,7 @@ function escapeHtmlAttr(val: string): string {
 }
 
 function resolveProductMatchedFromReq(req: Request): Product | undefined {
-  const published = products.filter((p) => !p.isArchived && p.status !== 'archived');
+  const published = products.filter((p) => !isServerProductHiddenFromPublic(p));
   const pathParts = req.path.split('/').filter(Boolean);
   if (pathParts[0] === 'product' && pathParts[1]) {
     return findProductByUrlParam(pathParts[1], published);
@@ -2777,7 +2861,7 @@ function resolveProductMatchedFromReq(req: Request): Product | undefined {
 }
 
 function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unknown> {
-  const published = products.filter((p) => !p.isArchived && p.status !== 'archived');
+  const published = products.filter((p) => !isServerProductHiddenFromPublic(p));
   const seoSlug = getProductSeoSlug(prod, published);
   const productUrl = `${baseUrl}/product/${encodeURIComponent(seoSlug)}`;
   const resolvedImages = (prod.images || [])
@@ -2836,7 +2920,7 @@ app.get('*', (req: Request, res: Response, next) => {
   }
 
   const baseUrl = VANTREL_CANONICAL_ORIGIN;
-  const publishedProducts = products.filter((p) => !p.isArchived && p.status !== 'archived');
+  const publishedProducts = products.filter((p) => !isServerProductHiddenFromPublic(p));
   const activeCategories = Array.from(new Set(publishedProducts.map((p) => p.category).filter(Boolean)));
 
   const pathParts = req.path.split('/').filter(Boolean);

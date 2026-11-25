@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import { useStore } from '../context/StoreContext';
-import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { preloadProductImage } from '../utils/imageProxy';
+import { ProductImage } from './ProductImage';
 import { getProductSeoSlug } from '../utils/seoSlug';
-import { Heart, ShoppingBag, Star, Zap, Check } from 'lucide-react';
+import { isProductOutOfStock } from '../utils/stockVisibility';
+import { Heart, ShoppingBag, Star, Zap, Check, Ban } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -34,16 +36,21 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, pr
   const inWishlist = isInWishlist(product.id);
   const price = product.discountPrice ?? product.regularPrice;
   const hasDiscount = product.discountPrice && product.discountPrice < product.regularPrice;
+  const outOfStock = isProductOutOfStock(product);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addToCart(product, selectedSize, selectedColor || defaultCardColor, 1);
-    setJustAdded(true);
-    window.setTimeout(() => setJustAdded(false), 950);
+    if (outOfStock) return;
+    const added = addToCart(product, selectedSize, selectedColor || defaultCardColor, 1);
+    if (added) {
+      setJustAdded(true);
+      window.setTimeout(() => setJustAdded(false), 950);
+    }
   };
 
   const handleQuickBuy = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (outOfStock) return;
     buyNow(product, selectedSize, selectedColor || defaultCardColor, 1);
   };
 
@@ -54,30 +61,41 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, pr
   return (
     <div
       onClick={handleCardClick}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        preloadProductImage(product.images?.[0], 900);
+      }}
+      onTouchStart={() => preloadProductImage(product.images?.[0], 900)}
       onMouseLeave={() => setIsHovered(false)}
       className="group relative flex flex-col bg-[#141414] rounded-xl border border-white/10 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-[#FF762E]/60 hover:-translate-y-1 cursor-pointer"
     >
       {/* Boxy Square Image Container (Daraz Style) */}
       <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border-b border-white/5">
-        <img
-          src={toDisplayImageUrl(product.images[0], 560)}
+        <ProductImage
+          rawSrc={product.images?.[0]}
           alt={`${product.name} - ${product.category} by ${product.brand || 'VANTREL OUTFIT'}`}
+          widths={[320, 480]}
+          defaultWidth={400}
+          sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 250px"
           width={500}
           height={500}
-          loading={priority ? 'eager' : 'lazy'}
-          fetchPriority={priority ? 'high' : 'auto'}
-          decoding="async"
-          onError={handleProxyImageError}
-          referrerPolicy="no-referrer"
-          className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
+          priority={priority}
+          skeletonTone="dark"
+          className={`h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105 ${
+            outOfStock ? 'opacity-55 grayscale-[35%]' : ''
+          }`}
         />
 
-        {/* Category Tag Overlay */}
+        {/* Category & Out of Stock Tag Overlay */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
           {product.category && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-[#14221C] text-[#F7F5EF] rounded">
               {product.category}
+            </span>
+          )}
+          {outOfStock && (
+            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 bg-rose-600 text-white rounded shadow-md">
+              OUT OF STOCK · স্টক শেষ
             </span>
           )}
         </div>
@@ -124,56 +142,58 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, pr
           </button>
         </div>
 
-        {/* Quick Add Overlay on Desktop Hover */}
-        <div
-          className={`absolute inset-x-3 bottom-3 flex flex-col gap-2 p-2 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-100 transition-all duration-200 ${
-            isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Quick size selection */}
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#202522]/60 font-medium">Select Size:</span>
-            <div className="flex gap-1">
-              {product.sizes.slice(0, 4).map((sz) => (
-                <button
-                  key={sz}
-                  type="button"
-                  onClick={() => setSelectedSize(sz)}
-                  className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                    selectedSize === sz
-                      ? 'bg-[#14221C] text-white'
-                      : 'bg-stone-100 text-[#202522] hover:bg-stone-200'
-                  }`}
-                >
-                  {sz}
-                </button>
-              ))}
+        {/* Quick Add Overlay on Desktop Hover (Disabled for Out of Stock) */}
+        {!outOfStock && (
+          <div
+            className={`absolute inset-x-3 bottom-3 flex flex-col gap-2 p-2 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-100 transition-all duration-200 ${
+              isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Quick size selection */}
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#202522]/60 font-medium">Select Size:</span>
+              <div className="flex gap-1">
+                {product.sizes.slice(0, 4).map((sz) => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setSelectedSize(sz)}
+                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                      selectedSize === sz
+                        ? 'bg-[#14221C] text-white'
+                        : 'bg-stone-100 text-[#202522] hover:bg-stone-200'
+                    }`}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Bag & Buy Now buttons */}
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={handleQuickAdd}
+                className="py-1.5 px-2 bg-[#14221C] hover:bg-[#202522] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1 shadow-2xs"
+                title="Add to Shopping Bag"
+              >
+                <ShoppingBag className="w-3 h-3 text-[#FF762E]" />
+                <span>Bag</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleQuickBuy}
+                className="py-1.5 px-2 bg-[#FF762E] hover:bg-[#e8631c] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1 shadow-2xs"
+                title="Direct Instant Checkout"
+              >
+                <Zap className="w-3 h-3 fill-white" />
+                <span>Buy Now</span>
+              </button>
             </div>
           </div>
-
-          {/* Quick Bag & Buy Now buttons */}
-          <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-            <button
-              type="button"
-              onClick={handleQuickAdd}
-              className="py-1.5 px-2 bg-[#14221C] hover:bg-[#202522] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1 shadow-2xs"
-              title="Add to Shopping Bag"
-            >
-              <ShoppingBag className="w-3 h-3 text-[#FF762E]" />
-              <span>Bag</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickBuy}
-              className="py-1.5 px-2 bg-[#FF762E] hover:bg-[#e8631c] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1 shadow-2xs"
-              title="Direct Instant Checkout"
-            >
-              <Zap className="w-3 h-3 fill-white" />
-              <span>Buy Now</span>
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Product Content Details */}
@@ -223,12 +243,15 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, pr
                 <button
                   key={sz}
                   type="button"
+                  disabled={outOfStock}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedSize(sz);
+                    if (!outOfStock) setSelectedSize(sz);
                   }}
                   className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors ${
-                    selectedSize === sz
+                    outOfStock
+                      ? 'bg-white/5 text-neutral-600 line-through cursor-not-allowed'
+                      : selectedSize === sz
                       ? 'bg-[#FF762E] text-white'
                       : 'bg-white/10 text-neutral-300 hover:bg-white/20'
                   }`}
@@ -278,40 +301,53 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, pr
           )}
         </div>
 
-        {/* Permanent Dual Action Buttons: Add to Cart & Buy Now */}
-        <div className="grid grid-cols-2 gap-2 pt-3">
-          <button
-            type="button"
-            onClick={handleQuickAdd}
-            className={`group/cart relative overflow-hidden w-full min-h-[42px] py-2.5 px-1.5 sm:px-2.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 ${
-              justAdded
-                ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-400/60 shadow-[0_4px_14px_-3px_rgba(16,185,129,0.45)]'
-                : 'bg-neutral-800/95 hover:bg-neutral-700 text-white border border-white/15 hover:border-[#FF762E]/60 shadow-xs'
-            }`}
-            title="Add to Shopping Cart"
-          >
-            {justAdded ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />
-                <span>Added!</span>
-              </>
-            ) : (
-              <>
-                <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FF762E] shrink-0 transition-transform duration-200 group-hover/cart:scale-110 group-hover/cart:-rotate-6" />
-                <span>Add to Cart</span>
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={handleQuickBuy}
-            className="group/buy vantrel-buy-shimmer vantrel-buy-glow relative overflow-hidden w-full min-h-[42px] py-2.5 px-1.5 sm:px-2.5 bg-gradient-to-r from-[#FF762E] via-[#FF5E1A] to-[#FF8A3D] hover:from-[#ff8342] hover:to-[#ff6b26] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap hover:-translate-y-0.5 active:scale-95 border border-white/20"
-            title="Direct Buy Now"
-          >
-            <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white shrink-0 transition-transform duration-200 group-hover/buy:scale-125 group-hover/buy:rotate-12" />
-            <span>Buy Now</span>
-          </button>
-        </div>
+        {/* Permanent Dual Action Buttons or Out-Of-Stock Notice */}
+        {outOfStock ? (
+          <div className="pt-3" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              disabled
+              className="w-full min-h-[42px] py-2.5 px-3 bg-rose-950/60 border border-rose-500/40 text-rose-300 text-[11px] font-extrabold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed"
+            >
+              <Ban className="w-3.5 h-3.5 shrink-0" />
+              <span>Out of Stock · অর্ডার বন্ধ</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 pt-3">
+            <button
+              type="button"
+              onClick={handleQuickAdd}
+              className={`group/cart relative overflow-hidden w-full min-h-[42px] py-2.5 px-1.5 sm:px-2.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 ${
+                justAdded
+                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-400/60 shadow-[0_4px_14px_-3px_rgba(16,185,129,0.45)]'
+                  : 'bg-neutral-800/95 hover:bg-neutral-700 text-white border border-white/15 hover:border-[#FF762E]/60 shadow-xs'
+              }`}
+              title="Add to Shopping Cart"
+            >
+              {justAdded ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />
+                  <span>Added!</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FF762E] shrink-0 transition-transform duration-200 group-hover/cart:scale-110 group-hover/cart:-rotate-6" />
+                  <span>Add to Cart</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleQuickBuy}
+              className="group/buy vantrel-buy-shimmer vantrel-buy-glow relative overflow-hidden w-full min-h-[42px] py-2.5 px-1.5 sm:px-2.5 bg-gradient-to-r from-[#FF762E] via-[#FF5E1A] to-[#FF8A3D] hover:from-[#ff8342] hover:to-[#ff6b26] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-tight sm:tracking-wider rounded-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer whitespace-nowrap hover:-translate-y-0.5 active:scale-95 border border-white/20"
+              title="Direct Buy Now"
+            >
+              <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white shrink-0 transition-transform duration-200 group-hover/buy:scale-125 group-hover/buy:rotate-12" />
+              <span>Buy Now</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

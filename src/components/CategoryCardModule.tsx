@@ -33,7 +33,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ item, onClick }) => 
         <div className="absolute inset-1.5 rounded-full border border-[#FF762E]/30 bg-radial from-amber-100/40 to-orange-200/20" />
 
         <img
-          src={toDisplayImageUrl(item.image)}
+          src={toDisplayImageUrl(item.image, 200)}
           alt={item.title}
           width={96}
           height={96}

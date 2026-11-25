@@ -9,6 +9,7 @@ import {
   sendJson,
   verifyAdminRequest
 } from './_lib/httpUtils.js';
+import { getLiveProducts } from './_lib/storeCatalog.js';
 
 interface OrderItemRecord {
   productId?: string;
@@ -392,10 +393,31 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       };
 
       const existingIdx = orders.findIndex((o) => o.id === order.id || o.orderNumber === order.orderNumber);
-      if (existingIdx >= 0) {
-        orders[existingIdx] = { ...orders[existingIdx], ...order };
-      } else {
+      if (existingIdx === -1) {
+        // Reject newly placed orders for Out-of-Stock / archived products
+        const liveCatalog = await getLiveProducts().catch(() => []);
+        if (liveCatalog.length > 0) {
+          for (const item of incoming.items) {
+            if (!item.productId) continue;
+            const liveProd = liveCatalog.find((p) => p.id === item.productId);
+            if (!liveProd) continue;
+            const prodVariants = Array.isArray((liveProd as Record<string, unknown>).variants)
+              ? ((liveProd as Record<string, unknown>).variants as Array<{ size?: string; color?: string; stock?: number }>)
+              : [];
+            const matchedVar = prodVariants.find((v) => v.size === item.size && v.color === item.color);
+            const avail = matchedVar ? Number(matchedVar.stock ?? 0) : Number(liveProd.totalStock ?? 0);
+            if (liveProd.isArchived || liveProd.status === 'archived' || Number(liveProd.totalStock ?? 0) <= 0 || avail <= 0 || Number(item.quantity || 1) > avail) {
+              sendJson(res, 400, {
+                success: false,
+                error: `${item.name || liveProd.name} বর্তমানে Out of Stock (${avail}টি স্টকে আছে)।`
+              });
+              return;
+            }
+          }
+        }
         orders.unshift(order);
+      } else {
+        orders[existingIdx] = { ...orders[existingIdx], ...order };
       }
       saveOrdersCache(orders);
 

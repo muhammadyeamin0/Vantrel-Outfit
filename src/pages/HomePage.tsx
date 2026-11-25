@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCategory, Product } from '../types';
-import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { preloadProductImage } from '../utils/imageProxy';
+import { ProductImage } from '../components/ProductImage';
 import { getProductSeoSlug } from '../utils/seoSlug';
 import { getHomepageShowcaseCategories } from '../utils/categoryShowcase';
+import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
 import {
   Truck,
   ShieldCheck,
@@ -12,7 +14,8 @@ import {
   Check,
   Zap,
   ShoppingBag,
-  Star
+  Star,
+  Ban
 } from 'lucide-react';
 
 interface HeroSlide {
@@ -38,7 +41,8 @@ export const HomePage: React.FC = () => {
     buyNow,
     showToast,
     setIsCartDrawerOpen,
-    isProductsLoading
+    isProductsLoading,
+    settings
   } = useStore();
 
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -94,27 +98,34 @@ export const HomePage: React.FC = () => {
 
   // Category Banner items dynamically driven by Admin Panel category order & best active product in each section (no hardcoded primary images)
   const categoryBanners = useMemo(() => {
-    return getHomepageShowcaseCategories(categories, products, 4).map((item) => ({
+    return getHomepageShowcaseCategories(
+      categories,
+      products,
+      4,
+      settings.outOfStockDefaultBehavior
+    ).map((item) => ({
       title: item.title,
       category: item.category,
       productName: item.bestProduct.name,
-      image: toDisplayImageUrl(item.image, 560)
+      image: item.image
     }));
-  }, [categories, products]);
+  }, [categories, products, settings.outOfStockDefaultBehavior]);
 
   // Dynamic Popular / Top Products managed directly by Admin & Store database
   const popularItems = useMemo(() => {
-    // Only visible/active products (exclude archived)
-    const activeProducts = products.filter((p) => p.status !== 'archived' && !p.isArchived);
+    // Only visible/active products (exclude archived and hidden out-of-stock products)
+    const visibleProducts = products.filter(
+      (p) => !shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)
+    );
 
     // Products explicitly marked as Top Product in Admin Panel
-    const topProducts = activeProducts.filter((p) => p.isTopProduct);
+    const topProducts = visibleProducts.filter((p) => p.isTopProduct);
 
     let chosen: Product[] = [...topProducts];
 
     // If fewer than 5 top products are marked, complement with other active products
     if (chosen.length < 5) {
-      const remaining = activeProducts.filter((p) => !chosen.some((c) => c.id === p.id));
+      const remaining = visibleProducts.filter((p) => !chosen.some((c) => c.id === p.id));
       const sortedRemaining = remaining.sort((a, b) => {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
@@ -130,16 +141,17 @@ export const HomePage: React.FC = () => {
       name: p.name,
       price: p.discountPrice || p.regularPrice,
       regularPrice: p.regularPrice,
-      image: toDisplayImageUrl(p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp', 560),
+      image: p.images?.[0] || '/assets/aistudio/bbbdd9b6c4ab32413590d25052fec04a0c0a000330301ac6c4dc3a486d928cd5_d56a8fd1.webp',
       category: p.category,
       swatches: (p.colors && p.colors.length > 0)
         ? p.colors.map((c) => c.hex)
         : ['#1C1C1E', '#D9D4C7'],
       isNew: Boolean(p.isNewArrival),
       isTop: Boolean(p.isTopProduct),
+      isOutOfStock: isProductOutOfStock(p),
       rawProduct: p
     }));
-  }, [products]);
+  }, [products, settings.outOfStockDefaultBehavior]);
 
   const handleCategoryNav = (cat: ProductCategory) => {
     setSelectedCategory(cat);
@@ -153,8 +165,12 @@ export const HomePage: React.FC = () => {
 
   const handleQuickBuyNow = (e: React.MouseEvent, item: (typeof popularItems)[0]) => {
     e.stopPropagation();
-    const realProduct = item.rawProduct || products.find((p) => p.id === item.id) || products[0];
+    const realProduct = item.rawProduct || products.find((p) => p.id === item.id);
     if (!realProduct) return;
+    if (isProductOutOfStock(realProduct)) {
+      showToast('Out of Stock (স্টক শেষ)', 'দুঃখিত, এই প্রোডাক্টটির স্টক বর্তমানে শেষ। অর্ডার করা যাবে না।', 'error');
+      return;
+    }
     const swatchIdx = selectedSwatches[item.id] || 0;
     const selectedColorName = realProduct.colors?.[swatchIdx]?.name || realProduct.colors?.[0]?.name || 'Standard';
     const defaultSize = realProduct.sizes?.includes('M') ? 'M' : realProduct.sizes?.[0] || 'M';
@@ -164,14 +180,20 @@ export const HomePage: React.FC = () => {
 
   const handleQuickAddToCart = (e: React.MouseEvent, item: (typeof popularItems)[0]) => {
     e.stopPropagation();
-    const realProduct = item.rawProduct || products.find((p) => p.id === item.id) || products[0];
+    const realProduct = item.rawProduct || products.find((p) => p.id === item.id);
     if (!realProduct) return;
-    setAddingId(item.id);
+    if (isProductOutOfStock(realProduct)) {
+      showToast('Out of Stock (স্টক শেষ)', 'দুঃখিত, এই প্রোডাক্টটির স্টক বর্তমানে শেষ। অর্ডার করা যাবে না।', 'error');
+      return;
+    }
     const swatchIdx = selectedSwatches[item.id] || 0;
     const selectedColorName = realProduct.colors?.[swatchIdx]?.name || realProduct.colors?.[0]?.name || 'Standard';
     const defaultSize = realProduct.sizes?.includes('M') ? 'M' : realProduct.sizes?.[0] || 'M';
 
-    addToCart(realProduct, defaultSize, selectedColorName, 1, false);
+    const ok = addToCart(realProduct, defaultSize, selectedColorName, 1, false);
+    if (!ok) return;
+
+    setAddingId(item.id);
     showToast('Added to Cart', `${item.name} added to your shopping bag.`, 'success');
 
     setTimeout(() => {
@@ -232,12 +254,12 @@ export const HomePage: React.FC = () => {
               </div>
 
               {/* Dhaka Free Delivery Editorial Headline */}
-              <div className="border-l-2 border-[#FF762E] pl-3.5 py-1 bg-black/55 backdrop-blur-sm max-w-lg">
-                <p className="text-sm sm:text-base font-extrabold text-white tracking-wide">
+              <div className="font-bangla border-l-4 border-[#FF762E] pl-4 pr-5 py-2.5 rounded-r-xl bg-black/65 backdrop-blur-md border-y border-r border-white/10 max-w-lg shadow-lg">
+                <p className="text-base sm:text-lg font-bold text-white tracking-normal leading-snug">
                   ঢাকার ভেতরে ১০০% <span className="text-emerald-400">ফ্রি ডেলিভারি</span>!
                 </p>
-                <p className="text-[11px] sm:text-xs text-neutral-300 font-medium mt-0.5">
-                  ঢাকা সিটি ৳০ · ৬৩ জেলায় ডেলিভারি মাত্র ৳৫০
+                <p className="text-xs sm:text-sm text-neutral-200 font-medium tracking-normal leading-relaxed mt-0.5">
+                  ঢাকা সিটি <span className="text-white font-semibold tabular-nums">৳০</span> · ৬৩ জেলায় ডেলিভারি মাত্র <span className="text-[#FF762E] font-semibold tabular-nums">৳৫০</span>
                 </p>
               </div>
 
@@ -257,11 +279,20 @@ export const HomePage: React.FC = () => {
 
               <div className="pt-2 sm:pt-4">
                 <button
-                  onClick={() => handleCategoryNav(activeSlide.category)}
-                  className="inline-flex items-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-white text-black hover:bg-neutral-200 text-xs sm:text-sm font-black tracking-[0.2em] uppercase transition-colors duration-200 shadow-xl cursor-pointer group"
+                  type="button"
+                  onClick={() => handleCategoryNav('All')}
+                  className="relative overflow-hidden vantrel-buy-shimmer inline-flex items-center gap-3.5 px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl bg-gradient-to-r from-[#FF762E] via-[#ff6518] to-[#FF762E] hover:from-[#ff8545] hover:to-[#e8631c] text-white text-xs sm:text-sm font-black tracking-[0.12em] uppercase transition-all duration-300 shadow-[0_10px_30px_-5px_rgba(255,118,46,0.65)] hover:shadow-[0_14px_36px_-4px_rgba(255,118,46,0.85)] hover:-translate-y-0.5 active:scale-[0.98] ring-1 ring-white/25 cursor-pointer group"
                 >
-                  <span>{activeSlide.ctaText}</span>
-                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform duration-300 group-hover:scale-110" />
+                  <span className="flex flex-col items-start text-left leading-tight">
+                    <span>{activeSlide.ctaText}</span>
+                    <span className="font-bangla text-[11px] sm:text-xs font-semibold tracking-normal normal-case text-white/95">
+                      সব কালেকশন দেখতে ক্লিক করুন
+                    </span>
+                  </span>
+                  <span className="w-7 h-7 rounded-lg bg-black/20 flex items-center justify-center group-hover:bg-black/30 group-hover:translate-x-1 transition-all shrink-0">
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
                 </button>
               </div>
             </div>
@@ -337,23 +368,24 @@ export const HomePage: React.FC = () => {
         <h2 className="sr-only">Shop by Category</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {categoryBanners.length > 0 ? (
-            categoryBanners.map((cat) => (
+            categoryBanners.map((cat, idx) => (
               <div
                 key={cat.title}
                 onClick={() => handleCategoryNav(cat.category)}
                 className="group relative h-64 sm:h-72 md:h-80 lg:h-96 rounded-none overflow-hidden bg-neutral-900 cursor-pointer border border-white/5 shadow-lg"
               >
                 {/* Best Product Image of this Category */}
-                <img
-                  src={cat.image}
+                <ProductImage
+                  rawSrc={cat.image}
                   alt={`${cat.title} - ${cat.productName} | VANTREL OUTFIT`}
+                  widths={[320, 480]}
+                  defaultWidth={400}
+                  sizes="(max-width: 768px) 46vw, 24vw"
                   width={400}
                   height={500}
-                  loading="lazy"
-                  decoding="async"
-                  onError={handleProxyImageError}
+                  priority={idx < 4}
+                  skeletonTone="dark"
                   className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 brightness-75 group-hover:brightness-90"
-                  referrerPolicy="no-referrer"
                 />
 
                 {/* Dark Gradient Overlay */}
@@ -435,7 +467,7 @@ export const HomePage: React.FC = () => {
                     </div>
                   </div>
                 ))
-              : popularItems.map((item) => {
+              : popularItems.map((item, idx) => {
               const activeSwatch = selectedSwatches[item.id] || 0;
               const isAdding = addingId === item.id;
               const regularPrice = item.regularPrice || Math.round(item.price * 1.25);
@@ -445,6 +477,8 @@ export const HomePage: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => handleProductClick(item)}
+                  onMouseEnter={() => preloadProductImage(item.image, 900)}
+                  onTouchStart={() => preloadProductImage(item.image, 900)}
                   className="group flex flex-col justify-between bg-white hover:bg-neutral-50 p-3 rounded-none transition-all duration-200 cursor-pointer border border-neutral-300 shadow-xs hover:border-black hover:shadow-md"
                 >
                   {/* Product Image */}
@@ -455,18 +489,26 @@ export const HomePage: React.FC = () => {
                     }}
                     className="relative aspect-[4/5] bg-neutral-200 overflow-hidden mb-3 cursor-pointer"
                   >
-                    <img
-                      src={item.image}
+                    <ProductImage
+                      rawSrc={item.image}
                       alt={`${item.name} - ${item.category} by ${item.rawProduct?.brand || 'VANTREL OUTFIT'}`}
+                      widths={[320, 480]}
+                      defaultWidth={400}
+                      sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 230px"
                       width={400}
                       height={500}
-                      loading="lazy"
-                      decoding="async"
-                      onError={handleProxyImageError}
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
+                      priority={idx < 5}
+                      skeletonTone="light"
+                      className={`w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ${
+                        item.isOutOfStock ? 'opacity-55 grayscale-[35%]' : ''
+                      }`}
                     />
                     <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                      {item.isOutOfStock && (
+                        <div className="bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 shadow-sm">
+                          OUT OF STOCK · স্টক শেষ
+                        </div>
+                      )}
                       {item.isTop && (
                         <div className="flex items-center gap-1 bg-amber-400 text-neutral-950 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 shadow-xs">
                           <Star className="w-2.5 h-2.5 fill-current" />
@@ -551,38 +593,51 @@ export const HomePage: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Dual Action Buttons: অ্যাড টু কার্ট & বাই নাউ */}
-                  <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-neutral-200">
-                    <button
-                      type="button"
-                      onClick={(e) => handleQuickAddToCart(e, item)}
-                      disabled={isAdding}
-                      className="w-full min-h-[42px] py-2 px-1.5 bg-neutral-900 text-white hover:bg-black text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs disabled:opacity-75"
-                      title="Add to Shopping Cart"
-                    >
-                      {isAdding ? (
-                        <>
-                          <Check className="w-3 h-3" />
-                          <span>Added</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag className="w-3 h-3 text-[#FF762E]" />
-                          <span>অ্যাড টু কার্ট</span>
-                        </>
-                      )}
-                    </button>
+                  {/* Dual Action Buttons or Out-Of-Stock Blocked State */}
+                  {item.isOutOfStock ? (
+                    <div className="pt-2 border-t border-neutral-200" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full min-h-[42px] py-2 px-2 bg-rose-50 border border-rose-300 text-rose-700 text-[10px] sm:text-[11px] font-extrabold tracking-wider uppercase flex items-center justify-center gap-1.5 cursor-not-allowed"
+                      >
+                        <Ban className="w-3.5 h-3.5 shrink-0" />
+                        <span>Out of Stock · অর্ডার বন্ধ</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-neutral-200">
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickAddToCart(e, item)}
+                        disabled={isAdding}
+                        className="w-full min-h-[42px] py-2 px-1.5 bg-neutral-900 text-white hover:bg-black text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs disabled:opacity-75"
+                        title="Add to Shopping Cart"
+                      >
+                        {isAdding ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            <span>Added</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingBag className="w-3 h-3 text-[#FF762E]" />
+                            <span>অ্যাড টু কার্ট</span>
+                          </>
+                        )}
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleQuickBuyNow(e, item)}
-                      className="w-full min-h-[42px] py-2 px-1.5 bg-[#FF762E] text-white hover:bg-[#e8631c] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                      title="Direct Buy Now"
-                    >
-                      <Zap className="w-3 h-3 fill-white" />
-                      <span>বাই নাউ</span>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickBuyNow(e, item)}
+                        className="w-full min-h-[42px] py-2 px-1.5 bg-[#FF762E] text-white hover:bg-[#e8631c] text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                        title="Direct Buy Now"
+                      >
+                        <Zap className="w-3 h-3 fill-white" />
+                        <span>বাই নাউ</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

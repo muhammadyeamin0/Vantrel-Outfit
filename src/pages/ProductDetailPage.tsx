@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
-import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { toDisplayImageUrl, handleProxyImageError, preloadProductImage } from '../utils/imageProxy';
+import { ProductImage } from '../components/ProductImage';
 import { trackMetaViewContent } from '../utils/metaPixel';
+import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
+import { resolveProductGsmLabel, resolveProductFabricLabel } from '../utils/productGsm';
 import {
   Heart,
   ShoppingBag,
@@ -20,7 +23,8 @@ import {
   Video,
   Camera,
   Play,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Ban
 } from 'lucide-react';
 
 export const ProductDetailPage: React.FC = () => {
@@ -75,6 +79,11 @@ export const ProductDetailPage: React.FC = () => {
     setSelectedSize('');
     setSizeError(false);
     setSelectedColor(product?.colors?.[0]?.name || 'Standard');
+    if (product?.images && product.images.length > 1) {
+      product.images.slice(1, 5).forEach((img) => {
+        preloadProductImage(img, 900);
+      });
+    }
   }, [product?.id]);
 
   // Fire Meta Pixel ViewContent for Ad attribution & dynamic product remarketing
@@ -115,11 +124,14 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  // Fallback if product genuinely does not exist
-  if (!product) {
+  // Fallback if product does not exist or is hidden from public store
+  if (!product || shouldHideProductFromPublic(product, settings.outOfStockDefaultBehavior)) {
     return (
       <div className="bg-[#0A0A0A] text-white min-h-[60vh] max-w-7xl mx-auto px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-white">Product not found</h1>
+        <p className="text-xs text-neutral-400 mt-2">
+          এই পণ্যটি বর্তমানে স্টোরে প্রদর্শনের জন্য উপলব্ধ নয়।
+        </p>
         <button
           onClick={() => setCurrentPage('shop')}
           className="mt-4 px-6 py-2.5 bg-[#FF762E] text-white rounded-lg font-semibold cursor-pointer"
@@ -132,6 +144,7 @@ export const ProductDetailPage: React.FC = () => {
 
   // Effective color: auto-fallback to default so customers can order without choosing color
   const effectiveColor = selectedColor || defaultInitialColor;
+  const productOutOfStock = isProductOutOfStock(product);
 
   // Variant matching
   const matchedVariant = selectedSize
@@ -139,13 +152,27 @@ export const ProductDetailPage: React.FC = () => {
         (v) => v.size === selectedSize && (v.color === effectiveColor || v.color === selectedColor)
       )
     : undefined;
-  const currentStock = matchedVariant ? matchedVariant.stock : product.totalStock;
+  const currentStock = productOutOfStock
+    ? 0
+    : matchedVariant
+    ? matchedVariant.stock
+    : product.totalStock;
 
   const price = product.discountPrice ?? product.regularPrice;
   const hasDiscount = product.discountPrice && product.discountPrice < product.regularPrice;
   const inWishlist = isInWishlist(product.id);
+  const resolvedGsm = resolveProductGsmLabel(product);
+  const resolvedFabric = resolveProductFabricLabel(product);
 
   const handleAddToCart = () => {
+    if (productOutOfStock || currentStock <= 0) {
+      showToast(
+        'Out of Stock (স্টক শেষ)',
+        'দুঃখিত, এই প্রোডাক্টটির স্টক বর্তমানে শেষ। অর্ডার করা যাবে না।',
+        'error'
+      );
+      return;
+    }
     if (!selectedSize) {
       setSizeError(true);
       showToast('সাইজ নির্বাচন করুন', 'কার্টে যোগ করতে অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
@@ -156,6 +183,14 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   const handleBuyNow = () => {
+    if (productOutOfStock || currentStock <= 0) {
+      showToast(
+        'Out of Stock (স্টক শেষ)',
+        'দুঃখিত, এই প্রোডাক্টটির স্টক বর্তমানে শেষ। অর্ডার করা যাবে না।',
+        'error'
+      );
+      return;
+    }
     if (!selectedSize) {
       setSizeError(true);
       showToast('সাইজ নির্বাচন করুন', 'অর্ডার করতে অনুগ্রহ করে আগে আপনার সাইজ নির্বাচন করুন।', 'error');
@@ -204,7 +239,12 @@ export const ProductDetailPage: React.FC = () => {
 
   // Related products
   const relatedProducts = products
-    .filter((p) => p.id !== product.id && (p.category === product.category || p.isFeatured))
+    .filter(
+      (p) =>
+        p.id !== product.id &&
+        !shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior) &&
+        (p.category === product.category || p.isFeatured)
+    )
     .slice(0, 4);
 
   return (
@@ -243,9 +283,9 @@ export const ProductDetailPage: React.FC = () => {
                 <span>High-Res Editorial Photography ({product.images.length})</span>
               </div>
 
-              {product.gsm && (
+              {resolvedGsm && (
                 <span className="px-2.5 py-1 bg-[#14221C] text-white text-[11px] font-bold rounded-lg uppercase tracking-wider">
-                  {product.gsm} GSM Weight
+                  {resolvedGsm} Weight
                 </span>
               )}
             </div>
@@ -256,24 +296,29 @@ export const ProductDetailPage: React.FC = () => {
               onMouseEnter={() => setIsZoomed(true)}
               onMouseLeave={() => setIsZoomed(false)}
             >
-              <img
+              <ProductImage
                 itemProp="image"
-                src={toDisplayImageUrl(product.images[activeImageIndex] || product.images[0], 960)}
-                alt={`${product.name} - ${product.category}${product.fabric ? ` (${product.fabric})` : ''} | ${product.brand || 'VANTREL OUTFIT'}`}
+                rawSrc={product.images[activeImageIndex] || product.images[0]}
+                alt={`${product.name} - ${product.category}${resolvedFabric ? ` (${resolvedFabric})` : ''} | ${product.brand || 'VANTREL OUTFIT'}`}
+                widths={[560, 900]}
+                defaultWidth={900}
+                sizes="(max-width: 1024px) 94vw, 660px"
                 width={800}
                 height={1000}
-                fetchPriority="high"
-                loading="eager"
-                decoding="async"
-                onError={handleProxyImageError}
-                referrerPolicy="no-referrer"
+                priority={true}
+                skeletonTone="light"
                 className={`w-full h-full object-cover object-center transition-transform duration-300 ${
                   isZoomed ? 'scale-125' : 'scale-100'
-                }`}
+                } ${productOutOfStock ? 'opacity-60 grayscale-[35%]' : ''}`}
               />
 
               {/* Tag / Badge */}
               <div className="absolute top-4 left-4 flex flex-col gap-1.5 pointer-events-none">
+                {productOutOfStock && (
+                  <span className="px-3.5 py-1.5 bg-rose-600 text-white text-xs font-black uppercase tracking-wider rounded-md shadow-lg">
+                    OUT OF STOCK · স্টক শেষ
+                  </span>
+                )}
                 {product.isNewArrival && (
                   <span className="px-3 py-1 bg-[#14221C] text-white text-xs font-bold uppercase tracking-wider rounded-md">
                     New Arrival
@@ -310,11 +355,11 @@ export const ProductDetailPage: React.FC = () => {
                   }`}
                 >
                   <img
-                    src={toDisplayImageUrl(img, 180)}
+                    src={toDisplayImageUrl(img, 140)}
                     alt={`${product.name} - ${product.category} View ${idx + 1} | ${product.brand || 'VANTREL OUTFIT'}`}
                     width={80}
                     height={96}
-                    loading="lazy"
+                    loading="eager"
                     decoding="async"
                     onError={handleProxyImageError}
                     className="w-full h-full object-cover"
@@ -395,21 +440,33 @@ export const ProductDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Stock indicator */}
-            <div className="flex items-center gap-2 text-xs">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  currentStock > 5 ? 'bg-emerald-400' : currentStock > 0 ? 'bg-amber-400' : 'bg-rose-500'
-                }`}
-              />
-              <span className="font-medium text-neutral-300">
-                {currentStock > 5
-                  ? `In Stock (${currentStock} units ready for immediate dispatch)`
-                  : currentStock > 0
-                  ? `Low Stock — Only ${currentStock} left in warehouse`
-                  : 'Currently Sold Out for this variant'}
-              </span>
-            </div>
+            {/* Stock indicator & Out of Stock Alert */}
+            {productOutOfStock || currentStock <= 0 ? (
+              <div className="p-3.5 bg-rose-950/60 border border-rose-500/50 rounded-2xl flex items-center gap-3 text-xs text-rose-200">
+                <Ban className="w-5 h-5 text-rose-400 shrink-0" />
+                <div>
+                  <div className="font-black uppercase tracking-wider text-rose-300">
+                    Out of Stock · স্টক শেষ
+                  </div>
+                  <p className="text-[11px] text-rose-200/80 mt-0.5">
+                    এই পণ্যটি বর্তমানে স্টক শেষ হয়ে গেছে, তাই এখন অর্ডার করা যাবে না।
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    currentStock > 5 ? 'bg-emerald-400' : 'bg-amber-400'
+                  }`}
+                />
+                <span className="font-medium text-neutral-300">
+                  {currentStock > 5
+                    ? `In Stock (${currentStock} units ready for immediate dispatch)`
+                    : `Low Stock — Only ${currentStock} left in warehouse`}
+                </span>
+              </div>
+            )}
 
             {/* Color Selector / Single-Image Auto Badge */}
             {isSingleImageProduct ? (
@@ -491,23 +548,23 @@ export const ProductDetailPage: React.FC = () => {
                   const variant = product.variants.find(
                     (v) => v.size === sz && v.color === selectedColor
                   );
-                  const isOutOfStock = variant ? variant.stock <= 0 : false;
+                  const isSizeOos = productOutOfStock || (variant ? variant.stock <= 0 : false);
 
                   return (
                     <button
                       key={sz}
                       type="button"
-                      disabled={isOutOfStock}
+                      disabled={isSizeOos}
                       onClick={() => {
                         setSelectedSize(sz);
                         setSizeError(false);
                       }}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all relative cursor-pointer ${
-                        isOutOfStock
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all relative ${
+                        isSizeOos
                           ? 'opacity-30 line-through cursor-not-allowed bg-neutral-900 border-white/5'
                           : selectedSize === sz
-                          ? 'border-[#FF762E] bg-[#FF762E] text-white shadow-sm'
-                          : 'border-white/15 bg-white/5 text-white hover:border-[#FF762E]'
+                          ? 'border-[#FF762E] bg-[#FF762E] text-white shadow-sm cursor-pointer'
+                          : 'border-white/15 bg-white/5 text-white hover:border-[#FF762E] cursor-pointer'
                       }`}
                     >
                       {sz}
@@ -516,7 +573,7 @@ export const ProductDetailPage: React.FC = () => {
                 })}
               </div>
 
-              {sizeError && !selectedSize && (
+              {sizeError && !selectedSize && !productOutOfStock && (
                 <p className="text-[11px] font-semibold text-rose-400 pt-1">
                   অর্ডার বা কার্টে যোগ করার আগে অনুগ্রহ করে উপরে থেকে আপনার সাইজ নির্বাচন করুন।
                 </p>
@@ -531,8 +588,9 @@ export const ProductDetailPage: React.FC = () => {
               <div className="flex items-center border border-white/15 bg-white/5 rounded-xl overflow-hidden">
                 <button
                   type="button"
+                  disabled={productOutOfStock || currentStock <= 0}
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="px-3.5 py-2 text-sm font-bold text-white hover:bg-white/10 cursor-pointer"
+                  className="px-3.5 py-2 text-sm font-bold text-white hover:bg-white/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   -
                 </button>
@@ -541,36 +599,48 @@ export const ProductDetailPage: React.FC = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setQuantity((q) => Math.min(currentStock, q + 1))}
-                  className="px-3.5 py-2 text-sm font-bold text-white hover:bg-white/10 cursor-pointer"
+                  disabled={productOutOfStock || currentStock <= 0}
+                  onClick={() => setQuantity((q) => Math.min(Math.max(1, currentStock), q + 1))}
+                  className="px-3.5 py-2 text-sm font-bold text-white hover:bg-white/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   +
                 </button>
               </div>
             </div>
 
-            {/* Primary Action Buttons: ADD TO CART & BUY NOW */}
-            <div className="space-y-3 pt-2">
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={currentStock <= 0}
-                className="w-full py-3.5 px-6 bg-black hover:bg-neutral-900 border border-white/20 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 group cursor-pointer"
-              >
-                <ShoppingBag className="w-4 h-4 text-[#FF762E] group-hover:scale-110 transition-transform" />
-                <span>অ্যাড টু কার্ট / Add To Bag (৳ {(price * quantity).toLocaleString()})</span>
-              </button>
+            {/* Primary Action Buttons: ADD TO CART & BUY NOW (or Disabled Out-Of-Stock State) */}
+            {productOutOfStock || currentStock <= 0 ? (
+              <div className="space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-4 px-6 bg-rose-950/70 border border-rose-500/50 text-rose-200 text-xs sm:text-sm font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
+                >
+                  <Ban className="w-4 h-4 text-rose-400" />
+                  <span>OUT OF STOCK · বর্তমানে অর্ডার করা যাবে না</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  className="w-full py-3.5 px-6 bg-black hover:bg-neutral-900 border border-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 group cursor-pointer"
+                >
+                  <ShoppingBag className="w-4 h-4 text-[#FF762E] group-hover:scale-110 transition-transform" />
+                  <span>অ্যাড টু কার্ট / Add To Bag (৳ {(price * quantity).toLocaleString()})</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleBuyNow}
-                disabled={currentStock <= 0}
-                className="w-full py-3.5 px-6 bg-[#FF762E] hover:bg-[#e8631c] disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Zap className="w-4 h-4 fill-white" />
-                <span>বাই নাউ / Buy Now (Instant Checkout)</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  className="w-full py-3.5 px-6 bg-[#FF762E] hover:bg-[#e8631c] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>বাই নাউ / Buy Now (Instant Checkout)</span>
+                </button>
+              </div>
+            )}
 
             {/* Seamless Order Assurance */}
             <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 flex items-center justify-between gap-2 text-xs text-emerald-900">
@@ -623,13 +693,13 @@ export const ProductDetailPage: React.FC = () => {
                 Fabric & Composition
               </h2>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-white">
-                    {product.fabric}
+                    {resolvedFabric}
                   </span>
-                  {product.gsm && (
-                    <span className="px-2 py-0.5 bg-[#FF762E] text-white text-[10px] font-bold rounded">
-                      {product.gsm} GSM
+                  {resolvedGsm && (
+                    <span className="px-2 py-0.5 bg-[#FF762E] text-white text-[10px] font-bold rounded shrink-0">
+                      {resolvedGsm}
                     </span>
                   )}
                 </div>

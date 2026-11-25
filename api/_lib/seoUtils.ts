@@ -22,6 +22,7 @@ export interface MinimalProductRecord {
   reviewCount?: number;
   status?: string;
   isArchived?: boolean;
+  outOfStockBehavior?: 'default' | 'show' | 'hide' | string;
   isPinned?: boolean;
   sortOrder?: number;
   createdDate?: string;

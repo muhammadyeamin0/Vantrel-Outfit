@@ -41,6 +41,7 @@ import {
 import { rewriteProductImagesToProxy, rewriteToCanonicalProxyUrl } from '../utils/imageProxy';
 import { isSearchCrawler, withTimeout } from '../utils/crawlerDetect';
 import { doesProductMatchCategory } from '../utils/categoryShowcase';
+import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
 import { buildCourierTrackingUrl } from '../utils/orderProgress';
 import { findProductByUrlParam } from '../utils/seoSlug';
 import {
@@ -152,6 +153,11 @@ export function sanitizeProductSizes(prod: Product): Product {
 
   const colors = Array.isArray(prod.colors) ? prod.colors : [];
 
+  const numericTotalStock =
+    typeof prod.totalStock === 'number' && Number.isFinite(prod.totalStock)
+      ? Math.max(0, Math.round(prod.totalStock))
+      : 50;
+
   const existingVariants = Array.isArray(prod.variants) ? prod.variants : [];
   const validVariants = existingVariants.filter((v) => allowedList.includes(v.size));
   const finalVariants: ProductVariant[] = [...validVariants];
@@ -166,7 +172,10 @@ export function sanitizeProductSizes(prod: Product): Product {
             size: sz,
             color: col.name,
             colorHex: col.hex,
-            stock: Math.max(10, Math.floor((prod.totalStock || 50) / Math.max(1, sizes.length * colors.length))),
+            stock:
+              numericTotalStock <= 0
+                ? 0
+                : Math.max(1, Math.floor(numericTotalStock / Math.max(1, sizes.length * colors.length))),
             sku: `${prod.sku || 'VT'}-${sz}`
           });
         }
@@ -181,19 +190,33 @@ export function sanitizeProductSizes(prod: Product): Product {
           size: sz,
           color: 'Standard',
           colorHex: '#14221C',
-          stock: Math.max(10, Math.floor((prod.totalStock || 50) / Math.max(1, sizes.length))),
+          stock:
+            numericTotalStock <= 0
+              ? 0
+              : Math.max(1, Math.floor(numericTotalStock / Math.max(1, sizes.length))),
           sku: `${prod.sku || 'VT'}-${sz}`
         });
       }
     });
   }
 
+  const syncedVariants: ProductVariant[] =
+    numericTotalStock <= 0
+      ? finalVariants.map((v) => ({ ...v, stock: 0 }))
+      : finalVariants.length > 0 && finalVariants.every((v) => (v.stock ?? 0) <= 0)
+      ? finalVariants.map((v) => ({
+          ...v,
+          stock: Math.max(1, Math.floor(numericTotalStock / Math.max(1, finalVariants.length)))
+        }))
+      : finalVariants;
+
   return {
     ...prod,
+    totalStock: numericTotalStock,
     images: rewriteProductImagesToProxy(prod.images),
     sizes,
     colors,
-    variants: finalVariants
+    variants: syncedVariants
   };
 }
 
@@ -1413,7 +1436,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               bKashStatus: remoteCfg.bKashStatus || prev.bKashStatus,
               bKashMerchantNumber: remoteCfg.bKashMerchantNumber ?? prev.bKashMerchantNumber,
               whatsapp: remoteCfg.whatsapp || prev.whatsapp,
-              address: remoteCfg.address || prev.address
+              address: remoteCfg.address || prev.address,
+              outOfStockDefaultBehavior:
+                remoteCfg.outOfStockDefaultBehavior === 'hide' || remoteCfg.outOfStockDefaultBehavior === 'show'
+                  ? remoteCfg.outOfStockDefaultBehavior
+                  : prev.outOfStockDefaultBehavior
             }));
           })
           .catch(() => {
@@ -2359,6 +2386,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     quantity: number,
     openDrawer: boolean = true
   ): boolean => {
+    if (isProductOutOfStock(product)) {
+      showToast(
+        'Out of Stock (স্টক শেষ)',
+        'দুঃখিত, এই প্রোডাক্টটির স্টক বর্তমানে শেষ। অর্ডার করা যাবে না।',
+        'error'
+      );
+      return false;
+    }
+
     if (!selectedSize || !selectedSize.trim()) {
       showToast('সাইজ নির্বাচন করুন', 'অর্ডার করতে অনুগ্রহ করে আপনার সাইজ নির্বাচন করুন।', 'error');
       return false;
@@ -2370,7 +2406,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     const maxStock = matchedVariant ? matchedVariant.stock : product.totalStock;
 
     if (maxStock <= 0) {
-      showToast('Out of Stock', 'This garment variant is currently unavailable.', 'error');
+      showToast(
+        'Out of Stock (স্টক শেষ)',
+        'দুঃখিত, এই সাইজ/কালার ভ্যারিয়েন্টটি বর্তমানে স্টক শেষ।',
+        'error'
+      );
       return false;
     }
 
@@ -2438,7 +2478,23 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           if (item.id === itemId) {
             const nextQty = item.quantity + delta;
             if (nextQty <= 0) return null;
-            return { ...item, quantity: Math.min(nextQty, item.maxStock) };
+            if (delta > 0) {
+              const liveProd = products.find((p) => p.id === item.productId);
+              if (!liveProd || liveProd.isArchived || liveProd.status === 'archived' || isProductOutOfStock(liveProd)) {
+                showToast('Out of Stock', `${item.name} বর্তমানে স্টক শেষ।`, 'error');
+                return item;
+              }
+              const matchedVariant = liveProd.variants.find(
+                (v) => v.size === item.size && v.color === item.color
+              );
+              const liveMax = matchedVariant ? Math.min(matchedVariant.stock, liveProd.totalStock) : liveProd.totalStock;
+              if (liveMax <= 0) {
+                showToast('Out of Stock', `${item.name} (${item.size}) স্টক শেষ।`, 'error');
+                return item;
+              }
+              return { ...item, maxStock: liveMax, quantity: Math.min(nextQty, liveMax) };
+            }
+            return { ...item, quantity: Math.min(nextQty, Math.max(1, item.maxStock)) };
           }
           return item;
         })
@@ -2649,10 +2705,10 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     return settings.deliveryFeeInsideDhaka ?? 0;
   };
 
-  // Active vs Archived Products
+  // Active (Publicly Visible) vs Archived Products
   const activeProducts = useMemo(
-    () => products.filter((p) => !p.isArchived && p.status !== 'archived'),
-    [products]
+    () => products.filter((p) => !shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)),
+    [products, settings.outOfStockDefaultBehavior]
   );
 
   const archivedProducts = useMemo(
@@ -2758,6 +2814,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           : newProd.status || 'published'
         : 'published';
 
+    const resolvedOosBehavior: 'default' | 'show' | 'hide' =
+      newProd.outOfStockBehavior === 'show' || newProd.outOfStockBehavior === 'hide'
+        ? newProd.outOfStockBehavior
+        : 'default';
+
     const product: Product = sanitizeProductSizes({
       ...newProd,
       id,
@@ -2769,6 +2830,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       discountPrice: safeDiscountPrice,
       costPrice: safeCostPrice,
       totalStock: safeStock,
+      outOfStockBehavior: resolvedOosBehavior,
       images: safeImages,
       status: resolvedStatus,
       isArchived: Boolean(newProd.isArchived || resolvedStatus === 'archived'),
@@ -2874,6 +2936,12 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
     if (cleanUpdated.totalStock !== undefined) {
       cleanUpdated.totalStock = Math.max(0, Math.min(100000, Math.round(Number(cleanUpdated.totalStock) || 0)));
+    }
+    if (cleanUpdated.outOfStockBehavior !== undefined) {
+      cleanUpdated.outOfStockBehavior =
+        cleanUpdated.outOfStockBehavior === 'show' || cleanUpdated.outOfStockBehavior === 'hide'
+          ? cleanUpdated.outOfStockBehavior
+          : 'default';
     }
     if (Array.isArray(cleanUpdated.images)) {
       cleanUpdated.images = rewriteProductImagesToProxy(cleanUpdated.images).slice(0, 20);
@@ -3757,6 +3825,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
           address: merged.address || '',
           metaPixelId: sanitizeMetaPixelId(merged.metaPixelId),
           isMetaPixelEnabled: merged.isMetaPixelEnabled ?? true,
+          outOfStockDefaultBehavior: merged.outOfStockDefaultBehavior === 'hide' ? 'hide' : 'show',
           updatedAt: new Date().toISOString()
         });
         void (async () => {
@@ -3794,12 +3863,21 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       if (!prod) {
         return { success: false, error: `Product ${item.name} not found.` };
       }
-      const variant = prod.variants.find((v) => v.size === item.size && v.color === item.color);
-      const stock = variant ? variant.stock : prod.totalStock;
-      if (item.quantity > stock) {
+      if (prod.isArchived || prod.status === 'archived' || isProductOutOfStock(prod)) {
         return {
           success: false,
-          error: `Insufficient stock for ${item.name} (${item.size}/${item.color}). Only ${stock} available.`
+          error: `${item.name} বর্তমানে স্টক শেষ (Out of Stock)। অনুগ্রহ করে কার্ট থেকে সরিয়ে পুনরায় অর্ডার করুন।`
+        };
+      }
+      const variant = prod.variants.find((v) => v.size === item.size && v.color === item.color);
+      const stock = variant ? Math.min(variant.stock, prod.totalStock) : prod.totalStock;
+      if (stock <= 0 || item.quantity > stock) {
+        return {
+          success: false,
+          error:
+            stock <= 0
+              ? `${item.name} (${item.size}/${item.color}) বর্তমানে স্টক শেষ (Out of Stock)।`
+              : `Insufficient stock for ${item.name} (${item.size}/${item.color}). Only ${stock} available.`
         };
       }
     }

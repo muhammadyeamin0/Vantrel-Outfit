@@ -8,6 +8,7 @@ import {
   findCategoryBySlug
 } from '../utils/seoSlug';
 import { ensureMetaPixelLoaded, trackMetaPageView } from '../utils/metaPixel';
+import { shouldHideProductFromPublic } from '../utils/stockVisibility';
 
 function truncateSeoDescription(text: string, maxLen: number = 158): string {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
@@ -187,9 +188,11 @@ export const DynamicMetaTags: React.FC = () => {
     let productInStock = true;
     let productBrand = 'VANTREL OUTFIT';
 
-    const publishedProducts = products.filter((p) => !p.isArchived && p.status !== 'archived');
+    const publishedProducts = products.filter(
+      (p) => !shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)
+    );
 
-    if (currentPage === 'product-detail' && activeProduct) {
+    if (currentPage === 'product-detail' && activeProduct && !shouldHideProductFromPublic(activeProduct, settings.outOfStockDefaultBehavior)) {
       const seoSlug = getProductSeoSlug(activeProduct, products);
       const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
       const priceText = `৳${effectivePrice.toLocaleString()}`;
@@ -520,7 +523,7 @@ export const DynamicMetaTags: React.FC = () => {
       };
       schemaScript.textContent = JSON.stringify(storeSchema);
     }
-  }, [currentPage, selectedProductId, selectedCategory, products]);
+  }, [currentPage, selectedProductId, selectedCategory, products, settings.outOfStockDefaultBehavior]);
 
   // 4. Synchronize Meta Pixel initialization and fire SPA PageView events
   useEffect(() => {

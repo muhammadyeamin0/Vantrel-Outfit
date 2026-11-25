@@ -145,7 +145,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         name: String(body.name),
         sku: String(body.sku),
         regularPrice: Number(body.regularPrice),
-        totalStock: Number(body.totalStock ?? 50),
+        totalStock: body.totalStock !== undefined && body.totalStock !== null ? Math.max(0, Number(body.totalStock)) : 50,
+        outOfStockBehavior:
+          body.outOfStockBehavior === 'hide' || body.outOfStockBehavior === 'show'
+            ? body.outOfStockBehavior
+            : 'default',
         images: rewriteProductImagesToProxy(Array.isArray(body.images) ? (body.images as string[]) : [])
       };
 
@@ -170,6 +174,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
       const idx = current.findIndex((p) => p.id === targetId);
       const nextBody = { ...body };
+      if (nextBody.totalStock !== undefined && nextBody.totalStock !== null) {
+        nextBody.totalStock = Math.max(0, Number(nextBody.totalStock));
+      }
       if (Array.isArray(nextBody.images)) {
         nextBody.images = rewriteProductImagesToProxy(nextBody.images as string[]);
       }

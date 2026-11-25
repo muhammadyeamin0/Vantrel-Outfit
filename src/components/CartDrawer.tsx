@@ -21,9 +21,11 @@ import {
 import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
 import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../data/bangladeshData';
+import { isProductOutOfStock } from '../utils/stockVisibility';
 
 export const CartDrawer: React.FC = () => {
   const {
+    products,
     isCartDrawerOpen,
     setIsCartDrawerOpen,
     cart,
@@ -133,10 +135,33 @@ export const CartDrawer: React.FC = () => {
   const deliveryFee = calculateDeliveryFee(deliveryZone, cartSubtotal);
   const grandTotal = cartSubtotal + deliveryFee;
 
+  const getDrawerItemAvailability = (item: (typeof cart)[number]) => {
+    const liveProd = products.find((p) => p.id === item.productId);
+    if (!liveProd || liveProd.isArchived || liveProd.status === 'archived' || isProductOutOfStock(liveProd)) {
+      return { isUnavailable: true, reason: 'Out of Stock · স্টক শেষ', availableStock: 0 };
+    }
+    const variant = liveProd.variants?.find((v) => v.size === item.size && v.color === item.color);
+    const availableStock = variant ? variant.stock : liveProd.totalStock;
+    if (availableStock <= 0) {
+      return { isUnavailable: true, reason: 'এই সাইজটি Out of Stock', availableStock: 0 };
+    }
+    if (item.quantity > availableStock) {
+      return { isUnavailable: true, reason: `সর্বোচ্চ ${availableStock} টি স্টকে আছে`, availableStock };
+    }
+    return { isUnavailable: false, reason: '', availableStock };
+  };
+
+  const hasUnavailableItems = cart.some((item) => getDrawerItemAvailability(item).isUnavailable);
+
   // Direct 1-Click Order from Cart (No separate checkout page)
   const handleDirectCartOrder = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+
+    if (hasUnavailableItems) {
+      setFormError('কার্টে থাকা Out of Stock পণ্যটি সরিয়ে তারপর অর্ডার করুন।');
+      return;
+    }
 
     // 1. নাম (Full Name) - Mandatory
     if (!name.trim() || name.trim().length < 2) {
@@ -273,8 +298,10 @@ export const CartDrawer: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-5 space-y-4 divide-y divide-[#E5E1D5]">
               {/* Cart Products List */}
               <div className="space-y-3.5">
-                {cart.map((item) => (
-                  <div key={item.id} className="pt-3.5 first:pt-0 flex gap-3 bg-white p-3 rounded-2xl border border-[#E5E1D5]/80 shadow-2xs">
+                {cart.map((item) => {
+                  const avail = getDrawerItemAvailability(item);
+                  return (
+                  <div key={item.id} className={`pt-3.5 first:pt-0 flex gap-3 bg-white p-3 rounded-2xl border shadow-2xs ${avail.isUnavailable ? 'border-rose-300 bg-rose-50/40' : 'border-[#E5E1D5]/80'}`}>
                     <img
                       src={toDisplayImageUrl(item.image, 180)}
                       alt={item.name}
@@ -283,7 +310,7 @@ export const CartDrawer: React.FC = () => {
                       loading="lazy"
                       decoding="async"
                       onError={handleProxyImageError}
-                      className="w-16 h-20 object-cover rounded-xl bg-stone-100 border border-[#E5E1D5] shrink-0"
+                      className={`w-16 h-20 object-cover rounded-xl bg-stone-100 border shrink-0 ${avail.isUnavailable ? 'border-rose-300 grayscale-[35%]' : 'border-[#E5E1D5]'}`}
                       referrerPolicy="no-referrer"
                     />
 
@@ -302,6 +329,13 @@ export const CartDrawer: React.FC = () => {
                           </button>
                         </div>
 
+                        {avail.isUnavailable && (
+                          <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>{avail.reason}</span>
+                          </div>
+                        )}
+
                         <div className="text-[11px] text-[#202522]/70 mt-1 flex items-center gap-2">
                           <span>সাইজ: <strong className="text-[#14221C]">{item.size}</strong></span>
                           <span>·</span>
@@ -314,7 +348,7 @@ export const CartDrawer: React.FC = () => {
                         <div className="flex items-center border border-[#E5E1D5] bg-[#F7F5EF] rounded-lg overflow-hidden">
                           <button
                             onClick={() => updateCartQuantity(item.id, -1)}
-                            className="px-2 py-0.5 text-xs text-[#202522]/70 hover:bg-stone-200"
+                            className="px-2 py-0.5 text-xs text-[#202522]/70 hover:bg-stone-200 cursor-pointer"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
@@ -323,7 +357,8 @@ export const CartDrawer: React.FC = () => {
                           </span>
                           <button
                             onClick={() => updateCartQuantity(item.id, 1)}
-                            className="px-2 py-0.5 text-xs text-[#202522]/70 hover:bg-stone-200"
+                            disabled={avail.isUnavailable || item.quantity >= avail.availableStock}
+                            className="px-2 py-0.5 text-xs text-[#202522]/70 hover:bg-stone-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -343,7 +378,8 @@ export const CartDrawer: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* DIRECT ORDER FROM CART (No separate checkout needed) */}
@@ -578,15 +614,24 @@ export const CartDrawer: React.FC = () => {
                     </div>
                   </div>
 
+                  {hasUnavailableItems && (
+                    <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl text-[11px] text-rose-800 font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>Out of Stock পণ্য রয়েছে — অর্ডার করতে উপরের ডিলিট আইকনে ক্লিক করে সরান।</span>
+                    </div>
+                  )}
+
                   {/* Direct 1-Click Order Button */}
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="w-full py-3.5 px-4 bg-[#FF762E] hover:bg-[#e8631c] disabled:bg-stone-400 text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    disabled={isSubmitting || hasUnavailableItems}
+                    className="w-full py-3.5 px-4 bg-[#FF762E] hover:bg-[#e8631c] disabled:bg-stone-400 text-white text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                   >
                     <Lock className="w-4 h-4 fill-white" />
                     <span>
-                      {isSubmitting
+                      {hasUnavailableItems
+                        ? 'Out of Stock পণ্য সরিয়ে অর্ডার করুন'
+                        : isSubmitting
                         ? 'অর্ডার নেওয়া হচ্ছে...'
                         : `সরাসরি অর্ডার নিশ্চিত করুন — ৳${grandTotal.toLocaleString()}`}
                     </span>

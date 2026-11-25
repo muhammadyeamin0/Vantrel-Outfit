@@ -34,6 +34,16 @@ import {
 } from '../utils/orderProgress';
 import { DEFAULT_META_PIXEL_ID, sanitizeMetaPixelId } from '../utils/metaPixel';
 import {
+  isProductOutOfStock,
+  resolveOutOfStockBehavior,
+  isProductHiddenByOutOfStock
+} from '../utils/stockVisibility';
+import {
+  resolveProductGsmLabel,
+  resolveProductGsmNumber,
+  resolveProductFabricLabel
+} from '../utils/productGsm';
+import {
   ShieldCheck,
   TrendingUp,
   Package,
@@ -102,7 +112,6 @@ export const AdminDashboard: React.FC = () => {
     restoreProduct,
     permanentlyDeleteProduct,
     deleteAllProducts,
-    recalculateAllPricesFromCost,
     duplicateProduct,
     moveProductUp,
     moveProductDown,
@@ -232,7 +241,7 @@ export const AdminDashboard: React.FC = () => {
   const [prodDiscountPrice, setProdDiscountPrice] = useState<number>(0);
   const [prodSku, setProdSku] = useState('VT-NEW-01');
   const [prodStock, setProdStock] = useState<number>(30);
-  const [prodFabric, setProdFabric] = useState('420 GSM 100% Combed Ringspun Cotton');
+  const [prodFabric, setProdFabric] = useState('100% Combed Ringspun Cotton');
   const [prodFit, setProdFit] = useState('Relaxed Drop-Shoulder Oversized Silhouette');
   const [prodDesc, setProdDesc] = useState('');
   const [prodTagline, setProdTagline] = useState('');
@@ -245,7 +254,7 @@ export const AdminDashboard: React.FC = () => {
   const [prodColors, setProdColors] = useState<{ name: string; hex: string }[]>([]);
   const [newColorName, setNewColorName] = useState('');
   const [newColorHex, setNewColorHex] = useState('#14221C');
-  const [prodGsm, setProdGsm] = useState<number>(420);
+  const [prodGsm, setProdGsm] = useState<number | ''>('');
   const [prodVideoUrl, setProdVideoUrl] = useState<string>('');
   const [prodCost, setProdCost] = useState<number>(0);
   const [prodStatus, setProdStatus] = useState<'published' | 'draft' | 'archived'>('published');
@@ -254,6 +263,7 @@ export const AdminDashboard: React.FC = () => {
   const [prodIsBestSeller, setProdIsBestSeller] = useState<boolean>(false);
   const [prodIsPinned, setProdIsPinned] = useState<boolean>(false);
   const [prodIsTopProduct, setProdIsTopProduct] = useState<boolean>(false);
+  const [prodOutOfStockBehavior, setProdOutOfStockBehavior] = useState<'default' | 'show' | 'hide'>('default');
 
   // Products Table Filter & Bulk Selection State
   const [productSearch, setProductSearch] = useState<string>('');
@@ -261,7 +271,6 @@ export const AdminDashboard: React.FC = () => {
   const [productStatusFilter, setProductStatusFilter] = useState<string>('All');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [confirmDeleteAllProducts, setConfirmDeleteAllProducts] = useState<boolean>(false);
-  const [isRecalculatingPrices, setIsRecalculatingPrices] = useState<boolean>(false);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'today' | '7days' | '30days' | 'year'>('30days');
   const [orderSheetSearch, setOrderSheetSearch] = useState<string>('');
   const [orderSheetFilter, setOrderSheetFilter] = useState<'all' | 'successful'>('all');
@@ -766,8 +775,8 @@ export const AdminDashboard: React.FC = () => {
     setProdPrice(0);
     setProdSku(`VT-DROP-${Math.floor(100 + Math.random() * 900)}`);
     setProdStock(35);
-    setProdFabric('420 GSM 100% Combed Ringspun Cotton French Terry');
-    setProdGsm(420);
+    setProdFabric('100% Combed Ringspun Cotton');
+    setProdGsm('');
     setProdVideoUrl('');
     setProdStatus('published');
     setProdIsFeatured(true);
@@ -784,6 +793,7 @@ export const AdminDashboard: React.FC = () => {
     setShowPantSizes(false);
     setProdColors([]);
     setNewColorName('');
+    setProdOutOfStockBehavior('default');
     setShowAdvancedSpecs(false);
     setIsProductModalOpen(true);
   };
@@ -798,8 +808,8 @@ export const AdminDashboard: React.FC = () => {
     setProdDiscountPrice(p.discountPrice || p.regularPrice);
     setProdSku(p.sku);
     setProdStock(p.totalStock);
-    setProdFabric(p.fabric);
-    setProdGsm(p.gsm || 300);
+    setProdFabric(resolveProductFabricLabel(p) || p.fabric);
+    setProdGsm(resolveProductGsmNumber(p) ?? '');
     setProdVideoUrl(p.videoUrl || '');
     setProdCost(p.costPrice ?? 0);
     setProdStatus(p.isArchived ? 'archived' : (p.status || 'published'));
@@ -823,6 +833,7 @@ export const AdminDashboard: React.FC = () => {
     setShowPantSizes(isPant || finalSizes.some((s) => /^\d+$/.test(s)));
     setProdImages(p.images || []);
     setProdColors(p.colors || []);
+    setProdOutOfStockBehavior(p.outOfStockBehavior || 'default');
     setIsProductModalOpen(true);
   };
 
@@ -1071,7 +1082,7 @@ export const AdminDashboard: React.FC = () => {
               size: sz,
               color: c.name,
               colorHex: c.hex,
-              stock: Math.max(1, Math.floor(cleanStock / Math.max(1, effectiveSizes.length * finalColors.length))),
+              stock: cleanStock <= 0 ? 0 : Math.max(1, Math.floor(cleanStock / Math.max(1, effectiveSizes.length * finalColors.length))),
               sku: `${cleanSku}-${sz}-${c.name.slice(0, 2).toUpperCase()}`
             }))
           )
@@ -1080,7 +1091,7 @@ export const AdminDashboard: React.FC = () => {
             size: sz,
             color: 'Standard',
             colorHex: '#14221C',
-            stock: Math.max(1, Math.floor(cleanStock / Math.max(1, effectiveSizes.length))),
+            stock: cleanStock <= 0 ? 0 : Math.max(1, Math.floor(cleanStock / Math.max(1, effectiveSizes.length))),
             sku: `${cleanSku}-${sz}`
           }));
 
@@ -1115,10 +1126,11 @@ export const AdminDashboard: React.FC = () => {
             isBestSeller: prodIsBestSeller,
             isPinned: prodIsPinned,
             isTopProduct: prodIsTopProduct,
+            outOfStockBehavior: prodOutOfStockBehavior,
             sku: cleanSku,
             totalStock: cleanStock,
-            fabric: prodFabric.trim(),
-            gsm: Number.isFinite(Number(prodGsm)) ? Number(prodGsm) : 420,
+            fabric: prodFabric.trim() || 'Premium Quality Fabric',
+            gsm: prodGsm !== '' && Number.isFinite(Number(prodGsm)) && Number(prodGsm) > 0 ? Number(prodGsm) : undefined,
             videoUrl: prodVideoUrl.trim() || undefined,
             fit: prodFit.trim(),
             description: cleanDesc,
@@ -1148,8 +1160,8 @@ export const AdminDashboard: React.FC = () => {
             sizes: effectiveSizes,
             colors: finalColors,
             variants,
-            fabric: prodFabric.trim(),
-            gsm: Number.isFinite(Number(prodGsm)) ? Number(prodGsm) : 420,
+            fabric: prodFabric.trim() || 'Premium Quality Fabric',
+            gsm: prodGsm !== '' && Number.isFinite(Number(prodGsm)) && Number(prodGsm) > 0 ? Number(prodGsm) : undefined,
             fit: prodFit.trim(),
             care: ['Machine wash cold inside-out', 'Wash with like colors', 'Dry flat in shade'],
             tags: ['VANTREL', 'Drop', 'Streetwear'],
@@ -1158,6 +1170,7 @@ export const AdminDashboard: React.FC = () => {
             isBestSeller: prodIsBestSeller,
             isPinned: prodIsPinned,
             isTopProduct: prodIsTopProduct,
+            outOfStockBehavior: prodOutOfStockBehavior,
             rating: 5.0,
             reviewCount: 0,
             totalStock: cleanStock
@@ -1176,6 +1189,7 @@ export const AdminDashboard: React.FC = () => {
     if (productCategoryFilter !== 'All' && p.category !== productCategoryFilter) return false;
     if (productStatusFilter !== 'All') {
       if (productStatusFilter === 'top' && !p.isTopProduct) return false;
+      if (productStatusFilter === 'out_of_stock' && (!isProductOutOfStock(p) || p.isArchived || p.status === 'archived')) return false;
       if (productStatusFilter === 'archived' && (!p.isArchived && p.status !== 'archived')) return false;
       if (productStatusFilter === 'published' && (p.isArchived || p.status === 'archived' || p.status === 'draft')) return false;
       if (productStatusFilter === 'draft' && (p.status !== 'draft' || p.isArchived)) return false;
@@ -1220,7 +1234,7 @@ export const AdminDashboard: React.FC = () => {
       p.regularPrice,
       p.discountPrice || p.regularPrice,
       p.costPrice || '',
-      p.gsm || '',
+      resolveProductGsmLabel(p) || '',
       p.totalStock,
       p.isArchived ? 'Archived' : (p.status || 'Published'),
       p.createdDate || ''
@@ -2240,7 +2254,7 @@ export const AdminDashboard: React.FC = () => {
                         <div>
                           <div className="font-bold text-xs text-[#14221C] truncate max-w-[180px]">{p.name}</div>
                           <div className="text-[11px] text-rose-700 font-semibold">
-                            Only {p.totalStock} units remaining!
+                            {p.totalStock <= 0 ? 'OUT OF STOCK (0 units)!' : `Only ${p.totalStock} units remaining!`}
                           </div>
                         </div>
                         <button
@@ -2248,7 +2262,7 @@ export const AdminDashboard: React.FC = () => {
                             updateProduct(p.id, { totalStock: p.totalStock + 20 });
                             showToast('Restocked', `Added 20 units to ${p.name}`, 'success');
                           }}
-                          className="px-3 py-1.5 bg-[#14221C] text-white text-[11px] font-bold rounded-lg uppercase hover:bg-[#202522]"
+                          className="px-3 py-1.5 bg-[#14221C] text-white text-[11px] font-bold rounded-lg uppercase hover:bg-[#202522] cursor-pointer"
                         >
                           +20 Restock
                         </button>
@@ -2380,26 +2394,6 @@ export const AdminDashboard: React.FC = () => {
                   )
                 )}
 
-                {products.length > 0 && (
-                  <button
-                    type="button"
-                    disabled={isRecalculatingPrices}
-                    onClick={async () => {
-                      setIsRecalculatingPrices(true);
-                      try {
-                        await recalculateAllPricesFromCost();
-                      } finally {
-                        setIsRecalculatingPrices(false);
-                      }
-                    }}
-                    className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
-                    title={`Cost Price এর সাথে +${COST_TO_SELLING_MARKUP_BDT} বিক্রয় মূল্য ও +${SELLING_TO_REGULAR_MARKUP_BDT} Regular Price অনুযায়ী সব প্রোডাক্ট আপডেট করুন`}
-                  >
-                    <RotateCcw className={`w-3.5 h-3.5 ${isRecalculatingPrices ? 'animate-spin' : ''}`} />
-                    <span>{isRecalculatingPrices ? 'আপডেট হচ্ছে...' : 'সব দাম Cost থেকে আপডেট'}</span>
-                  </button>
-                )}
-
                 <button
                   onClick={handleExportProductsCSV}
                   className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
@@ -2504,6 +2498,61 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* Out-of-Stock Global Visibility & Order-Block Control Banner */}
+            <div className="p-4 bg-rose-50/70 border border-rose-200 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <span className="p-1.5 bg-rose-600 text-white rounded-lg shadow-2xs shrink-0 mt-0.5">
+                  <AlertTriangle className="w-4 h-4" />
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-heading font-extrabold text-sm text-[#14221C]">
+                      Out of Stock (স্টক শেষ) গ্লোবাল কন্ট্রোল
+                    </h4>
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-extrabold rounded-full border border-rose-300">
+                      {products.filter((p) => !p.isArchived && p.status !== 'archived' && isProductOutOfStock(p)).length}টি Out of Stock
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#202522]/75 mt-0.5">
+                    কোনো প্রোডাক্টের Stock 0 হলে ডিফল্টভাবে ওয়েবসাইটে কীভাবে দেখাবে তা এখান থেকে সেট করুন (প্রতিটি প্রোডাক্টে আলাদাভাবে Hide / Show সেট করাও যাবে)।
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateSettings({ outOfStockDefaultBehavior: 'show' });
+                    showToast('Out of Stock নিয়ম আপডেট', 'স্টক শেষ হলে প্রোডাক্টে "Out of Stock" লেখা দেখাবে এবং অর্ডার বন্ধ থাকবে।', 'info');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                    (settings.outOfStockDefaultBehavior || 'show') === 'show'
+                      ? 'bg-[#14221C] text-white border-[#14221C] shadow-xs'
+                      : 'bg-white text-[#14221C] border-[#E5E1D5] hover:bg-stone-100'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Show + অর্ডার বন্ধ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateSettings({ outOfStockDefaultBehavior: 'hide' });
+                    showToast('Out of Stock নিয়ম আপডেট', 'স্টক শেষ হলে প্রোডাক্টটি ওয়েবসাইট থেকে অটো হাইড (Hide) হয়ে যাবে।', 'info');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                    settings.outOfStockDefaultBehavior === 'hide'
+                      ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
+                      : 'bg-white text-rose-800 border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>Auto Hide (লুকান)</span>
+                </button>
+              </div>
+            </div>
+
             {/* Quick Status Filter Tabs */}
             <div className="flex items-center gap-2 border-b border-[#E5E1D5] pb-2 overflow-x-auto">
               <button
@@ -2549,6 +2598,22 @@ export const AdminDashboard: React.FC = () => {
                 <span>পাবলিক / সক্রিয়</span>
                 <span className="text-[10px] opacity-80 px-1.5 py-0.2 rounded-full bg-emerald-200 text-emerald-900">
                   {activeProducts.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setProductStatusFilter('out_of_stock')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  productStatusFilter === 'out_of_stock'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Out of Stock (স্টক শেষ)</span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-rose-200 text-rose-900">
+                  {products.filter((p) => !p.isArchived && p.status !== 'archived' && isProductOutOfStock(p)).length}
                 </span>
               </button>
 
@@ -2605,6 +2670,7 @@ export const AdminDashboard: React.FC = () => {
                   <option value="All">All Statuses</option>
                   <option value="top">⭐ Top Products Only (টপ প্রোডাক্টস)</option>
                   <option value="published">Published Only</option>
+                  <option value="out_of_stock">Out of Stock Only (স্টক শেষ)</option>
                   <option value="draft">Drafts Only</option>
                   <option value="archived">Archived Only</option>
                 </select>
@@ -2617,12 +2683,30 @@ export const AdminDashboard: React.FC = () => {
                 <span className="font-semibold">
                   {selectedProductIds.length} garment(s) selected
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleBulkPublish}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold"
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold cursor-pointer"
                   >
                     Publish
+                  </button>
+                  <button
+                    onClick={() => {
+                      selectedProductIds.forEach((id) => {
+                        const target = products.find((p) => p.id === id);
+                        if (target) {
+                          updateProduct(id, {
+                            totalStock: 0,
+                            variants: (target.variants || []).map((v) => ({ ...v, stock: 0 }))
+                          });
+                        }
+                      });
+                      showToast('Out of Stock', `${selectedProductIds.length}টি প্রোডাক্ট Out of Stock করা হয়েছে।`, 'info');
+                      setSelectedProductIds([]);
+                    }}
+                    className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold cursor-pointer"
+                  >
+                    Mark Out of Stock (0)
                   </button>
                   <button
                     onClick={() => {
@@ -2632,7 +2716,7 @@ export const AdminDashboard: React.FC = () => {
                       });
                       setSelectedProductIds([]);
                     }}
-                    className="px-3 py-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 rounded-lg font-bold flex items-center gap-1 shadow-2xs"
+                    className="px-3 py-1 bg-amber-400 hover:bg-amber-500 text-neutral-950 rounded-lg font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
                     title="নির্বাচিত সব প্রোডাক্টকে হোমপেজ টপ প্রোডাক্ট করুন"
                   >
                     <Star className="w-3 h-3 fill-current" />
@@ -2640,19 +2724,19 @@ export const AdminDashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={handleBulkArchive}
-                    className="px-3 py-1 bg-stone-700 hover:bg-stone-600 text-white rounded-lg font-bold"
+                    className="px-3 py-1 bg-stone-700 hover:bg-stone-600 text-white rounded-lg font-bold cursor-pointer"
                   >
                     Archive
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold"
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold cursor-pointer"
                   >
                     Delete Selected
                   </button>
                   <button
                     onClick={() => setSelectedProductIds([])}
-                    className="text-white/60 hover:text-white px-2"
+                    className="text-white/60 hover:text-white px-2 cursor-pointer"
                   >
                     Clear
                   </button>
@@ -2818,14 +2902,14 @@ export const AdminDashboard: React.FC = () => {
                                   <span>TOP</span>
                                 </span>
                               )}
-                              {p.gsm && (
+                              {resolveProductGsmLabel(p) && (
                                 <span className="px-1.5 py-0.2 bg-[#14221C] text-[#FF762E] text-[9px] font-bold rounded">
-                                  {p.gsm} GSM
+                                  {resolveProductGsmLabel(p)}
                                 </span>
                               )}
                             </div>
                             <span className="block text-[11px] font-normal text-[#202522]/60">
-                              {p.fabric.slice(0, 32)}...
+                              {resolveProductFabricLabel(p).slice(0, 32)}
                             </span>
                           </div>
                         </td>
@@ -2848,26 +2932,132 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`font-bold tabular-nums block ${
-                              p.totalStock < 25 ? 'text-rose-600' : 'text-emerald-700'
-                            }`}
-                          >
-                            {p.totalStock} units
-                          </span>
-                          <span
-                            className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                              p.isArchived
-                                ? 'bg-stone-200 text-stone-700'
-                                : p.status === 'draft'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {p.isArchived ? 'Archived' : p.status || 'Published'}
-                          </span>
+                          {isProductOutOfStock(p) ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-extrabold uppercase tracking-wider">
+                                OUT OF STOCK (0)
+                              </span>
+                              {(() => {
+                                const resolvedOos = resolveOutOfStockBehavior(p, settings.outOfStockDefaultBehavior);
+                                const nextOos = resolvedOos === 'hide' ? 'show' : 'hide';
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateProduct(p.id, { outOfStockBehavior: nextOos });
+                                      showToast(
+                                        nextOos === 'hide' ? 'Store থেকে Hide করা হয়েছে' : 'Out of Stock হিসেবে দেখাবে',
+                                        nextOos === 'hide'
+                                          ? `${p.name} এখন কাস্টমারদের কাছে লুকানো থাকবে।`
+                                          : `${p.name} ওয়েবসাইটে "Out of Stock" লেখা সহ দেখাবে কিন্তু অর্ডার বন্ধ থাকবে।`,
+                                        'info'
+                                      );
+                                    }}
+                                    className={`block px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                                      resolvedOos === 'hide'
+                                        ? 'bg-stone-100 text-stone-700 border-stone-300 hover:bg-stone-200'
+                                        : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                                    }`}
+                                    title="ক্লিক করে Out of Stock হলে Hide নাকি Show (অর্ডার বন্ধ) হবে তা পরিবর্তন করুন"
+                                  >
+                                    {resolvedOos === 'hide' ? '🙈 Store-এ Hide' : '👁️ দেখাবে (অর্ডার বন্ধ)'}
+                                  </button>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <span
+                                className={`font-bold tabular-nums block ${
+                                  p.totalStock < 25 ? 'text-rose-600' : 'text-emerald-700'
+                                }`}
+                              >
+                                {p.totalStock} units
+                              </span>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                    p.isArchived
+                                      ? 'bg-stone-200 text-stone-700'
+                                      : p.status === 'draft'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                                >
+                                  {p.isArchived ? 'Archived' : p.status || 'Published'}
+                                </span>
+                                {p.outOfStockBehavior && p.outOfStockBehavior !== 'default' && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
+                                    {p.outOfStockBehavior === 'hide' ? 'OOS: Hide' : 'OOS: Show'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right space-x-1.5 whitespace-nowrap">
+                          {!p.isArchived && p.status !== 'archived' && (
+                            isProductOutOfStock(p) ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateProduct(p.id, {
+                                      totalStock: 20,
+                                      variants: (p.variants || []).map((v, vIdx) => ({
+                                        ...v,
+                                        stock: Math.max(1, Math.floor(20 / Math.max(1, p.variants.length))) + (vIdx === 0 ? 20 % Math.max(1, p.variants.length) : 0)
+                                      }))
+                                    });
+                                    showToast('Restocked', `${p.name}-এ +20 স্টক যুক্ত হয়েছে।`, 'success');
+                                  }}
+                                  className="px-2 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer"
+                                  title="+20 Stock যোগ করুন"
+                                >
+                                  +20 Stock
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const currentMode = resolveOutOfStockBehavior(p, settings.outOfStockDefaultBehavior);
+                                    const nextMode = currentMode === 'hide' ? 'show' : 'hide';
+                                    updateProduct(p.id, { outOfStockBehavior: nextMode });
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    isProductHiddenByOutOfStock(p, settings.outOfStockDefaultBehavior)
+                                      ? 'text-stone-700 bg-stone-200 hover:bg-stone-300'
+                                      : 'text-amber-800 bg-amber-100 hover:bg-amber-200'
+                                  }`}
+                                  title={
+                                    isProductHiddenByOutOfStock(p, settings.outOfStockDefaultBehavior)
+                                      ? 'বর্তমানে Hide আছে — ক্লিক করলে "Out of Stock" হিসেবে দেখাবে (অর্ডার বন্ধ)'
+                                      : 'বর্তমানে Show হচ্ছে — ক্লিক করলে Store থেকে Hide হবে'
+                                  }
+                                >
+                                  {isProductHiddenByOutOfStock(p, settings.outOfStockDefaultBehavior) ? (
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Eye className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateProduct(p.id, {
+                                    totalStock: 0,
+                                    variants: (p.variants || []).map((v) => ({ ...v, stock: 0 }))
+                                  });
+                                  showToast('Out of Stock', `${p.name} এখন Out of Stock (Stock = 0) করা হয়েছে।`, 'info');
+                                }}
+                                className="px-2 py-1 text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
+                                title="এক ক্লিকে Stock 0 (Out of Stock) করুন"
+                              >
+                                Stock 0
+                              </button>
+                            )
+                          )}
                           <button
                             type="button"
                             onClick={() => toggleTopProduct(p.id)}
@@ -2894,14 +3084,14 @@ export const AdminDashboard: React.FC = () => {
                           </button>
                           <button
                             onClick={() => duplicateProduct(p.id)}
-                            className="p-1.5 text-stone-600 hover:text-[#14221C] bg-[#F7F5EF] rounded-lg"
+                            className="p-1.5 text-stone-600 hover:text-[#14221C] bg-[#F7F5EF] rounded-lg cursor-pointer"
                             title="Duplicate Product"
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleOpenEditProduct(p)}
-                            className="p-1.5 text-stone-600 hover:text-[#14221C] bg-[#F7F5EF] rounded-lg"
+                            className="p-1.5 text-stone-600 hover:text-[#14221C] bg-[#F7F5EF] rounded-lg cursor-pointer"
                             title="Edit Product"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -4218,14 +4408,20 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-[#14221C]">
-                        Total Stock: {prod.totalStock} pcs
-                      </span>
+                      {prod.totalStock <= 0 ? (
+                        <span className="px-2.5 py-1 bg-rose-600 text-white text-xs font-extrabold rounded-lg uppercase">
+                          OUT OF STOCK (0 pcs)
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-[#14221C]">
+                          Total Stock: {prod.totalStock} pcs
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           updateProduct(prod.id, { totalStock: prod.totalStock + 20 });
                         }}
-                        className="px-3 py-1.5 bg-[#14221C] text-white text-xs font-bold uppercase rounded-lg hover:bg-[#202522]"
+                        className="px-3 py-1.5 bg-[#14221C] text-white text-xs font-bold uppercase rounded-lg hover:bg-[#202522] cursor-pointer"
                       >
                         +20 Restock
                       </button>
@@ -5865,6 +6061,96 @@ service cloud.firestore {
                   </p>
                 </div>
 
+                {/* FIELD 3.5: STOCK & OUT-OF-STOCK BEHAVIOR CONTROL */}
+                <div className="p-4 bg-[#F7F5EF] rounded-2xl border border-[#E5E1D5] space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
+                        স্টক ও Out-of-Stock কন্ট্রোল (Stock & Visibility)
+                      </label>
+                      <p className="text-[11px] text-[#202522]/70">
+                        স্টক 0 হলে প্রোডাক্ট ওয়েবসাইট থেকে হাইড হবে নাকি "Out of Stock" দেখিয়ে অর্ডার বন্ধ রাখবে তা ঠিক করুন।
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setProdStock((prev) => (prev <= 0 ? 20 : 0))}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer shrink-0 ${
+                        prodStock <= 0
+                          ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                          : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
+                      }`}
+                    >
+                      {prodStock <= 0 ? '+20 Stock দিন (Restock)' : 'স্টক শেষ করুন (Stock = 0)'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                    <div className="sm:col-span-4">
+                      <label className="block font-bold text-[#14221C] mb-1 text-[11px]">
+                        Total Stock (মোট পিস)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={prodStock}
+                        onChange={(e) => setProdStock(Math.max(0, Number(e.target.value) || 0))}
+                        className={`w-full px-3 py-2 bg-white border rounded-xl font-extrabold text-sm tabular-nums focus:outline-none ${
+                          prodStock <= 0
+                            ? 'border-rose-400 text-rose-600 bg-rose-50/40'
+                            : 'border-[#E5E1D5] text-[#14221C] focus:border-[#FF762E]'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="sm:col-span-8">
+                      <label className="block font-bold text-[#14221C] mb-1 text-[11px]">
+                        Out of Stock (স্টক 0) হলে ওয়েবসাইটে কী হবে?
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setProdOutOfStockBehavior('default')}
+                          className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border text-left transition-colors cursor-pointer ${
+                            prodOutOfStockBehavior === 'default'
+                              ? 'bg-[#14221C] text-white border-[#14221C]'
+                              : 'bg-white text-[#14221C] border-[#E5E1D5] hover:bg-stone-100'
+                          }`}
+                        >
+                          <div>গ্লোবাল নিয়ম</div>
+                          <div className="text-[10px] opacity-75 font-normal">
+                            ({settings.outOfStockDefaultBehavior === 'hide' ? 'Auto Hide' : 'Show · অর্ডার বন্ধ'})
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProdOutOfStockBehavior('show')}
+                          className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border text-left transition-colors cursor-pointer ${
+                            prodOutOfStockBehavior === 'show'
+                              ? 'bg-amber-500 text-neutral-950 border-amber-600'
+                              : 'bg-white text-[#14221C] border-[#E5E1D5] hover:bg-amber-50'
+                          }`}
+                        >
+                          <div>👁️ Show (দেখাবে)</div>
+                          <div className="text-[10px] opacity-80 font-normal">Out of Stock · অর্ডার বন্ধ</div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProdOutOfStockBehavior('hide')}
+                          className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border text-left transition-colors cursor-pointer ${
+                            prodOutOfStockBehavior === 'hide'
+                              ? 'bg-rose-700 text-white border-rose-800'
+                              : 'bg-white text-rose-800 border-rose-200 hover:bg-rose-50'
+                          }`}
+                        >
+                          <div>🙈 Hide (লুকান)</div>
+                          <div className="text-[10px] opacity-80 font-normal">কাস্টমার দেখবে না</div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* FIELD 4: PRODUCT DESCRIPTION & TAGLINE */}
                 <div className="space-y-3">
                   <div>
@@ -6374,12 +6660,15 @@ service cloud.firestore {
                         </div>
 
                         <div>
-                          <label className="block font-bold text-[#14221C] mb-1">Fabric GSM</label>
+                          <label className="block font-bold text-[#14221C] mb-1">Fabric GSM (Optional)</label>
                           <input
                             type="number"
-                            placeholder="e.g. 420"
+                            placeholder="Description থেকে অটো নেবে"
                             value={prodGsm}
-                            onChange={(e) => setProdGsm(Number(e.target.value) || 0)}
+                            onChange={(e) => {
+                              const raw = e.target.value.trim();
+                              setProdGsm(raw === '' ? '' : Math.max(0, Number(raw) || 0));
+                            }}
                             className="w-full px-3 py-2 bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-bold text-[#14221C]"
                           />
                         </div>

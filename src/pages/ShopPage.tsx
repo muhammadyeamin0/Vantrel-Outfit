@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { ProductCategory } from '../types';
 import { Search, SlidersHorizontal, X, RotateCcw, Check, Sparkles } from 'lucide-react';
+import { shouldHideProductFromPublic } from '../utils/stockVisibility';
 
 export const ShopPage: React.FC = () => {
   const {
@@ -11,7 +12,8 @@ export const ShopPage: React.FC = () => {
     setSelectedCategory,
     searchQuery,
     setSearchQuery,
-    categories
+    categories,
+    settings
   } = useStore();
 
   const [sortBy, setSortBy] = useState<
@@ -36,20 +38,20 @@ export const ShopPage: React.FC = () => {
   const availableColors = useMemo(() => {
     const colorSet = new Set<string>();
     products.forEach((p) => {
-      if (p.isArchived || p.status === 'archived') return;
+      if (shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)) return;
       (p.colors || []).forEach((c) => {
         if (c?.name?.trim()) colorSet.add(c.name.trim());
       });
     });
     return ['All', ...Array.from(colorSet).sort((a, b) => a.localeCompare(b))];
-  }, [products]);
+  }, [products, settings.outOfStockDefaultBehavior]);
 
   // Filtering and sorting logic
   const filteredProducts = useMemo(() => {
     return products
       .filter((product) => {
-        // Hide Deleted / Archived products from public customers
-        if (product.isArchived || product.status === 'archived') {
+        // Hide Deleted / Archived / Hidden Out-of-Stock products from public customers
+        if (shouldHideProductFromPublic(product, settings.outOfStockDefaultBehavior)) {
           return false;
         }
 
@@ -181,7 +183,8 @@ export const ShopPage: React.FC = () => {
     selectedColor,
     inStockOnly,
     discountOnly,
-    sortBy
+    sortBy,
+    settings.outOfStockDefaultBehavior
   ]);
 
   const resetAllFilters = () => {
@@ -453,7 +456,7 @@ export const ShopPage: React.FC = () => {
                 <h2 className="sr-only">Product Catalog</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                   {filteredProducts.slice(0, visibleCount).map((product, idx) => (
-                    <ProductCard key={product.id} product={product} priority={idx < 4} />
+                    <ProductCard key={product.id} product={product} priority={idx < 6} />
                   ))}
                 </div>
 

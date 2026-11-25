@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import {
   VANTREL_CANONICAL_ORIGIN,
   type MinimalProductRecord,
@@ -23,6 +23,7 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
 
 const CACHE_TTL_MS = 60 * 1000;
 let cachedProducts: ProductRecord[] | null = null;
+let cachedOutOfStockDefaultBehavior: 'show' | 'hide' = 'show';
 let cachedAt = 0;
 let refreshPromise: Promise<ProductRecord[]> | null = null;
 
@@ -109,12 +110,20 @@ async function refreshFromFirestoreBackground(): Promise<ProductRecord[]> {
           ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
           : getFirestore(app);
 
-        const snapshot = await Promise.race([
-          getDocs(collection(db, 'products')),
+        const [snapshot, storeDocSnap] = await Promise.race([
+          Promise.all([
+            getDocs(collection(db, 'products')),
+            getDoc(doc(db, 'settings', 'store')).catch(() => null)
+          ]),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Firestore read timeout')), 2500)
           )
         ]);
+
+        if (storeDocSnap && storeDocSnap.exists()) {
+          const storeData = storeDocSnap.data() as Record<string, unknown>;
+          cachedOutOfStockDefaultBehavior = storeData?.outOfStockDefaultBehavior === 'hide' ? 'hide' : 'show';
+        }
 
         const remote: ProductRecord[] = [];
         snapshot.forEach((docSnap) => {
@@ -174,8 +183,115 @@ export async function getLiveProducts(forceRefresh = false): Promise<ProductReco
   return cachedProducts;
 }
 
+const rawImagesCache = new Map<string, { images: string[]; cachedAt: number }>();
+let rawDiskIndexBuilt = false;
+const rawDiskById = new Map<string, string[]>();
+const rawDiskBySlug = new Map<string, string[]>();
+
+function ensureRawDiskImageIndex(): void {
+  if (rawDiskIndexBuilt) return;
+  rawDiskIndexBuilt = true;
+  const list = readJsonFile<ProductRecord[]>('data/products_store.json');
+  if (!Array.isArray(list)) return;
+  for (const p of list) {
+    if (!p || !p.id || LEGACY_PRIMARY_PRODUCT_IDS.has(p.id) || !Array.isArray(p.images)) continue;
+    rawDiskById.set(p.id, p.images);
+    const slugKey = getProductSeoSlug(p);
+    if (slugKey) rawDiskBySlug.set(slugKey, p.images);
+    if (p.slug) rawDiskBySlug.set(String(p.slug).toLowerCase(), p.images);
+  }
+}
+
+export async function getProductImagesFast(productId: string): Promise<string[] | null> {
+  const cleanId = String(productId || '').trim();
+  if (!cleanId) return null;
+
+  // 1. Check warm catalog cache first if already populated
+  if (cachedProducts && cachedProducts.length > 0) {
+    const match = cachedProducts.find(
+      (p) => p.id === cleanId || p.slug === cleanId || getProductSeoSlug(p, cachedProducts!) === cleanId
+    );
+    if (match?.images && match.images.length > 0) {
+      return match.images;
+    }
+  }
+
+  // 2. Check raw per-product cache (avoids re-querying Firestore across idx=0..3 & responsive widths)
+  const mem = rawImagesCache.get(cleanId);
+  if (mem && Date.now() - mem.cachedAt < 5 * 60 * 1000) {
+    return mem.images;
+  }
+
+  // 3. Check lightweight disk index (no full-catalog URL normalization overhead)
+  ensureRawDiskImageIndex();
+  const diskMatch =
+    rawDiskById.get(cleanId) ||
+    rawDiskBySlug.get(cleanId) ||
+    rawDiskBySlug.get(cleanId.toLowerCase());
+  if (diskMatch && diskMatch.length > 0) {
+    rawImagesCache.set(cleanId, { images: diskMatch, cachedAt: Date.now() });
+    return diskMatch;
+  }
+
+  // 4. Fallback to direct Firestore document lookup (e.g. newly added products not yet in static JSON)
+  try {
+    const firebaseConfig = readJsonFile<{
+      apiKey?: string;
+      authDomain?: string;
+      projectId?: string;
+      storageBucket?: string;
+      messagingSenderId?: string;
+      appId?: string;
+      firestoreDatabaseId?: string;
+    }>('firebase-applet-config.json');
+
+    if (firebaseConfig?.projectId) {
+      const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+      const db = firebaseConfig.firestoreDatabaseId
+        ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+        : getFirestore(app);
+
+      const snap = await Promise.race([
+        getDoc(doc(db, 'products', cleanId)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+      ]);
+      if (snap.exists()) {
+        const data = snap.data() as { images?: unknown };
+        if (Array.isArray(data.images) && data.images.length > 0) {
+          const imgs = data.images.filter((x): x is string => typeof x === 'string' && x.length > 0);
+          if (imgs.length > 0) {
+            rawImagesCache.set(cleanId, { images: imgs, cachedAt: Date.now() });
+            return imgs;
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore timeout / network failure
+  }
+
+  return null;
+}
+
+export function isCatalogProductHiddenByOutOfStock(
+  p: ProductRecord,
+  defaultBehavior: 'show' | 'hide' = cachedOutOfStockDefaultBehavior
+): boolean {
+  if ((p.totalStock ?? 0) > 0) return false;
+  const effective = p.outOfStockBehavior === 'hide' || p.outOfStockBehavior === 'show'
+    ? p.outOfStockBehavior
+    : defaultBehavior;
+  return effective === 'hide';
+}
+
 export function getPublishedProducts(allProducts: ProductRecord[]): ProductRecord[] {
-  return allProducts.filter((p) => !p.isArchived && p.status !== 'archived');
+  return allProducts.filter(
+    (p) =>
+      !p.isArchived &&
+      p.status !== 'archived' &&
+      p.status !== 'draft' &&
+      !isCatalogProductHiddenByOutOfStock(p)
+  );
 }
 
 export function getActiveCategories(publishedProducts: ProductRecord[]): string[] {

@@ -13,9 +13,10 @@ type VercelRes = ServerResponse & {
 };
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
-const CACHE_TTL_MS = 30 * 60 * 1000;
-const CACHE_MAX_ITEMS = 120;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_MAX_ITEMS = 220;
 const CACHE_MAX_ITEM_BYTES = 1.5 * 1024 * 1024;
+const DNS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 interface CacheEntry {
   buffer: Buffer;
@@ -25,6 +26,9 @@ interface CacheEntry {
 }
 
 const MEMORY_CACHE = new Map<string, CacheEntry>();
+const SAFE_HOST_CACHE = new Map<string, number>();
+const IN_FLIGHT_UPSTREAM = new Map<string, Promise<{ rawBuffer: Buffer; contentType: string }>>();
+const IN_FLIGHT_OPTIMIZED = new Map<string, Promise<CacheEntry>>();
 
 let sharpLoader: Promise<((input: Buffer) => any) | null> | null = null;
 async function getSharp(): Promise<((input: Buffer) => any) | null> {
@@ -57,7 +61,7 @@ async function optimizeProxyBuffer(
       pipeline = pipeline.resize({ width: targetWidth, withoutEnlargement: true });
     }
     if (wantsWebp) {
-      const out = await pipeline.webp({ quality: 78, effort: 3 }).toBuffer();
+      const out = await pipeline.webp({ quality: 75, effort: 1 }).toBuffer();
       return { buffer: out, contentType: 'image/webp' };
     }
     const out = await pipeline.toBuffer();
@@ -148,10 +152,15 @@ async function assertSafeUrl(targetUrl: string): Promise<URL> {
     if (isDisallowedIp(host)) throw new Error('Private IPs are not allowed');
     return parsed;
   }
+  const cachedSafeAt = SAFE_HOST_CACHE.get(host);
+  if (cachedSafeAt && Date.now() - cachedSafeAt < DNS_CACHE_TTL_MS) {
+    return parsed;
+  }
   const resolved = await dns.lookup(host, { all: true });
   if (!resolved || resolved.length === 0 || resolved.some((r) => isDisallowedIp(r.address))) {
     throw new Error('Resolved host points to a restricted address');
   }
+  SAFE_HOST_CACHE.set(host, Date.now());
   return parsed;
 }
 
@@ -169,7 +178,7 @@ function sniffImageMime(buf: Buffer): string | null {
   return null;
 }
 
-async function fetchWithRetry(urlObj: URL): Promise<globalThis.Response> {
+async function fetchWithRetry(urlObj: URL): Promise<{ rawBuffer: Buffer; contentType: string }> {
   const baseHeaders: Record<string, string> = {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -184,7 +193,7 @@ async function fetchWithRetry(urlObj: URL): Promise<globalThis.Response> {
         method: 'GET',
         headers: baseHeaders,
         redirect: 'follow',
-        signal: AbortSignal.timeout(14000)
+        signal: AbortSignal.timeout(6500)
       });
 
       if (resp.status === 401 || resp.status === 403) {
@@ -195,19 +204,40 @@ async function fetchWithRetry(urlObj: URL): Promise<globalThis.Response> {
             Referer: `${urlObj.protocol}//${urlObj.host}/`
           },
           redirect: 'follow',
-          signal: AbortSignal.timeout(14000)
+          signal: AbortSignal.timeout(6500)
         });
       }
 
-      if (resp.ok || (resp.status >= 400 && resp.status < 429 && resp.status !== 408)) {
-        return resp;
+      if (!resp.ok) {
+        if (resp.status >= 400 && resp.status < 429 && resp.status !== 408) {
+          throw new Error(`Upstream returned ${resp.status}`);
+        }
+        lastErr = new Error(`Upstream returned ${resp.status}`);
+      } else {
+        const declaredLength = Number(resp.headers.get('content-length') || '0');
+        if (declaredLength > MAX_IMAGE_BYTES) {
+          throw new Error('Image too large');
+        }
+        const arrayBuf = await resp.arrayBuffer();
+        const rawBuffer = Buffer.from(arrayBuf);
+        if (rawBuffer.length === 0 || rawBuffer.length > MAX_IMAGE_BYTES) {
+          throw new Error('Invalid or oversized image payload');
+        }
+        let contentType = (resp.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        if (!contentType.startsWith('image/')) {
+          const sniffed = sniffImageMime(rawBuffer);
+          if (!sniffed) {
+            throw new Error(`Upstream did not return a valid image (${contentType || 'unknown'})`);
+          }
+          contentType = sniffed;
+        }
+        return { rawBuffer, contentType };
       }
-      lastErr = new Error(`Upstream returned ${resp.status}`);
     } catch (err) {
       lastErr = err;
     }
     if (attempt === 0) {
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 150));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error('Upstream fetch failed');
@@ -221,11 +251,19 @@ function sendJsonError(res: VercelRes, statusCode: number, payload: Record<strin
   res.end(JSON.stringify(payload));
 }
 
-function writeProxyHeaders(res: VercelRes, contentType: string, contentLength: number, etag: string) {
+function writeProxyHeaders(
+  res: VercelRes,
+  contentType: string,
+  contentLength: number,
+  etag: string,
+  targetWidth: number
+) {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Length', String(contentLength));
   res.setHeader('ETag', etag);
-  res.setHeader('Vary', 'Accept');
+  if (targetWidth <= 0) {
+    res.setHeader('Vary', 'Accept');
+  }
   res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
   res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
   res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
@@ -302,7 +340,7 @@ export default async function handler(req: VercelReq, res: VercelRes) {
   if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
     MEMORY_CACHE.delete(cacheKey);
     MEMORY_CACHE.set(cacheKey, cached);
-    writeProxyHeaders(res, cached.contentType, cached.buffer.length, cached.etag);
+    writeProxyHeaders(res, cached.contentType, cached.buffer.length, cached.etag, targetWidth);
     if (req.headers['if-none-match'] === cached.etag) {
       res.statusCode = 304;
       res.end();
@@ -314,60 +352,56 @@ export default async function handler(req: VercelReq, res: VercelRes) {
   }
 
   try {
-    const safeUrl = await assertSafeUrl(targetUrl);
-    const upstream = await fetchWithRetry(safeUrl);
-    if (!upstream.ok) {
-      sendJsonError(res, 502, {
-        success: false,
-        error: 'Unable to fetch upstream image',
-        detail: `Upstream responded with status ${upstream.status}`
+    let inflightOpt = IN_FLIGHT_OPTIMIZED.get(cacheKey);
+    if (!inflightOpt) {
+      inflightOpt = (async (): Promise<CacheEntry> => {
+        let inflightRaw = IN_FLIGHT_UPSTREAM.get(targetUrl);
+        if (!inflightRaw) {
+          inflightRaw = (async () => {
+            const safeUrl = await assertSafeUrl(targetUrl);
+            return fetchWithRetry(safeUrl);
+          })().finally(() => {
+            IN_FLIGHT_UPSTREAM.delete(targetUrl);
+          });
+          IN_FLIGHT_UPSTREAM.set(targetUrl, inflightRaw);
+        }
+
+        const fetched = await inflightRaw;
+        const optimized = await optimizeProxyBuffer(
+          fetched.rawBuffer,
+          fetched.contentType,
+          targetWidth,
+          wantsWebp
+        );
+        const buffer = optimized.buffer;
+        const contentType = optimized.contentType;
+        const etag = `"vt-${Buffer.from(cacheKey).toString('base64url').slice(0, 16)}-${buffer.length}"`;
+        const entry: CacheEntry = { buffer, contentType, etag, cachedAt: Date.now() };
+
+        if (buffer.length <= CACHE_MAX_ITEM_BYTES) {
+          if (MEMORY_CACHE.size >= CACHE_MAX_ITEMS) {
+            const oldestKey = MEMORY_CACHE.keys().next().value;
+            if (oldestKey) MEMORY_CACHE.delete(oldestKey);
+          }
+          MEMORY_CACHE.set(cacheKey, entry);
+        }
+
+        return entry;
+      })().finally(() => {
+        IN_FLIGHT_OPTIMIZED.delete(cacheKey);
       });
+      IN_FLIGHT_OPTIMIZED.set(cacheKey, inflightOpt);
+    }
+
+    const entry = await inflightOpt;
+    writeProxyHeaders(res, entry.contentType, entry.buffer.length, entry.etag, targetWidth);
+    if (req.headers['if-none-match'] === entry.etag) {
+      res.statusCode = 304;
+      res.end();
       return;
     }
-
-    const declaredLength = Number(upstream.headers.get('content-length') || '0');
-    if (declaredLength > MAX_IMAGE_BYTES) {
-      sendJsonError(res, 413, { success: false, error: 'Image too large' });
-      return;
-    }
-
-    const arrayBuf = await upstream.arrayBuffer();
-    const rawBuffer = Buffer.from(arrayBuf);
-    if (rawBuffer.length === 0 || rawBuffer.length > MAX_IMAGE_BYTES) {
-      sendJsonError(res, 502, { success: false, error: 'Invalid or oversized image payload' });
-      return;
-    }
-
-    let contentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    if (!contentType.startsWith('image/')) {
-      const sniffed = sniffImageMime(rawBuffer);
-      if (!sniffed) {
-        sendJsonError(res, 502, {
-          success: false,
-          error: 'Upstream did not return a valid image',
-          detail: contentType || 'unknown'
-        });
-        return;
-      }
-      contentType = sniffed;
-    }
-
-    const optimized = await optimizeProxyBuffer(rawBuffer, contentType, targetWidth, wantsWebp);
-    const buffer = optimized.buffer;
-    contentType = optimized.contentType;
-
-    const etag = `"vt-${Buffer.from(cacheKey).toString('base64url').slice(0, 16)}-${buffer.length}"`;
-    if (buffer.length <= CACHE_MAX_ITEM_BYTES) {
-      if (MEMORY_CACHE.size >= CACHE_MAX_ITEMS) {
-        const oldestKey = MEMORY_CACHE.keys().next().value;
-        if (oldestKey) MEMORY_CACHE.delete(oldestKey);
-      }
-      MEMORY_CACHE.set(cacheKey, { buffer, contentType, etag, cachedAt: now });
-    }
-
-    writeProxyHeaders(res, contentType, buffer.length, etag);
     res.statusCode = 200;
-    res.end(req.method === 'HEAD' ? undefined : buffer);
+    res.end(req.method === 'HEAD' ? undefined : entry.buffer);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Proxy fetch error';
     sendJsonError(res, 502, { success: false, error: 'Unable to proxy image', detail: message });

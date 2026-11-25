@@ -113,6 +113,7 @@ export interface Product {
   reviewCount: number;
   reviews?: Review[];
   totalStock: number;
+  outOfStockBehavior?: 'default' | 'show' | 'hide';
   createdDate?: string;
 }
 
@@ -289,6 +290,7 @@ export interface StoreSettings {
   gmailNotificationAppPassword?: string;
   metaPixelId?: string;
   isMetaPixelEnabled?: boolean;
+  outOfStockDefaultBehavior?: 'show' | 'hide';
 }
 
 export type StaffRole =

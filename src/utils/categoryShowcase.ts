@@ -1,4 +1,5 @@
 import { Product, ProductCategory } from '../types';
+import { shouldHideProductFromPublic, type OutOfStockDefaultBehavior } from './stockVisibility';
 
 function normalizeCatText(value: string): string {
   return (value || '').trim().toLowerCase();
@@ -60,9 +61,13 @@ export function doesProductMatchCategory(product: Product, category: ProductCate
   return pCat.includes(catKey) || (catKey.length > 3 && pSub.includes(catKey));
 }
 
-export function getProductsForCategory(category: ProductCategory, products: Product[]): Product[] {
+export function getProductsForCategory(
+  category: ProductCategory,
+  products: Product[],
+  outOfStockDefaultBehavior: OutOfStockDefaultBehavior = 'show'
+): Product[] {
   const active = products.filter(
-    (p) => !p.isArchived && p.status !== 'archived' && Array.isArray(p.images) && p.images.length > 0
+    (p) => !shouldHideProductFromPublic(p, outOfStockDefaultBehavior) && Array.isArray(p.images) && p.images.length > 0
   );
 
   const catKey = normalizeCatText(category);
@@ -106,8 +111,12 @@ export function sortProductsByBestScore(items: Product[]): Product[] {
   });
 }
 
-export function findBestProductForCategory(category: ProductCategory, products: Product[]): Product | undefined {
-  const matching = getProductsForCategory(category, products);
+export function findBestProductForCategory(
+  category: ProductCategory,
+  products: Product[],
+  outOfStockDefaultBehavior: OutOfStockDefaultBehavior = 'show'
+): Product | undefined {
+  const matching = getProductsForCategory(category, products, outOfStockDefaultBehavior);
   if (matching.length === 0) return undefined;
   return sortProductsByBestScore(matching)[0];
 }
@@ -122,14 +131,15 @@ export interface HomepageShowcaseCard {
 export function getHomepageShowcaseCategories(
   categories: ProductCategory[],
   products: Product[],
-  maxCards = 4
+  maxCards = 4,
+  outOfStockDefaultBehavior: OutOfStockDefaultBehavior = 'show'
 ): HomepageShowcaseCard[] {
   const activeCats = categories.filter((c) => c && c !== 'All');
   const results: HomepageShowcaseCard[] = [];
 
   for (const cat of activeCats) {
     if (results.length >= maxCards) break;
-    const bestProd = findBestProductForCategory(cat, products);
+    const bestProd = findBestProductForCategory(cat, products, outOfStockDefaultBehavior);
     if (bestProd && bestProd.images?.[0]) {
       results.push({
         category: cat,

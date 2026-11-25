@@ -619,7 +619,7 @@ export const OrderTrackingPage: React.FC = () => {
                     className="flex items-center gap-3.5 p-3 bg-white rounded-xl border border-[#E5E1D5] shadow-xs"
                   >
                     <img
-                      src={toDisplayImageUrl(item.image)}
+                      src={toDisplayImageUrl(item.image, 160)}
                       alt={item.name}
                       width={64}
                       height={80}

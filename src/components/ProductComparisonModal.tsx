@@ -1,7 +1,8 @@
 import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
-import { X, Check, ShoppingBag, Trash2, ArrowRight, Star, ExternalLink } from 'lucide-react';
+import { X, Check, ShoppingBag, Trash2, Star, ExternalLink } from 'lucide-react';
+import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
 
 export const ProductComparisonModal: React.FC = () => {
   const {
@@ -9,15 +10,17 @@ export const ProductComparisonModal: React.FC = () => {
     removeFromComparison,
     clearComparison,
     products,
+    settings,
     isComparisonModalOpen,
     setIsComparisonModalOpen,
-    openProductDetail,
-    addToCart
+    openProductDetail
   } = useStore();
 
   if (!isComparisonModalOpen) return null;
 
-  const comparedProducts = products.filter((p) => comparisonList.includes(p.id));
+  const comparedProducts = products.filter(
+    (p) => comparisonList.includes(p.id) && !shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
@@ -96,7 +99,7 @@ export const ProductComparisonModal: React.FC = () => {
                               <X className="w-3.5 h-3.5" />
                             </button>
                             <img
-                              src={toDisplayImageUrl(p.images[0])}
+                              src={toDisplayImageUrl(p.images[0], 320)}
                               alt={p.name}
                               width={260}
                               height={192}
@@ -203,18 +206,18 @@ export const ProductComparisonModal: React.FC = () => {
                     <td className="p-3 font-bold text-[#14221C] bg-[#F7F5EF]/60">Stock Status</td>
                     {comparedProducts.map((p) => (
                       <td key={p.id} className="p-3">
-                        {p.totalStock > 10 ? (
+                        {isProductOutOfStock(p) ? (
+                          <span className="text-rose-600 font-bold text-[11px]">
+                            Out of Stock (অর্ডার বন্ধ)
+                          </span>
+                        ) : p.totalStock > 10 ? (
                           <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
                             <Check className="w-3.5 h-3.5" />
                             <span>In Stock ({p.totalStock} units in Banani)</span>
                           </span>
-                        ) : p.totalStock > 0 ? (
+                        ) : (
                           <span className="text-amber-700 font-bold text-[11px]">
                             Low Stock (Only {p.totalStock} left)
-                          </span>
-                        ) : (
-                          <span className="text-rose-600 font-bold text-[11px]">
-                            Sold Out
                           </span>
                         )}
                       </td>
@@ -275,7 +278,7 @@ export const FloatingComparisonDock: React.FC = () => {
         {comparedProducts.map((p) => (
           <img
             key={p.id}
-            src={toDisplayImageUrl(p.images[0])}
+            src={toDisplayImageUrl(p.images[0], 120)}
             alt={p.name}
             width={40}
             height={40}

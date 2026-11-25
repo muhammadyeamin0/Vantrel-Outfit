@@ -159,10 +159,9 @@ export function toCanonicalSeoImageUrl(
 
 /**
  * Returns the runtime browser <img src> URL:
- * - On www.vantreloutfit.shop / vantreloutfit.shop: uses full https://www.vantreloutfit.shop/api/image-proxy?url=...
- *   and https://www.vantreloutfit.shop/assets/...
- * - On local dev or AI Studio preview hosts: routes /api/image-proxy?url=... and /assets/... via the active preview server
- *   so every image loads smoothly with 200 OK during preview before/between Vercel deployments.
+ * - Always prefers same-origin relative /api/image-proxy, /api/product-image, and /assets/...
+ *   in the browser so HTTP/2 multiplexing reuses the active connection with zero extra DNS/TLS latency.
+ * - Outside browser (SSR), resolves with VANTREL_CANONICAL_ORIGIN.
  */
 export function toDisplayImageUrl(rawUrl: string, targetWidth?: number): string {
   const trimmed = String(rawUrl || '').trim();
@@ -170,8 +169,6 @@ export function toDisplayImageUrl(rawUrl: string, targetWidth?: number): string 
   if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
 
   const isBrowser = typeof window !== 'undefined' && Boolean(window.location?.hostname);
-  const currentHost = isBrowser ? window.location.hostname.toLowerCase() : '';
-  const isOnCanonicalDomain = isBrowser && isVantrelDomainHostname(currentHost);
 
   const appendWidth = (url: string): string => {
     if (!targetWidth || targetWidth <= 0) return url;
@@ -189,23 +186,22 @@ export function toDisplayImageUrl(rawUrl: string, targetWidth?: number): string 
     const cleanInner = normalizeThirdPartyImageUrl(unwrapped);
     const encoded = encodeURIComponent(cleanInner);
     return appendWidth(
-      isOnCanonicalDomain || !isBrowser
-        ? `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
-        : `${IMAGE_PROXY_ROUTE}?url=${encoded}`
+      isBrowser
+        ? `${IMAGE_PROXY_ROUTE}?url=${encoded}`
+        : `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
     );
   }
 
   const normalized = normalizeThirdPartyImageUrl(trimmed);
 
-  // Rewrite own domain /assets/... paths to relative /assets/... on preview hosts so local files load instantly
+  // Rewrite own domain /assets/... & /api/... paths to relative paths in the browser for instant HTTP/2 reuse
   if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
     try {
       const parsed = new URL(normalized);
       if (isVantrelDomainHostname(parsed.hostname)) {
-        const baseResolved =
-          !isOnCanonicalDomain && isBrowser
-            ? `${parsed.pathname}${parsed.search}`
-            : `${VANTREL_CANONICAL_ORIGIN}${parsed.pathname}${parsed.search}`;
+        const baseResolved = isBrowser
+          ? `${parsed.pathname}${parsed.search}`
+          : `${VANTREL_CANONICAL_ORIGIN}${parsed.pathname}${parsed.search}`;
         return appendWidth(baseResolved);
       }
     } catch {
@@ -214,19 +210,59 @@ export function toDisplayImageUrl(rawUrl: string, targetWidth?: number): string 
   }
 
   if (normalized.startsWith('/')) {
-    return appendWidth(isOnCanonicalDomain ? `${VANTREL_CANONICAL_ORIGIN}${normalized}` : normalized);
+    return appendWidth(isBrowser ? normalized : `${VANTREL_CANONICAL_ORIGIN}${normalized}`);
   }
 
   if (isExternalThirdPartyImage(normalized, isBrowser ? window.location.host : undefined)) {
     const encoded = encodeURIComponent(normalized);
     return appendWidth(
-      isOnCanonicalDomain || !isBrowser
-        ? `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
-        : `${IMAGE_PROXY_ROUTE}?url=${encoded}`
+      isBrowser
+        ? `${IMAGE_PROXY_ROUTE}?url=${encoded}`
+        : `${VANTREL_CANONICAL_ORIGIN}${IMAGE_PROXY_ROUTE}?url=${encoded}`
     );
   }
 
   return appendWidth(normalized);
+}
+
+/**
+ * Generates responsive srcset entries (e.g. 320w, 480w, 900w) for proxied or server-resized images
+ * so mobile cards download compact WebPs (~10-18KB) instead of oversized desktop images.
+ */
+export function buildResponsiveImageSrcSet(rawUrl: string, widths: number[]): string | undefined {
+  const trimmed = String(rawUrl || '').trim();
+  if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || widths.length === 0) {
+    return undefined;
+  }
+  const baseUrl = toDisplayImageUrl(trimmed);
+  if (!baseUrl.includes(IMAGE_PROXY_ROUTE) && !baseUrl.includes('/api/product-image')) {
+    return undefined;
+  }
+  return widths
+    .map((w) => `${toDisplayImageUrl(trimmed, w)} ${Math.round(w)}w`)
+    .join(', ');
+}
+
+const preloadedImageSet = new Set<string>();
+
+/**
+ * Silently warms the browser cache for high-res product detail photos on card hover/touch
+ * or secondary gallery angles so opening ProductDetailPage feels instantaneous.
+ */
+export function preloadProductImage(rawUrl?: string, targetWidth: number = 900): void {
+  if (typeof window === 'undefined' || !rawUrl) return;
+  const resolved = toDisplayImageUrl(rawUrl, targetWidth);
+  if (!resolved || resolved.startsWith('data:') || resolved.startsWith('blob:')) return;
+  if (preloadedImageSet.has(resolved)) return;
+  if (preloadedImageSet.size >= 80) {
+    const first = preloadedImageSet.values().next().value;
+    if (first) preloadedImageSet.delete(first);
+  }
+  preloadedImageSet.add(resolved);
+  const img = new window.Image();
+  img.decoding = 'async';
+  img.referrerPolicy = 'no-referrer';
+  img.src = resolved;
 }
 
 /**
@@ -244,6 +280,7 @@ export function handleProxyImageError(e: React.SyntheticEvent<HTMLImageElement>)
     const directUpstream = unwrapProxyImageUrl(currentSrc);
     if (directUpstream && directUpstream !== currentSrc) {
       img.dataset.proxyFallbackStage = '1';
+      img.removeAttribute('srcset');
       img.referrerPolicy = 'no-referrer';
       img.src = directUpstream;
       return;
@@ -252,6 +289,7 @@ export function handleProxyImageError(e: React.SyntheticEvent<HTMLImageElement>)
 
   if (stage !== '2') {
     img.dataset.proxyFallbackStage = '2';
+    img.removeAttribute('srcset');
     img.src = FALLBACK_PRODUCT_IMAGE;
   }
 }

@@ -26,6 +26,7 @@ import {
   LayoutGrid
 } from 'lucide-react';
 import { ProductCategory } from '../types';
+import { shouldHideProductFromPublic } from '../utils/stockVisibility';
 const AdminAuthModal = lazy(() => import('./AdminAuthModal').then(m => ({ default: m.AdminAuthModal })));
 
 export const TopCategoryStrip: React.FC = () => {
@@ -67,10 +68,12 @@ export const TopCategoryStrip: React.FC = () => {
   };
 
   const getCategoryCount = (cat: ProductCategory) => {
-    if (cat === 'All') return products.filter((p) => !p.isArchived && p.status !== 'archived').length;
+    if (cat === 'All') {
+      return products.filter((p) => !shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)).length;
+    }
     const catLower = cat.toLowerCase();
     return products.filter((p) => {
-      if (p.isArchived || p.status === 'archived') return false;
+      if (shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)) return false;
       const pCat = p.category.toLowerCase();
       const pSub = (p.subCategory || '').toLowerCase();
       const pName = p.name.toLowerCase();

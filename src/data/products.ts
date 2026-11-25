@@ -84,7 +84,8 @@ export const INITIAL_SETTINGS: StoreSettings = {
   gmailNotificationUser: 'muhammadeyamin0@gmail.com',
   gmailNotificationAppPassword: '',
   metaPixelId: '2167529260510757',
-  isMetaPixelEnabled: true
+  isMetaPixelEnabled: true,
+  outOfStockDefaultBehavior: 'show'
 };
 
 export const INITIAL_CUSTOMERS: User[] = [

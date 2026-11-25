@@ -5,6 +5,7 @@ import { PaymentMethod, Address, User } from '../types';
 import { getSavedAddresses, saveAddressLocally, removeAddressLocally } from '../utils/addressStorage';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { trackMetaInitiateCheckout } from '../utils/metaPixel';
+import { isProductOutOfStock } from '../utils/stockVisibility';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -34,6 +35,7 @@ import {
 
 export const CheckoutPage: React.FC = () => {
   const {
+    products,
     cart,
     cartSubtotal,
     removeFromCart,
@@ -272,11 +274,40 @@ export const CheckoutPage: React.FC = () => {
     return null;
   };
 
-  const currentValidationError = getValidationFeedback();
+  // Live stock availability check for checkout items
+  const getCheckoutItemAvailability = (item: (typeof cart)[number]) => {
+    const liveProd = products.find((p) => p.id === item.productId);
+    if (!liveProd || liveProd.isArchived || liveProd.status === 'archived' || isProductOutOfStock(liveProd)) {
+      return { isUnavailable: true, reason: 'Out of Stock · স্টক শেষ', availableStock: 0 };
+    }
+    const variant = liveProd.variants?.find((v) => v.size === item.size && v.color === item.color);
+    const availableStock = variant ? variant.stock : liveProd.totalStock;
+    if (availableStock <= 0) {
+      return { isUnavailable: true, reason: 'এই সাইজটি Out of Stock', availableStock: 0 };
+    }
+    if (item.quantity > availableStock) {
+      return { isUnavailable: true, reason: `সর্বোচ্চ ${availableStock} টি স্টকে আছে`, availableStock };
+    }
+    return { isUnavailable: false, reason: '', availableStock };
+  };
+
+  const hasUnavailableItems = cart.some((item) => getCheckoutItemAvailability(item).isUnavailable);
+
+  const currentValidationError = hasUnavailableItems
+    ? 'কার্টে Out of Stock পণ্য রয়েছে — অর্ডার করতে সরান'
+    : getValidationFeedback();
 
   // Form submit handler with direct order placement
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasUnavailableItems) {
+      showToast(
+        'Out of Stock',
+        'আপনার কার্টে থাকা এক বা একাধিক পণ্য বর্তমানে Out of Stock। অর্ডার করতে সেগুলো সরান।',
+        'error'
+      );
+      return;
+    }
     const newErrors: { [key: string]: string } = {};
 
     // 1. নাম (Full Name) - Mandatory
@@ -666,7 +697,9 @@ export const CheckoutPage: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                cart.map((item) => (
+                cart.map((item) => {
+                  const avail = getCheckoutItemAvailability(item);
+                  return (
                   <div key={item.id} className="pt-3 first:pt-0 flex items-center gap-3">
                     <img
                       src={toDisplayImageUrl(item.image, 180)}
@@ -676,7 +709,7 @@ export const CheckoutPage: React.FC = () => {
                       loading="lazy"
                       decoding="async"
                       onError={handleProxyImageError}
-                      className="w-14 h-16 object-cover rounded-lg bg-stone-100 border border-[#E5E1D5] shrink-0"
+                      className={`w-14 h-16 object-cover rounded-lg bg-stone-100 border shrink-0 ${avail.isUnavailable ? 'border-rose-400 grayscale-[35%]' : 'border-[#E5E1D5]'}`}
                       referrerPolicy="no-referrer"
                     />
                     <div className="flex-1 min-w-0">
@@ -694,6 +727,13 @@ export const CheckoutPage: React.FC = () => {
                         </button>
                       </div>
 
+                      {avail.isUnavailable && (
+                        <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{avail.reason} — ডিলিট করুন</span>
+                        </div>
+                      )}
+
                       <p className="text-[11px] text-[#202522]/60 mt-0.5">
                         সাইজ: <strong className="text-[#14221C]">{item.size}</strong> · কালার: {item.color}
                       </p>
@@ -703,7 +743,7 @@ export const CheckoutPage: React.FC = () => {
                         <div className="flex items-center border border-[#E5E1D5] rounded-lg bg-[#F7F5EF] overflow-hidden">
                           <button
                             type="button"
-                            onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity - 1))}
+                            onClick={() => updateCartQuantity(item.id, -1)}
                             disabled={item.quantity <= 1}
                             className="w-6 h-6 flex items-center justify-center text-stone-600 hover:bg-stone-200 transition-colors disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
                             title="পরিমাণ কমান"
@@ -715,8 +755,9 @@ export const CheckoutPage: React.FC = () => {
                           </span>
                           <button
                             type="button"
-                            onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                            className="w-6 h-6 flex items-center justify-center text-stone-600 hover:bg-stone-200 transition-colors cursor-pointer"
+                            onClick={() => updateCartQuantity(item.id, 1)}
+                            disabled={avail.isUnavailable || item.quantity >= avail.availableStock}
+                            className="w-6 h-6 flex items-center justify-center text-stone-600 hover:bg-stone-200 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             title="পরিমাণ বাড়ান"
                           >
                             <Plus className="w-3 h-3" />
@@ -729,7 +770,8 @@ export const CheckoutPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -896,10 +938,16 @@ export const CheckoutPage: React.FC = () => {
 
             {/* Direct 1-Click Buy Now Button with dynamic error state */}
             <div className="pt-2">
+              {hasUnavailableItems && (
+                <div className="mb-3 p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-800 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>কার্টে Out of Stock পণ্য রয়েছে। অর্ডার নিশ্চিত করতে সেগুলো ডিলিট করুন।</span>
+                </div>
+              )}
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className={`w-full py-4 px-6 text-white text-sm font-extrabold uppercase tracking-wider rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer hover:shadow-xl active:scale-[0.99] ${
+                disabled={isSubmitting || hasUnavailableItems}
+                className={`w-full py-4 px-6 text-white text-sm font-extrabold uppercase tracking-wider rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer hover:shadow-xl active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed ${
                   currentValidationError
                     ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/30'
                     : 'bg-[#FF762E] hover:bg-[#e8631c]'

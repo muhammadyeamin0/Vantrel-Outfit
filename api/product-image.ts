@@ -1,15 +1,21 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { getApps, getApp, initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { getLiveProducts, readRepoTextFile } from './_lib/storeCatalog.js';
+import { getProductImagesFast } from './_lib/storeCatalog.js';
 import { toCanonicalSeoImageUrl, VANTREL_CANONICAL_ORIGIN } from './_lib/seoUtils.js';
 
 type VercelReq = IncomingMessage & {
   query?: Record<string, string | string[] | undefined>;
 };
 
-const decodedCache = new Map<string, { contentType: string; buffer: Buffer; cachedAt: number }>();
-const MAX_CACHE_ENTRIES = 120;
+interface DecodedEntry {
+  contentType: string;
+  buffer: Buffer;
+  etag: string;
+  cachedAt: number;
+}
+
+const decodedCache = new Map<string, DecodedEntry>();
+const inFlightDecodes = new Map<string, Promise<DecodedEntry | null>>();
+const MAX_CACHE_ENTRIES = 240;
 
 let sharpLoader: Promise<((input: Buffer) => any) | null> | null = null;
 async function getSharp(): Promise<((input: Buffer) => any) | null> {
@@ -41,7 +47,7 @@ async function optimizeProductImageBuffer(
       pipeline = pipeline.resize({ width: targetWidth, withoutEnlargement: true });
     }
     if (wantsWebp) {
-      const out = await pipeline.webp({ quality: 80, effort: 3 }).toBuffer();
+      const out = await pipeline.webp({ quality: 75, effort: 1 }).toBuffer();
       return { buffer: out, contentType: 'image/webp' };
     }
     const out = await pipeline.toBuffer();
@@ -77,35 +83,32 @@ function parseDataImageUri(dataUrl: string): { contentType: string; buffer: Buff
   };
 }
 
-function setCachedImage(key: string, value: { contentType: string; buffer: Buffer }) {
+function setCachedImage(key: string, value: { contentType: string; buffer: Buffer; etag: string }): DecodedEntry {
   if (decodedCache.size >= MAX_CACHE_ENTRIES) {
     const oldestKey = decodedCache.keys().next().value;
     if (oldestKey) decodedCache.delete(oldestKey);
   }
-  decodedCache.set(key, { ...value, cachedAt: Date.now() });
+  const entry: DecodedEntry = { ...value, cachedAt: Date.now() };
+  decodedCache.set(key, entry);
+  return entry;
 }
 
-async function fetchProductImagesFallback(productId: string): Promise<string[] | null> {
-  try {
-    const rawCfg = readRepoTextFile('firebase-applet-config.json');
-    if (!rawCfg) return null;
-    const firebaseConfig = JSON.parse(rawCfg);
-    if (!firebaseConfig?.projectId) return null;
-    const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const firestoreDb = firebaseConfig.firestoreDatabaseId
-      ? getFirestore(fbApp, firebaseConfig.firestoreDatabaseId)
-      : getFirestore(fbApp);
-
-    const snap = await Promise.race([
-      getDoc(doc(firestoreDb, 'products', productId)),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
-    ]);
-    if (!snap.exists()) return null;
-    const data = snap.data() as { images?: unknown };
-    return Array.isArray(data.images) ? (data.images as string[]) : null;
-  } catch {
-    return null;
+function writeBinaryHeaders(
+  res: ServerResponse,
+  entry: DecodedEntry,
+  targetWidth: number
+) {
+  res.setHeader('Content-Type', entry.contentType);
+  res.setHeader('Content-Length', String(entry.buffer.length));
+  res.setHeader('ETag', entry.etag);
+  if (targetWidth <= 0) {
+    res.setHeader('Vary', 'Accept');
   }
+  res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
+  res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
+  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
 }
 
 export default async function handler(req: VercelReq, res: ServerResponse) {
@@ -132,29 +135,21 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
   const cacheKey = `${productId}:${idx}:w=${targetWidth}:webp=${wantsWebp ? 1 : 0}`;
   const cached = decodedCache.get(cacheKey);
   if (cached) {
+    decodedCache.delete(cacheKey);
+    decodedCache.set(cacheKey, cached);
+    writeBinaryHeaders(res, cached, targetWidth);
+    if (req.headers['if-none-match'] === cached.etag) {
+      res.statusCode = 304;
+      res.end();
+      return;
+    }
     res.statusCode = 200;
-    res.setHeader('Content-Type', cached.contentType);
-    res.setHeader('Content-Length', String(cached.buffer.length));
-    res.setHeader('Vary', 'Accept');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
-    res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
-    res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.end(req.method === 'HEAD' ? undefined : cached.buffer);
     return;
   }
 
   try {
-    const allProducts = await getLiveProducts();
-    let target = allProducts.find((p) => p.id === productId || p.slug === productId);
-    let images = target?.images;
-
-    if (!images || !images[idx]) {
-      const fallbackImages = await fetchProductImagesFallback(productId);
-      if (fallbackImages) images = fallbackImages;
-    }
-
+    const images = await getProductImagesFast(productId);
     const src = images?.[idx] || images?.[0] || '';
     if (!src) {
       res.statusCode = 302;
@@ -164,20 +159,30 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
     }
 
     if (src.startsWith('data:image/')) {
-      const parsed = parseDataImageUri(src);
-      if (parsed) {
-        const optimized = await optimizeProductImageBuffer(parsed.buffer, parsed.contentType, targetWidth, wantsWebp);
-        setCachedImage(cacheKey, optimized);
+      let inflight = inFlightDecodes.get(cacheKey);
+      if (!inflight) {
+        inflight = (async () => {
+          const parsed = parseDataImageUri(src);
+          if (!parsed) return null;
+          const optimized = await optimizeProductImageBuffer(parsed.buffer, parsed.contentType, targetWidth, wantsWebp);
+          const etag = `"vt-pi-${Buffer.from(cacheKey).toString('base64url').slice(0, 14)}-${optimized.buffer.length}"`;
+          return setCachedImage(cacheKey, { ...optimized, etag });
+        })().finally(() => {
+          inFlightDecodes.delete(cacheKey);
+        });
+        inFlightDecodes.set(cacheKey, inflight);
+      }
+
+      const entry = await inflight;
+      if (entry) {
+        writeBinaryHeaders(res, entry, targetWidth);
+        if (req.headers['if-none-match'] === entry.etag) {
+          res.statusCode = 304;
+          res.end();
+          return;
+        }
         res.statusCode = 200;
-        res.setHeader('Content-Type', optimized.contentType);
-        res.setHeader('Content-Length', String(optimized.buffer.length));
-        res.setHeader('Vary', 'Accept');
-        res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, immutable');
-        res.setHeader('CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
-        res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=31536000, immutable');
-        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(req.method === 'HEAD' ? undefined : optimized.buffer);
+        res.end(req.method === 'HEAD' ? undefined : entry.buffer);
         return;
       }
     }
@@ -185,7 +190,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
     const resolvedUrl = src.startsWith('/') ? src : toCanonicalSeoImageUrl(src, VANTREL_CANONICAL_ORIGIN);
     res.statusCode = 302;
     res.setHeader('Location', resolvedUrl);
-    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400');
     res.end();
   } catch {
     res.statusCode = 302;
