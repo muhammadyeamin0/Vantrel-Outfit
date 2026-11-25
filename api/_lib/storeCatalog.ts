@@ -21,11 +21,20 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
 ]);
 
-const CACHE_TTL_MS = 60 * 1000;
+const CACHE_TTL_MS = 20 * 1000;
 let cachedProducts: ProductRecord[] | null = null;
 let cachedOutOfStockDefaultBehavior: 'show' | 'hide' = 'show';
 let cachedAt = 0;
 let refreshPromise: Promise<ProductRecord[]> | null = null;
+
+export function applyLiveProductsCache(next: ProductRecord[]): void {
+  cachedProducts = normalizeProductsList(next);
+  cachedAt = Date.now();
+}
+
+export function invalidateLiveProductsCache(): void {
+  cachedAt = 0;
+}
 
 function resolveRepoFilePath(relativePath: string): string | null {
   const candidates: string[] = [path.resolve(process.cwd(), relativePath)];
@@ -68,15 +77,40 @@ function readJsonFile<T>(relativePath: string): T | null {
   }
 }
 
+function applyCostMarkupToRecord(p: ProductRecord): ProductRecord {
+  const rawCost = typeof p.costPrice === 'number' ? p.costPrice : Number(p.costPrice);
+  if (Number.isFinite(rawCost) && rawCost > 0) {
+    const cleanCost = Math.round(rawCost);
+    const sellingPrice = cleanCost + 220;
+    const regularPrice = sellingPrice + 200;
+    const discountPercent =
+      regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;
+    return {
+      ...p,
+      costPrice: cleanCost,
+      discountPrice: sellingPrice,
+      regularPrice,
+      discountPercent
+    };
+  }
+  return {
+    ...p,
+    discountPrice:
+      typeof p.discountPrice === 'number' && p.discountPrice > 0 ? p.discountPrice : undefined
+  };
+}
+
 function normalizeProductsList(list: ProductRecord[]): ProductRecord[] {
   const normalized = list
     .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-    .map((p) => ({
-      ...p,
-      brand: p.brand || 'VANTREL OUTFIT',
-      images: rewriteProductImagesToProxy(p.images),
-      isArchived: Boolean(p.isArchived || p.status === 'archived')
-    }));
+    .map((p) =>
+      applyCostMarkupToRecord({
+        ...p,
+        brand: p.brand || 'VANTREL OUTFIT',
+        images: rewriteProductImagesToProxy(p.images),
+        isArchived: Boolean(p.isArchived || p.status === 'archived')
+      })
+    );
 
   normalized.sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
@@ -157,29 +191,29 @@ export async function getLiveProducts(forceRefresh = false): Promise<ProductReco
     return cachedProducts;
   }
 
-  // Instant stale-while-revalidate: serve warm cache or local disk catalog in <2ms while syncing Firestore in background
-  if (!forceRefresh) {
-    if (cachedProducts && cachedProducts.length > 0) {
-      cachedAt = now;
-      void refreshFromFirestoreBackground();
-      return cachedProducts;
-    }
-    const fallbackData = readJsonFile<ProductRecord[]>('data/products_store.json');
-    if (Array.isArray(fallbackData) && fallbackData.length > 0) {
-      cachedProducts = normalizeProductsList(fallbackData);
-      cachedAt = now;
-      void refreshFromFirestoreBackground();
-      return cachedProducts;
-    }
+  // If warm cache exists, return instantly and refresh from Firestore in background
+  if (!forceRefresh && cachedProducts && cachedProducts.length > 0) {
+    cachedAt = now;
+    void refreshFromFirestoreBackground();
+    return cachedProducts;
   }
 
-  const fresh = await refreshFromFirestoreBackground();
-  if (fresh.length > 0) return fresh;
+  // On cold start or forceRefresh, prefer live Firestore (with quick timeout) so updated prices aren't stale
+  try {
+    const fresh = await Promise.race([
+      refreshFromFirestoreBackground(),
+      new Promise<ProductRecord[]>((resolve) => setTimeout(() => resolve([]), forceRefresh ? 2600 : 1500))
+    ]);
+    if (fresh.length > 0) return fresh;
+  } catch {
+    // Fall back cleanly to local disk snapshot below
+  }
 
   const fallbackData = readJsonFile<ProductRecord[]>('data/products_store.json');
   const fallbackList = Array.isArray(fallbackData) ? fallbackData : [];
   cachedProducts = normalizeProductsList(fallbackList);
-  cachedAt = now;
+  // Keep TTL very short when serving disk fallback so live Firestore replaces it quickly
+  cachedAt = now - CACHE_TTL_MS + 4000;
   return cachedProducts;
 }
 

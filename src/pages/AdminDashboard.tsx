@@ -804,14 +804,22 @@ export const AdminDashboard: React.FC = () => {
     setProdName(p.name);
     setProdCategory(p.category);
     setProdSubCategory(p.subCategory || 'Apparel');
-    setProdPrice(p.regularPrice);
-    setProdDiscountPrice(p.discountPrice || p.regularPrice);
+    const initialCost = p.costPrice ?? 0;
+    if (initialCost > 0) {
+      const computed = computePricesFromCost(initialCost);
+      setProdCost(computed.costPrice);
+      setProdDiscountPrice(computed.sellingPrice);
+      setProdPrice(computed.regularPrice);
+    } else {
+      setProdCost(0);
+      setProdPrice(p.regularPrice);
+      setProdDiscountPrice(p.discountPrice ?? p.regularPrice);
+    }
     setProdSku(p.sku);
     setProdStock(p.totalStock);
     setProdFabric(resolveProductFabricLabel(p) || p.fabric);
     setProdGsm(resolveProductGsmNumber(p) ?? '');
     setProdVideoUrl(p.videoUrl || '');
-    setProdCost(p.costPrice ?? 0);
     setProdStatus(p.isArchived ? 'archived' : (p.status || 'published'));
     setProdIsFeatured(p.isFeatured ?? true);
     setProdIsNewArrival(p.isNewArrival ?? false);
@@ -971,7 +979,7 @@ export const AdminDashboard: React.FC = () => {
       setProdPrice(0);
       return;
     }
-    const parsed = Math.max(0, Number(rawVal) || 0);
+    const parsed = Math.max(0, Math.round(Number(rawVal) || 0));
     const { costPrice, sellingPrice, regularPrice } = computePricesFromCost(parsed);
     setProdCost(costPrice);
     setProdDiscountPrice(sellingPrice);
@@ -998,25 +1006,32 @@ export const AdminDashboard: React.FC = () => {
     }
     const finalCategory = finalCategoryRaw.slice(0, 80) as ProductCategory;
 
+    const cleanCostInput = Number.isFinite(Number(prodCost)) ? Math.max(0, Math.round(Number(prodCost))) : 0;
     const cleanSellPrice = Number.isFinite(Number(prodDiscountPrice)) ? Math.max(0, Math.round(Number(prodDiscountPrice))) : 0;
     const cleanRegPrice = Number.isFinite(Number(prodPrice)) ? Math.max(0, Math.round(Number(prodPrice))) : 0;
     let resolvedRegularPrice = cleanRegPrice;
     let resolvedDiscountPrice: number | undefined = undefined;
 
-    if (cleanSellPrice <= 0 && cleanRegPrice <= 0) {
-      showToast('ভ্যালিডেশন এরর', 'সঠিক বিক্রয় মূল্য বা Regular Price (৳) লিখুন।', 'error');
-      return;
-    }
-    if (cleanSellPrice > 0 && cleanRegPrice <= 0) {
-      resolvedRegularPrice = cleanSellPrice;
-    } else if (cleanSellPrice > 0 && cleanSellPrice < cleanRegPrice) {
-      resolvedRegularPrice = cleanRegPrice;
-      resolvedDiscountPrice = cleanSellPrice;
-    } else if (cleanSellPrice > cleanRegPrice && cleanRegPrice > 0) {
-      resolvedRegularPrice = cleanSellPrice;
-      resolvedDiscountPrice = undefined;
+    if (cleanCostInput > 0) {
+      const computed = computePricesFromCost(cleanCostInput);
+      resolvedDiscountPrice = computed.sellingPrice;
+      resolvedRegularPrice = computed.regularPrice;
     } else {
-      resolvedRegularPrice = cleanRegPrice;
+      if (cleanSellPrice <= 0 && cleanRegPrice <= 0) {
+        showToast('ভ্যালিডেশন এরর', 'সঠিক Cost Price অথবা বিক্রয়/Regular Price (৳) লিখুন।', 'error');
+        return;
+      }
+      if (cleanSellPrice > 0 && cleanRegPrice <= 0) {
+        resolvedRegularPrice = cleanSellPrice;
+      } else if (cleanSellPrice > 0 && cleanSellPrice < cleanRegPrice) {
+        resolvedRegularPrice = cleanRegPrice;
+        resolvedDiscountPrice = cleanSellPrice;
+      } else if (cleanSellPrice > cleanRegPrice && cleanRegPrice > 0) {
+        resolvedRegularPrice = cleanSellPrice;
+        resolvedDiscountPrice = undefined;
+      } else {
+        resolvedRegularPrice = cleanRegPrice;
+      }
     }
 
     const discountPct =
@@ -6057,7 +6072,7 @@ service cloud.firestore {
                     </div>
                   </div>
                   <p className="mt-1.5 text-[11px] text-[#202522]/70 tabular-nums">
-                    অটো হিসাব: Cost + ৳{COST_TO_SELLING_MARKUP_BDT} = বিক্রয় মূল্য · বিক্রয় মূল্য + ৳{SELLING_TO_REGULAR_MARKUP_BDT} = Regular Price (প্রয়োজনে ম্যানুয়ালি পরিবর্তন করা যাবে)
+                    অটো হিসাব: Cost Price + ৳{COST_TO_SELLING_MARKUP_BDT} = মূল বিক্রয় মূল্য · বিক্রয় মূল্য + ৳{SELLING_TO_REGULAR_MARKUP_BDT} = Regular Price (সব প্রোডাক্টে অটো প্রযোজ্য)
                   </p>
                 </div>
 

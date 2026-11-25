@@ -87,6 +87,25 @@ function saveProductsToDisk() {
     console.warn('Products disk persistence warning:', e);
   }
 }
+function applyServerCostMarkup(p: Product): Product {
+  const rawCost = typeof p.costPrice === 'number' ? p.costPrice : Number(p.costPrice);
+  if (Number.isFinite(rawCost) && rawCost > 0) {
+    const cleanCost = Math.round(rawCost);
+    const sellingPrice = cleanCost + 220;
+    const regularPrice = sellingPrice + 200;
+    const discountPercent =
+      regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;
+    return {
+      ...p,
+      costPrice: cleanCost,
+      discountPrice: sellingPrice,
+      regularPrice,
+      discountPercent
+    };
+  }
+  return p;
+}
+
 function loadProductsFromDisk() {
   try {
     if (fs.existsSync(PRODUCTS_PERSIST_FILE)) {
@@ -95,10 +114,12 @@ function loadProductsFromDisk() {
       if (Array.isArray(parsed)) {
         products = parsed
           .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
-          .map((p) => ({
-            ...p,
-            images: rewriteProductImagesToProxy(p.images)
-          }));
+          .map((p) =>
+            applyServerCostMarkup({
+              ...p,
+              images: rewriteProductImagesToProxy(p.images)
+            })
+          );
         console.log(`[VANTREL ENGINE] Loaded ${products.length} persistent products from disk.`);
         return;
       }
@@ -135,12 +156,18 @@ async function syncProductsFromFirestore() {
     snapshot.forEach((docSnap) => {
       if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
       const data = docSnap.data() as Product;
-      remoteProducts.push({
-        ...data,
-        id: docSnap.id,
-        images: rewriteProductImagesToProxy(data.images),
-        isArchived: Boolean(data.isArchived || data.status === 'archived')
-      });
+      remoteProducts.push(
+        applyServerCostMarkup({
+          ...data,
+          id: docSnap.id,
+          discountPrice:
+            typeof data.discountPrice === 'number' && data.discountPrice > 0 ? data.discountPrice : undefined,
+          discountPercent:
+            typeof data.discountPercent === 'number' && data.discountPercent > 0 ? data.discountPercent : undefined,
+          images: rewriteProductImagesToProxy(data.images),
+          isArchived: Boolean(data.isArchived || data.status === 'archived')
+        })
+      );
     });
 
     remoteProducts.sort((a, b) => {
@@ -1327,7 +1354,7 @@ app.get(['/api/products', '/api/product'], (req: Request, res: Response) => {
 
   const finalResult = includeInline ? result : result.map((p) => slimProductForServerCatalog(p));
 
-  res.setHeader('Cache-Control', forceFresh ? 'no-cache' : 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', forceFresh ? 'no-cache' : 'public, max-age=15, stale-while-revalidate=60');
   res.setHeader('X-Robots-Tag', 'all');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.json({ success: true, count: finalResult.length, data: finalResult });
@@ -1351,7 +1378,7 @@ app.post('/api/products', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'Name, regularPrice, and SKU are required' });
   }
 
-  const newProd: Product = {
+  const newProd: Product = applyServerCostMarkup({
     id: body.id || `prod-vt-${Date.now()}`,
     slug: body.slug || (body.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     name: body.name,
@@ -1391,7 +1418,7 @@ app.post('/api/products', (req: Request, res: Response) => {
     reviewCount: body.reviewCount || 0,
     totalStock: body.totalStock !== undefined && body.totalStock !== null ? Math.max(0, Number(body.totalStock)) : 50,
     createdDate: body.createdDate || new Date().toISOString()
-  };
+  });
 
   const existingIdx = products.findIndex((p) => p.id === newProd.id);
   if (existingIdx >= 0) {
@@ -1407,31 +1434,10 @@ app.post('/api/products', (req: Request, res: Response) => {
 });
 
 app.post('/api/products/recalculate-prices', (_req: Request, res: Response) => {
-  products = products.map((p) => {
-    const cleanCost =
-      typeof p.costPrice === 'number' && p.costPrice > 0
-        ? Math.round(p.costPrice)
-        : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - 220));
-    const sellingPrice = cleanCost + 220;
-    const regularPrice = sellingPrice + 200;
-    const discountPercent =
-      regularPrice > 0 ? Math.round(((regularPrice - sellingPrice) / regularPrice) * 100) : 0;
-    return {
-      ...p,
-      costPrice: cleanCost,
-      discountPrice: sellingPrice,
-      regularPrice,
-      discountPercent
-    };
+  return res.status(410).json({
+    success: false,
+    error: 'Automatic cost-based price recalculation is disabled to preserve custom product prices.'
   });
-  saveProductsToDisk();
-  recordAudit(
-    'Admin Staff',
-    'Pricing Engine',
-    'Bulk Price Recalculation',
-    `Recalculated prices (Cost + 220 selling, + 200 regular) across ${products.length} products.`
-  );
-  res.json({ success: true, count: products.length, data: products });
 });
 
 app.put('/api/products/:id', (req: Request, res: Response) => {
@@ -1447,10 +1453,15 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
       totalStock: req.body.totalStock !== undefined && req.body.totalStock !== null ? Math.max(0, Number(req.body.totalStock)) : 20,
       images: rewriteProductImagesToProxy(Array.isArray(req.body.images) ? req.body.images : [])
     };
-    products.unshift(created);
+    if (created.discountPrice === null || created.discountPrice === undefined || created.discountPrice <= 0) {
+      delete created.discountPrice;
+      delete created.discountPercent;
+    }
+    const normalizedCreated = applyServerCostMarkup(created);
+    products.unshift(normalizedCreated);
     saveProductsToDisk();
-    recordAudit('Admin Staff', 'Product Moderator', 'Product Upserted', `Upserted product: ${created.name}`);
-    return res.json({ success: true, data: created });
+    recordAudit('Admin Staff', 'Product Moderator', 'Product Upserted', `Upserted product: ${normalizedCreated.name}`);
+    return res.json({ success: true, data: normalizedCreated });
   }
 
   const nextBody = { ...req.body };
@@ -1460,7 +1471,12 @@ app.put('/api/products/:id', (req: Request, res: Response) => {
   if (Array.isArray(nextBody.images)) {
     nextBody.images = rewriteProductImagesToProxy(nextBody.images);
   }
-  products[idx] = { ...products[idx], ...nextBody };
+  const merged: Product = { ...products[idx], ...nextBody };
+  if (nextBody.discountPrice === null || nextBody.discountPercent === null) {
+    if (nextBody.discountPrice === null) delete merged.discountPrice;
+    if (nextBody.discountPercent === null) delete merged.discountPercent;
+  }
+  products[idx] = applyServerCostMarkup(merged);
   saveProductsToDisk();
   recordAudit('Admin Staff', 'Product Moderator', 'Product Updated', `Updated product: ${products[idx].name}`);
   res.json({ success: true, data: products[idx] });

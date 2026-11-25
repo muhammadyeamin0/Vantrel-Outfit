@@ -133,6 +133,26 @@ export function computePricesFromCost(cost: number): {
   };
 }
 
+export function applyCostMarkupRule<
+  T extends {
+    costPrice?: number;
+    discountPrice?: number;
+    regularPrice: number;
+    discountPercent?: number;
+  }
+>(prod: T): T {
+  const numericCost = typeof prod.costPrice === 'number' ? prod.costPrice : Number(prod.costPrice);
+  if (!Number.isFinite(numericCost) || numericCost <= 0) return prod;
+  const { costPrice, sellingPrice, regularPrice, discountPercent } = computePricesFromCost(numericCost);
+  return {
+    ...prod,
+    costPrice,
+    discountPrice: sellingPrice,
+    regularPrice,
+    discountPercent
+  };
+}
+
 export function sanitizeProductSizes(prod: Product): Product {
   if (!prod) return prod;
   const isPantCategory =
@@ -210,14 +230,14 @@ export function sanitizeProductSizes(prod: Product): Product {
         }))
       : finalVariants;
 
-  return {
+  return applyCostMarkupRule({
     ...prod,
     totalStock: numericTotalStock,
     images: rewriteProductImagesToProxy(prod.images),
     sizes,
     colors,
     variants: syncedVariants
-  };
+  });
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -1283,9 +1303,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Clean single-shot HTTP fetch to /api/products (uses CDN/HTTP cache for public ad traffic!)
     const loadFromProductsApi = async () => {
+      const hasRecentAdminMutation = (() => {
+        try {
+          const ts = Number(sessionStorage.getItem('vt_catalog_mutated_at') || 0);
+          return ts > 0 && Date.now() - ts < 5 * 60 * 1000;
+        } catch {
+          return false;
+        }
+      })();
       const isAdminEntry =
-        typeof window !== 'undefined' &&
-        (window.location.pathname.toLowerCase().startsWith('/admin') || currentPage === 'admin');
+        hasRecentAdminMutation ||
+        (typeof window !== 'undefined' &&
+          (window.location.pathname.toLowerCase().startsWith('/admin') || currentPage === 'admin'));
       try {
         const res = await fetch(`/api/products${isAdminEntry ? '?fresh=1' : ''}`, {
           headers: { Accept: 'application/json' },
@@ -1301,6 +1330,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 .map((p) =>
                   sanitizeProductSizes({
                     ...p,
+                    discountPrice:
+                      typeof p.discountPrice === 'number' && p.discountPrice > 0 ? p.discountPrice : undefined,
+                    discountPercent:
+                      typeof p.discountPercent === 'number' && p.discountPercent > 0 ? p.discountPercent : undefined,
                     isArchived: Boolean(p.isArchived || p.status === 'archived')
                   })
                 )
@@ -1471,6 +1504,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
+  const autoPriceHealAttemptedRef = useRef<boolean>(false);
+
   // Scoped Real-Time Firestore Products Sync: Only active inside Admin Dashboard for non-crawler sessions
   useEffect(() => {
     if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) {
@@ -1500,16 +1535,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
 
             const remoteProducts: Product[] = [];
+            const priceFixesToSync: Product[] = [];
             snapshot.forEach((docSnap) => {
               if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
               const data = docSnap.data() as Product;
-              remoteProducts.push(
-                sanitizeProductSizes({
-                  ...data,
-                  id: docSnap.id,
-                  isArchived: Boolean(data.isArchived || data.status === 'archived')
-                })
-              );
+              const normalized = sanitizeProductSizes({
+                ...data,
+                id: docSnap.id,
+                discountPrice:
+                  typeof data.discountPrice === 'number' && data.discountPrice > 0 ? data.discountPrice : undefined,
+                discountPercent:
+                  typeof data.discountPercent === 'number' && data.discountPercent > 0 ? data.discountPercent : undefined,
+                isArchived: Boolean(data.isArchived || data.status === 'archived')
+              });
+              remoteProducts.push(normalized);
+
+              const rawCost = typeof data.costPrice === 'number' ? data.costPrice : Number(data.costPrice);
+              if (
+                Number.isFinite(rawCost) &&
+                rawCost > 0 &&
+                (data.discountPrice !== normalized.discountPrice ||
+                  data.regularPrice !== normalized.regularPrice ||
+                  data.discountPercent !== normalized.discountPercent)
+              ) {
+                priceFixesToSync.push(normalized);
+              }
             });
 
             remoteProducts.sort((a, b) => {
@@ -1522,6 +1572,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
 
             setProducts(dedupeProductsById(remoteProducts));
+
+            // Silently sync any legacy Firestore docs whose price didn't match Cost + 220
+            if (priceFixesToSync.length > 0 && !autoPriceHealAttemptedRef.current) {
+              const fbUser = getCurrentFirebaseUserSync();
+              const isVerifiedAdmin =
+                fbUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+                Boolean(fbUser?.emailVerified);
+              if (isVerifiedAdmin) {
+                autoPriceHealAttemptedRef.current = true;
+                void (async () => {
+                  try {
+                    const { doc, writeBatch } = await getFirestoreModule();
+                    for (let i = 0; i < priceFixesToSync.length; i += 400) {
+                      const chunk = priceFixesToSync.slice(i, i + 400);
+                      const batch = writeBatch(db);
+                      chunk.forEach((item) => {
+                        batch.set(
+                          doc(db, 'products', item.id),
+                          sanitizeFirestoreData({
+                            costPrice: item.costPrice,
+                            discountPrice: item.discountPrice,
+                            regularPrice: item.regularPrice,
+                            discountPercent: item.discountPercent
+                          }),
+                          { merge: true }
+                        );
+                      });
+                      await batch.commit();
+                    }
+                  } catch {
+                    autoPriceHealAttemptedRef.current = false;
+                  }
+                })();
+              }
+            }
           },
           (error) => {
             console.warn('Admin Firestore products sync notice:', error.message);
@@ -2885,6 +2970,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     }
 
     // Update local state & categories after backend/Firestore persistence succeeds (deduped against live onSnapshot)
+    try {
+      sessionStorage.setItem('vt_catalog_mutated_at', String(Date.now()));
+    } catch {
+      // ignore storage error
+    }
     setProducts((prev) => dedupeProductsById([product, ...prev]));
     if (product.category?.trim()) {
       setCategories((prev) =>
@@ -2934,6 +3024,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     if (cleanUpdated.regularPrice !== undefined) {
       cleanUpdated.regularPrice = Math.max(0, Math.min(1000000, Math.round(Number(cleanUpdated.regularPrice) || 0)));
     }
+    const effectiveCostRaw =
+      cleanUpdated.costPrice !== undefined ? Number(cleanUpdated.costPrice) : existingProduct?.costPrice;
+    if (typeof effectiveCostRaw === 'number' && Number.isFinite(effectiveCostRaw) && effectiveCostRaw > 0) {
+      const computed = computePricesFromCost(effectiveCostRaw);
+      cleanUpdated.costPrice = computed.costPrice;
+      cleanUpdated.discountPrice = computed.sellingPrice;
+      cleanUpdated.regularPrice = computed.regularPrice;
+      cleanUpdated.discountPercent = computed.discountPercent;
+    }
     if (cleanUpdated.totalStock !== undefined) {
       cleanUpdated.totalStock = Math.max(0, Math.min(100000, Math.round(Number(cleanUpdated.totalStock) || 0)));
     }
@@ -2980,6 +3079,15 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       }
     }
 
+    const apiPayload: Record<string, unknown> = { ...cleanUpdated };
+    if ('discountPrice' in cleanUpdated && cleanUpdated.discountPrice === undefined) {
+      apiPayload.discountPrice = null;
+      apiPayload.discountPercent = null;
+    }
+    if ('discountPercent' in cleanUpdated && cleanUpdated.discountPercent === undefined) {
+      apiPayload.discountPercent = null;
+    }
+
     let apiSynced = false;
     let apiErrMsg = '';
     try {
@@ -2987,7 +3095,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       const res = await fetch(`/api/products/${id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(cleanUpdated)
+        body: JSON.stringify(apiPayload)
       });
       if (res.ok) {
         apiSynced = true;
@@ -3005,6 +3113,11 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       return { success: false, firestoreSynced: false, apiSynced: false, error: combinedErr };
     }
 
+    try {
+      sessionStorage.setItem('vt_catalog_mutated_at', String(Date.now()));
+    } catch {
+      // ignore storage error
+    }
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? sanitizeProductSizes({ ...p, ...cleanUpdated }) : p))
     );
@@ -3207,67 +3320,8 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   };
 
   const recalculateAllPricesFromCost = async (): Promise<number> => {
-    const updatedList = products.map((p) => {
-      const effectiveCost =
-        typeof p.costPrice === 'number' && p.costPrice > 0
-          ? p.costPrice
-          : Math.max(0, Math.round((p.discountPrice ?? p.regularPrice ?? 0) - COST_TO_SELLING_MARKUP_BDT));
-      const { costPrice, sellingPrice, regularPrice, discountPercent } =
-        computePricesFromCost(effectiveCost);
-      return {
-        ...p,
-        costPrice,
-        discountPrice: sellingPrice,
-        regularPrice,
-        discountPercent
-      };
-    });
-
-    setProducts(updatedList);
-
-    if (IS_GOOGLE_CLOUD_CONNECTED && updatedList.length > 0) {
-      try {
-        const [db, { doc, writeBatch }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
-        for (let i = 0; i < updatedList.length; i += 450) {
-          const chunk = updatedList.slice(i, i + 450);
-          const batch = writeBatch(db);
-          chunk.forEach((p) => {
-            batch.set(
-              doc(db, 'products', p.id),
-              sanitizeFirestoreData({
-                costPrice: p.costPrice,
-                discountPrice: p.discountPrice,
-                regularPrice: p.regularPrice,
-                discountPercent: p.discountPercent
-              }),
-              { merge: true }
-            );
-          });
-          await batch.commit();
-        }
-      } catch (e) {
-        console.warn('Firestore bulk price recalculation error:', e);
-        showToast('Database Sync Notice', 'Google Admin login required for price sync.', 'error');
-      }
-    }
-
-    try {
-      const headers = await getAdminAuthHeaders();
-      await fetch('/api/products/recalculate-prices', { method: 'POST', headers });
-    } catch (e) {
-      console.warn('Server bulk price recalculation notice:', e);
-    }
-
-    addAuditLog(
-      'PRODUCT_PRICE_RECALCULATE_ALL',
-      `Recalculated selling (+৳${COST_TO_SELLING_MARKUP_BDT}) and regular (+৳${SELLING_TO_REGULAR_MARKUP_BDT}) prices from cost for ${updatedList.length} products.`
-    );
-    showToast(
-      'সব প্রোডাক্টের দাম আপডেট হয়েছে',
-      `${updatedList.length}টি প্রোডাক্টের বিক্রয় মূল্য (Cost + ৳${COST_TO_SELLING_MARKUP_BDT}) ও Regular Price (+৳${SELLING_TO_REGULAR_MARKUP_BDT}) আপডেট করা হয়েছে।`,
-      'success'
-    );
-    return updatedList.length;
+    // Disabled intentionally so custom product prices are never overwritten automatically.
+    return 0;
   };
 
   const moveProductUp = async (id: string) => {
