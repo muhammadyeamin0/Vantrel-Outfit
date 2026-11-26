@@ -7,6 +7,7 @@ import {
   VANTREL_CANONICAL_ORIGIN,
   type MinimalProductRecord,
   rewriteProductImagesToProxy,
+  resolveSeoProductImages,
   toCanonicalSeoImageUrl,
   getProductSeoSlug,
   getCategorySlug
@@ -365,20 +366,113 @@ export function buildProductJsonLd(
 ): Record<string, unknown> {
   const seoSlug = getProductSeoSlug(prod, allProducts);
   const productUrl = `${baseUrl}/product/${encodeURIComponent(seoSlug)}`;
-  const resolvedImages = (prod.images || [])
-    .filter((img) => Boolean(img && typeof img === 'string'))
-    .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
-  const effectivePrice = prod.discountPrice ?? prod.regularPrice;
+  const resolvedImages = resolveSeoProductImages(prod, VANTREL_CANONICAL_ORIGIN);
+  const effectivePrice = Number(prod.discountPrice ?? prod.regularPrice ?? 0);
+  const regularPrice = Number(prod.regularPrice ?? effectivePrice);
   const brandName = (prod.brand || 'VANTREL OUTFIT').trim();
+  const inStock = Number(prod.totalStock ?? 0) > 0;
+  const priceValidUntil = `${new Date().getFullYear() + 1}-12-31`;
+
+  const offer: Record<string, unknown> = {
+    '@type': 'Offer',
+    url: productUrl,
+    priceCurrency: 'BDT',
+    price: effectivePrice,
+    priceValidUntil,
+    itemCondition: 'https://schema.org/NewCondition',
+    availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+    seller: {
+      '@type': 'Organization',
+      name: 'VANTREL OUTFIT',
+      url: `${VANTREL_CANONICAL_ORIGIN}/`
+    },
+    shippingDetails: [
+      {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+          '@type': 'MonetaryAmount',
+          value: 0,
+          currency: 'BDT'
+        },
+        shippingDestination: {
+          '@type': 'DefinedRegion',
+          addressCountry: 'BD',
+          addressRegion: 'Dhaka'
+        },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 0,
+            maxValue: 1,
+            unitCode: 'DAY'
+          },
+          transitTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 1,
+            maxValue: 2,
+            unitCode: 'DAY'
+          }
+        }
+      },
+      {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+          '@type': 'MonetaryAmount',
+          value: 50,
+          currency: 'BDT'
+        },
+        shippingDestination: {
+          '@type': 'DefinedRegion',
+          addressCountry: 'BD'
+        },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 0,
+            maxValue: 1,
+            unitCode: 'DAY'
+          },
+          transitTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 2,
+            maxValue: 4,
+            unitCode: 'DAY'
+          }
+        }
+      }
+    ],
+    hasMerchantReturnPolicy: {
+      '@type': 'MerchantReturnPolicy',
+      applicableCountry: 'BD',
+      returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+      merchantReturnDays: 7,
+      returnMethod: 'https://schema.org/ReturnByMail',
+      returnFees: 'https://schema.org/FreeReturn'
+    }
+  };
+
+  if (regularPrice > effectivePrice && effectivePrice > 0) {
+    offer.priceSpecification = {
+      '@type': 'UnitPriceSpecification',
+      priceType: 'https://schema.org/StrikethroughPrice',
+      priceCurrency: 'BDT',
+      price: regularPrice
+    };
+  }
 
   const schema: Record<string, unknown> = {
-    '@context': 'https://schema.org/',
+    '@context': 'https://schema.org',
     '@type': 'Product',
     '@id': `${productUrl}#product`,
     name: prod.name,
     url: productUrl,
-    image: resolvedImages.length > 0 ? resolvedImages : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`],
-    description: (prod.description || prod.tagline || `${prod.name} by ${brandName}.`).trim(),
+    image:
+      resolvedImages.length > 0
+        ? resolvedImages
+        : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`],
+    description: (prod.description || prod.tagline || `${prod.name} by ${brandName}.`).replace(/\s+/g, ' ').trim(),
     sku: prod.sku || prod.id,
     mpn: prod.sku || prod.id,
     category: prod.category,
@@ -386,27 +480,55 @@ export function buildProductJsonLd(
       '@type': 'Brand',
       name: brandName
     },
-    offers: {
-      '@type': 'Offer',
-      url: productUrl,
-      priceCurrency: 'BDT',
-      price: String(effectivePrice),
-      priceValidUntil: '2027-12-31',
-      itemCondition: 'https://schema.org/NewCondition',
-      availability: (prod.totalStock ?? 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      seller: {
-        '@type': 'Organization',
-        name: 'VANTREL OUTFIT'
-      }
-    }
+    offers: offer
   };
 
+  if (prod.fabric) {
+    schema.material = prod.gsm ? `${prod.fabric} (${prod.gsm} GSM)` : prod.fabric;
+  }
+  if (Array.isArray(prod.sizes) && prod.sizes.length > 0) {
+    schema.size = prod.sizes.join(', ');
+  }
+  if (Array.isArray(prod.colors) && prod.colors.length > 0) {
+    const colorNames = prod.colors.map((c) => c?.name).filter(Boolean);
+    if (colorNames.length > 0) {
+      schema.color = colorNames.join(', ');
+    }
+  }
+
   if ((prod.reviewCount ?? 0) > 0 && (prod.rating ?? 0) > 0) {
+    const clampedRating = Number(Math.min(5, Math.max(1, Number(prod.rating))).toFixed(1));
     schema.aggregateRating = {
       '@type': 'AggregateRating',
-      ratingValue: String(prod.rating),
-      reviewCount: String(prod.reviewCount)
+      ratingValue: clampedRating,
+      reviewCount: Math.max(1, Math.round(Number(prod.reviewCount))),
+      bestRating: 5,
+      worstRating: 1
     };
+  }
+
+  if (Array.isArray(prod.reviews) && prod.reviews.length > 0) {
+    const validReviews = prod.reviews
+      .filter((r) => r && r.author && r.comment)
+      .slice(0, 5)
+      .map((r) => ({
+        '@type': 'Review',
+        author: {
+          '@type': 'Person',
+          name: String(r.author).trim()
+        },
+        ...(r.date ? { datePublished: String(r.date).trim() } : {}),
+        reviewBody: String(r.comment).trim(),
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: Number(Math.min(5, Math.max(1, Number(r.rating || 5))).toFixed(1)),
+          bestRating: 5,
+          worstRating: 1
+        }
+      }));
+    if (validReviews.length > 0) {
+      schema.review = validReviews;
+    }
   }
 
   return schema;

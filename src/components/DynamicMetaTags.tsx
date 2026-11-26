@@ -9,11 +9,35 @@ import {
 } from '../utils/seoSlug';
 import { ensureMetaPixelLoaded, trackMetaPageView } from '../utils/metaPixel';
 import { shouldHideProductFromPublic } from '../utils/stockVisibility';
+import { resolveProductGsmLabel, resolveProductFabricLabel } from '../utils/productGsm';
 
 function truncateSeoDescription(text: string, maxLen: number = 158): string {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= maxLen) return clean;
   return `${clean.slice(0, maxLen - 3).trim()}...`;
+}
+
+function resolveClientSeoProductImages(
+  productId: string,
+  images: string[] | undefined,
+  canonicalOrigin: string
+): string[] {
+  if (!Array.isArray(images)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  images.forEach((img, idx) => {
+    if (!img || typeof img !== 'string') return;
+    const trimmed = img.trim();
+    if (!trimmed || trimmed.startsWith('blob:')) return;
+    const resolved = trimmed.startsWith('data:image/')
+      ? `${canonicalOrigin}/api/product-image?id=${encodeURIComponent(productId)}&idx=${idx}`
+      : toCanonicalSeoImageUrl(trimmed, canonicalOrigin);
+    if (resolved && !resolved.startsWith('data:') && !resolved.startsWith('blob:') && !seen.has(resolved)) {
+      seen.add(resolved);
+      result.push(resolved);
+    }
+  });
+  return result;
 }
 
 /**
@@ -206,14 +230,19 @@ export const DynamicMetaTags: React.FC = () => {
           `Buy ${activeProduct.name} for ${priceText}${fabricSnippet} from ${productBrand}. Free delivery inside Dhaka & nationwide Cash on Delivery.`
       );
 
-      if (activeProduct.images && activeProduct.images.length > 0) {
-        imageUrl = toCanonicalSeoImageUrl(activeProduct.images[0], canonicalOrigin);
+      const resolvedProductImages = resolveClientSeoProductImages(
+        activeProduct.id,
+        activeProduct.images,
+        canonicalOrigin
+      );
+      if (resolvedProductImages.length > 0) {
+        imageUrl = resolvedProductImages[0];
       }
       imageAlt = `${activeProduct.name} - ${activeProduct.category} by ${productBrand}`;
       ogType = 'product';
       canonicalUrl = `${canonicalOrigin}/product/${encodeURIComponent(seoSlug)}`;
       productPrice = effectivePrice;
-      productInStock = (activeProduct.totalStock ?? 0) > 0;
+      productInStock = Number(activeProduct.totalStock ?? 0) > 0;
     } else if (currentPage === 'shop') {
       const isSpecificCat = Boolean(selectedCategory && selectedCategory !== 'All');
       const catProducts = isSpecificCat
@@ -405,7 +434,11 @@ export const DynamicMetaTags: React.FC = () => {
     }
     canonicalLink.setAttribute('href', canonicalUrl);
 
-    // Schema.org JSON-LD Structured Data
+    // Schema.org JSON-LD Structured Data (remove any SSR-injected Product JSON-LD so Googlebot never sees duplicate entities)
+    document.head
+      .querySelectorAll('#vantrel-ssr-jsonld, #vantrel-product-jsonld')
+      .forEach((node) => node.remove());
+
     let schemaScript = document.head.querySelector('#vantrel-jsonld') as HTMLScriptElement | null;
     if (!schemaScript) {
       schemaScript = document.createElement('script');
@@ -415,21 +448,123 @@ export const DynamicMetaTags: React.FC = () => {
     }
 
     if (ogType === 'product' && activeProduct) {
-      const resolvedImages = (activeProduct.images || [])
-        .filter((img) => Boolean(img && typeof img === 'string'))
-        .map((img) => toCanonicalSeoImageUrl(img, canonicalOrigin));
-      const effectivePrice = activeProduct.discountPrice ?? activeProduct.regularPrice;
+      const resolvedImages = resolveClientSeoProductImages(
+        activeProduct.id,
+        activeProduct.images,
+        canonicalOrigin
+      );
+      const effectivePrice = Number(activeProduct.discountPrice ?? activeProduct.regularPrice ?? 0);
+      const regularPrice = Number(activeProduct.regularPrice ?? effectivePrice);
       const catSlug = getCategorySlug(activeProduct.category);
       const catUrl = `${canonicalOrigin}/category/${encodeURIComponent(catSlug)}`;
+      const priceValidUntil = `${new Date().getFullYear() + 1}-12-31`;
+      const insideDhakaFee = Number(settings.deliveryFeeInsideDhaka ?? 0);
+      const outsideDhakaFee = Number(settings.deliveryFeeOutsideDhaka ?? 50);
+
+      const offerSchema: Record<string, unknown> = {
+        '@type': 'Offer',
+        url: canonicalUrl,
+        priceCurrency: 'BDT',
+        price: effectivePrice,
+        priceValidUntil,
+        itemCondition: 'https://schema.org/NewCondition',
+        availability: productInStock
+          ? 'https://schema.org/InStock'
+          : 'https://schema.org/OutOfStock',
+        seller: {
+          '@type': 'Organization',
+          name: 'VANTREL OUTFIT',
+          url: `${canonicalOrigin}/`
+        },
+        shippingDetails: [
+          {
+            '@type': 'OfferShippingDetails',
+            shippingRate: {
+              '@type': 'MonetaryAmount',
+              value: insideDhakaFee,
+              currency: 'BDT'
+            },
+            shippingDestination: {
+              '@type': 'DefinedRegion',
+              addressCountry: 'BD',
+              addressRegion: 'Dhaka'
+            },
+            deliveryTime: {
+              '@type': 'ShippingDeliveryTime',
+              handlingTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 0,
+                maxValue: 1,
+                unitCode: 'DAY'
+              },
+              transitTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 1,
+                maxValue: 2,
+                unitCode: 'DAY'
+              }
+            }
+          },
+          {
+            '@type': 'OfferShippingDetails',
+            shippingRate: {
+              '@type': 'MonetaryAmount',
+              value: outsideDhakaFee,
+              currency: 'BDT'
+            },
+            shippingDestination: {
+              '@type': 'DefinedRegion',
+              addressCountry: 'BD'
+            },
+            deliveryTime: {
+              '@type': 'ShippingDeliveryTime',
+              handlingTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 0,
+                maxValue: 1,
+                unitCode: 'DAY'
+              },
+              transitTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 2,
+                maxValue: 4,
+                unitCode: 'DAY'
+              }
+            }
+          }
+        ],
+        hasMerchantReturnPolicy: {
+          '@type': 'MerchantReturnPolicy',
+          applicableCountry: 'BD',
+          returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+          merchantReturnDays: 7,
+          returnMethod: 'https://schema.org/ReturnByMail',
+          returnFees: 'https://schema.org/FreeReturn'
+        }
+      };
+
+      if (regularPrice > effectivePrice && effectivePrice > 0) {
+        offerSchema.priceSpecification = {
+          '@type': 'UnitPriceSpecification',
+          priceType: 'https://schema.org/StrikethroughPrice',
+          priceCurrency: 'BDT',
+          price: regularPrice
+        };
+      }
+
+      const resolvedFabric = resolveProductFabricLabel(activeProduct);
+      const resolvedGsm = resolveProductGsmLabel(activeProduct);
 
       const productSchema: Record<string, unknown> = {
-        '@context': 'https://schema.org/',
+        '@context': 'https://schema.org',
         '@type': 'Product',
         '@id': `${canonicalUrl}#product`,
         name: activeProduct.name,
         url: canonicalUrl,
         image: resolvedImages.length > 0 ? resolvedImages : [imageUrl],
-        description: (activeProduct.description || activeProduct.tagline || activeProduct.name || '').trim(),
+        description: (activeProduct.description || activeProduct.tagline || activeProduct.name || '')
+          .replace(/\s+/g, ' ')
+          .trim(),
         sku: activeProduct.sku || activeProduct.id,
         mpn: activeProduct.sku || activeProduct.id,
         category: activeProduct.category,
@@ -437,29 +572,55 @@ export const DynamicMetaTags: React.FC = () => {
           '@type': 'Brand',
           name: productBrand
         },
-        offers: {
-          '@type': 'Offer',
-          url: canonicalUrl,
-          priceCurrency: 'BDT',
-          price: String(effectivePrice),
-          priceValidUntil: '2027-12-31',
-          itemCondition: 'https://schema.org/NewCondition',
-          availability: productInStock
-            ? 'https://schema.org/InStock'
-            : 'https://schema.org/OutOfStock',
-          seller: {
-            '@type': 'Organization',
-            name: 'VANTREL OUTFIT'
-          }
-        }
+        offers: offerSchema
       };
 
+      if (resolvedFabric) {
+        productSchema.material = resolvedGsm ? `${resolvedFabric} (${resolvedGsm})` : resolvedFabric;
+      }
+      if (Array.isArray(activeProduct.sizes) && activeProduct.sizes.length > 0) {
+        productSchema.size = activeProduct.sizes.join(', ');
+      }
+      if (Array.isArray(activeProduct.colors) && activeProduct.colors.length > 0) {
+        const colorNames = activeProduct.colors.map((c) => c?.name).filter(Boolean);
+        if (colorNames.length > 0) {
+          productSchema.color = colorNames.join(', ');
+        }
+      }
+
       if (activeProduct.reviewCount > 0 && activeProduct.rating > 0) {
+        const clampedRating = Number(Math.min(5, Math.max(1, Number(activeProduct.rating))).toFixed(1));
         productSchema.aggregateRating = {
           '@type': 'AggregateRating',
-          ratingValue: String(activeProduct.rating),
-          reviewCount: String(activeProduct.reviewCount)
+          ratingValue: clampedRating,
+          reviewCount: Math.max(1, Math.round(Number(activeProduct.reviewCount))),
+          bestRating: 5,
+          worstRating: 1
         };
+      }
+
+      if (Array.isArray(activeProduct.reviews) && activeProduct.reviews.length > 0) {
+        const validReviews = activeProduct.reviews
+          .filter((r) => r && r.author && r.comment)
+          .slice(0, 5)
+          .map((r) => ({
+            '@type': 'Review',
+            author: {
+              '@type': 'Person',
+              name: String(r.author).trim()
+            },
+            ...(r.date ? { datePublished: String(r.date).trim() } : {}),
+            reviewBody: String(r.comment).trim(),
+            reviewRating: {
+              '@type': 'Rating',
+              ratingValue: Number(Math.min(5, Math.max(1, Number(r.rating || 5))).toFixed(1)),
+              bestRating: 5,
+              worstRating: 1
+            }
+          }));
+        if (validReviews.length > 0) {
+          productSchema.review = validReviews;
+        }
       }
 
       const breadcrumbSchema = {
@@ -523,7 +684,15 @@ export const DynamicMetaTags: React.FC = () => {
       };
       schemaScript.textContent = JSON.stringify(storeSchema);
     }
-  }, [currentPage, selectedProductId, selectedCategory, products, settings.outOfStockDefaultBehavior]);
+  }, [
+    currentPage,
+    selectedProductId,
+    selectedCategory,
+    products,
+    settings.outOfStockDefaultBehavior,
+    settings.deliveryFeeInsideDhaka,
+    settings.deliveryFeeOutsideDhaka
+  ]);
 
   // 4. Synchronize Meta Pixel initialization and fire SPA PageView events
   useEffect(() => {

@@ -17,9 +17,17 @@ export interface MinimalProductRecord {
   images?: string[];
   regularPrice: number;
   discountPrice?: number;
+  discountPercent?: number;
   totalStock?: number;
   rating?: number;
   reviewCount?: number;
+  reviews?: Array<{
+    author?: string;
+    rating?: number;
+    date?: string;
+    comment?: string;
+  }>;
+  colors?: Array<{ name?: string; hex?: string }>;
   status?: string;
   isArchived?: boolean;
   outOfStockBehavior?: 'default' | 'show' | 'hide' | string;
@@ -149,6 +157,28 @@ export function rewriteProductImagesToProxy(images?: string[]): string[] {
       result.push(rewritten);
     }
   }
+  return result;
+}
+
+export function resolveSeoProductImages(
+  prod: Pick<MinimalProductRecord, 'id' | 'images'>,
+  canonicalOrigin: string = VANTREL_CANONICAL_ORIGIN
+): string[] {
+  if (!Array.isArray(prod?.images)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  prod.images.forEach((img, idx) => {
+    if (!img || typeof img !== 'string') return;
+    const trimmed = img.trim();
+    if (!trimmed || trimmed.startsWith('blob:')) return;
+    const resolved = trimmed.startsWith('data:image/')
+      ? `${canonicalOrigin}/api/product-image?id=${encodeURIComponent(prod.id)}&idx=${idx}`
+      : toCanonicalSeoImageUrl(trimmed, canonicalOrigin);
+    if (resolved && !resolved.startsWith('data:') && !resolved.startsWith('blob:') && !seen.has(resolved)) {
+      seen.add(resolved);
+      result.push(resolved);
+    }
+  });
   return result;
 }
 

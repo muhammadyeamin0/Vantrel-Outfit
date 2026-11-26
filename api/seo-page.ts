@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import {
   VANTREL_CANONICAL_ORIGIN,
   toCanonicalSeoImageUrl,
+  resolveSeoProductImages,
   findProductByUrlParam,
   findCategoryBySlug,
   getProductSeoSlug,
@@ -164,9 +165,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         const brandName = (matchedProduct.brand || 'VANTREL OUTFIT').trim();
         const catUrl = buildCategoryUrl(matchedProduct.category);
         const prodUrl = `${VANTREL_CANONICAL_ORIGIN}/product/${encodeURIComponent(seoSlug)}`;
-        const images = (matchedProduct.images || [])
-          .filter((img) => Boolean(img && typeof img === 'string'))
-          .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
+        const images = resolveSeoProductImages(matchedProduct, VANTREL_CANONICAL_ORIGIN);
 
         const primaryImg = images[0] || defaultOgImage;
         const rawDesc =
@@ -202,28 +201,27 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
           .slice(0, 8);
         focusedSsrProducts = [matchedProduct, ...related];
 
-        ssrRootHtml = `<main itemscope itemtype="https://schema.org/Product" style="max-width:1100px;margin:0 auto;padding:24px;font-family:sans-serif;color:#f5f5f5;background:#0a0a0a;">
+        ssrRootHtml = `<main style="max-width:1100px;margin:0 auto;padding:24px;font-family:sans-serif;color:#f5f5f5;background:#0a0a0a;">
   <nav aria-label="Breadcrumb">
     <a href="/">Home</a> / <a href="${escapeHtmlAttr(catUrl)}">${escapeHtmlAttr(matchedProduct.category)}</a> / <span>${escapeHtmlAttr(matchedProduct.name)}</span>
   </nav>
-  <h1 itemprop="name">${escapeHtmlAttr(matchedProduct.name)}</h1>
-  <p>Brand: <strong itemprop="brand" itemscope itemtype="https://schema.org/Brand"><span itemprop="name">${escapeHtmlAttr(brandName)}</span></strong> | Category: <a href="${escapeHtmlAttr(catUrl)}">${escapeHtmlAttr(matchedProduct.category)}</a> | SKU: <span itemprop="sku">${escapeHtmlAttr(matchedProduct.sku || matchedProduct.id)}</span></p>
-  <div itemprop="offers" itemscope itemtype="https://schema.org/Offer">
-    <meta itemprop="priceCurrency" content="BDT" />
-    <p>Price: <strong>৳<span itemprop="price" content="${effectivePrice}">${effectivePrice.toLocaleString()}</span> BDT</strong>${hasDiscount ? ` <del>৳${matchedProduct.regularPrice.toLocaleString()} BDT</del>` : ''}</p>
-    <p>Availability: <link itemprop="availability" href="${inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'}" /><strong>${inStock ? `In Stock (${matchedProduct.totalStock} available)` : 'Out of Stock'}</strong></p>
+  <h1>${escapeHtmlAttr(matchedProduct.name)}</h1>
+  <p>Brand: <strong>${escapeHtmlAttr(brandName)}</strong> | Category: <a href="${escapeHtmlAttr(catUrl)}">${escapeHtmlAttr(matchedProduct.category)}</a> | SKU: <span>${escapeHtmlAttr(matchedProduct.sku || matchedProduct.id)}</span></p>
+  <div>
+    <p>Price: <strong>৳<span>${effectivePrice.toLocaleString()}</span> BDT</strong>${hasDiscount ? ` <del>৳${matchedProduct.regularPrice.toLocaleString()} BDT</del>` : ''}</p>
+    <p>Availability: <strong>${inStock ? `In Stock (${matchedProduct.totalStock} available)` : 'Out of Stock'}</strong></p>
   </div>
   <div>
     ${(images.length > 0 ? images : [primaryImg])
       .map(
         (imgUrl, idx) =>
-          `<img itemprop="image" src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(`${matchedProduct.name} - ${matchedProduct.category}${idx > 0 ? ` View ${idx + 1}` : ''} | ${brandName}`)}" />`
+          `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(`${matchedProduct.name} - ${matchedProduct.category}${idx > 0 ? ` View ${idx + 1}` : ''} | ${brandName}`)}" />`
       )
       .join('\n    ')}
   </div>
   <section>
     <h2>Product Description</h2>
-    <p itemprop="description">${escapeHtmlAttr(rawDesc)}</p>
+    <p>${escapeHtmlAttr(rawDesc)}</p>
     ${matchedProduct.fabric ? `<p>Fabric: ${escapeHtmlAttr(matchedProduct.fabric)}${matchedProduct.gsm ? ` (${matchedProduct.gsm} GSM)` : ''}</p>` : ''}
     ${matchedProduct.sizes?.length ? `<p>Available Sizes: ${escapeHtmlAttr(matchedProduct.sizes.join(', '))}</p>` : ''}
     <p>Delivery: Free delivery inside Dhaka City (৳0). All 63 districts: ৳50 Cash on Delivery.</p>

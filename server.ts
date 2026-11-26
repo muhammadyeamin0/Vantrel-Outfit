@@ -2876,24 +2876,138 @@ function resolveProductMatchedFromReq(req: Request): Product | undefined {
   return undefined;
 }
 
+function resolveServerSeoImages(prod: Product, canonicalOrigin: string = VANTREL_CANONICAL_ORIGIN): string[] {
+  if (!Array.isArray(prod?.images)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  prod.images.forEach((img, idx) => {
+    if (!img || typeof img !== 'string') return;
+    const trimmed = img.trim();
+    if (!trimmed || trimmed.startsWith('blob:')) return;
+    const resolved = trimmed.startsWith('data:image/')
+      ? `${canonicalOrigin}/api/product-image?id=${encodeURIComponent(prod.id)}&idx=${idx}`
+      : toCanonicalSeoImageUrl(trimmed, canonicalOrigin);
+    if (resolved && !resolved.startsWith('data:') && !resolved.startsWith('blob:') && !seen.has(resolved)) {
+      seen.add(resolved);
+      result.push(resolved);
+    }
+  });
+  return result;
+}
+
 function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unknown> {
   const published = products.filter((p) => !isServerProductHiddenFromPublic(p));
   const seoSlug = getProductSeoSlug(prod, published);
   const productUrl = `${baseUrl}/product/${encodeURIComponent(seoSlug)}`;
-  const resolvedImages = (prod.images || [])
-    .filter((img) => Boolean(img && typeof img === 'string'))
-    .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
-  const effectivePrice = prod.discountPrice || prod.regularPrice;
+  const resolvedImages = resolveServerSeoImages(prod, VANTREL_CANONICAL_ORIGIN);
+  const effectivePrice = Number(prod.discountPrice ?? prod.regularPrice ?? 0);
+  const regularPrice = Number(prod.regularPrice ?? effectivePrice);
   const brandName = (prod.brand || 'VANTREL OUTFIT').trim();
+  const inStock = Number(prod.totalStock ?? 0) > 0;
+  const priceValidUntil = `${new Date().getFullYear() + 1}-12-31`;
+
+  const offer: Record<string, unknown> = {
+    '@type': 'Offer',
+    url: productUrl,
+    priceCurrency: 'BDT',
+    price: effectivePrice,
+    priceValidUntil,
+    itemCondition: 'https://schema.org/NewCondition',
+    availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+    seller: {
+      '@type': 'Organization',
+      name: 'VANTREL OUTFIT',
+      url: `${VANTREL_CANONICAL_ORIGIN}/`
+    },
+    shippingDetails: [
+      {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+          '@type': 'MonetaryAmount',
+          value: 0,
+          currency: 'BDT'
+        },
+        shippingDestination: {
+          '@type': 'DefinedRegion',
+          addressCountry: 'BD',
+          addressRegion: 'Dhaka'
+        },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 0,
+            maxValue: 1,
+            unitCode: 'DAY'
+          },
+          transitTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 1,
+            maxValue: 2,
+            unitCode: 'DAY'
+          }
+        }
+      },
+      {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+          '@type': 'MonetaryAmount',
+          value: 50,
+          currency: 'BDT'
+        },
+        shippingDestination: {
+          '@type': 'DefinedRegion',
+          addressCountry: 'BD'
+        },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 0,
+            maxValue: 1,
+            unitCode: 'DAY'
+          },
+          transitTime: {
+            '@type': 'QuantitativeValue',
+            minValue: 2,
+            maxValue: 4,
+            unitCode: 'DAY'
+          }
+        }
+      }
+    ],
+    hasMerchantReturnPolicy: {
+      '@type': 'MerchantReturnPolicy',
+      applicableCountry: 'BD',
+      returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+      merchantReturnDays: 7,
+      returnMethod: 'https://schema.org/ReturnByMail',
+      returnFees: 'https://schema.org/FreeReturn'
+    }
+  };
+
+  if (regularPrice > effectivePrice && effectivePrice > 0) {
+    offer.priceSpecification = {
+      '@type': 'UnitPriceSpecification',
+      priceType: 'https://schema.org/StrikethroughPrice',
+      priceCurrency: 'BDT',
+      price: regularPrice
+    };
+  }
 
   const schema: Record<string, unknown> = {
-    '@context': 'https://schema.org/',
+    '@context': 'https://schema.org',
     '@type': 'Product',
     '@id': `${productUrl}#product`,
     name: prod.name,
     url: productUrl,
-    image: resolvedImages.length > 0 ? resolvedImages : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-logo.png`],
-    description: (prod.description || prod.tagline || `Buy ${prod.name} from ${brandName} Bangladesh.`).trim(),
+    image:
+      resolvedImages.length > 0
+        ? resolvedImages
+        : [`${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`],
+    description: (prod.description || prod.tagline || `Buy ${prod.name} from ${brandName} Bangladesh.`)
+      .replace(/\s+/g, ' ')
+      .trim(),
     sku: prod.sku || prod.id,
     mpn: prod.sku || prod.id,
     category: prod.category,
@@ -2901,27 +3015,55 @@ function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unkn
       '@type': 'Brand',
       name: brandName
     },
-    offers: {
-      '@type': 'Offer',
-      url: productUrl,
-      priceCurrency: 'BDT',
-      price: String(effectivePrice),
-      priceValidUntil: '2027-12-31',
-      itemCondition: 'https://schema.org/NewCondition',
-      availability: prod.totalStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      seller: {
-        '@type': 'Organization',
-        name: 'VANTREL OUTFIT'
-      }
-    }
+    offers: offer
   };
 
+  if (prod.fabric) {
+    schema.material = prod.gsm ? `${prod.fabric} (${prod.gsm} GSM)` : prod.fabric;
+  }
+  if (Array.isArray(prod.sizes) && prod.sizes.length > 0) {
+    schema.size = prod.sizes.join(', ');
+  }
+  if (Array.isArray(prod.colors) && prod.colors.length > 0) {
+    const colorNames = prod.colors.map((c) => c?.name).filter(Boolean);
+    if (colorNames.length > 0) {
+      schema.color = colorNames.join(', ');
+    }
+  }
+
   if (prod.reviewCount > 0 && prod.rating > 0) {
+    const clampedRating = Number(Math.min(5, Math.max(1, Number(prod.rating))).toFixed(1));
     schema.aggregateRating = {
       '@type': 'AggregateRating',
-      ratingValue: String(prod.rating),
-      reviewCount: String(prod.reviewCount)
+      ratingValue: clampedRating,
+      reviewCount: Math.max(1, Math.round(Number(prod.reviewCount))),
+      bestRating: 5,
+      worstRating: 1
     };
+  }
+
+  if (Array.isArray(prod.reviews) && prod.reviews.length > 0) {
+    const validReviews = prod.reviews
+      .filter((r) => r && r.author && r.comment)
+      .slice(0, 5)
+      .map((r) => ({
+        '@type': 'Review',
+        author: {
+          '@type': 'Person',
+          name: String(r.author).trim()
+        },
+        ...(r.date ? { datePublished: String(r.date).trim() } : {}),
+        reviewBody: String(r.comment).trim(),
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: Number(Math.min(5, Math.max(1, Number(r.rating || 5))).toFixed(1)),
+          bestRating: 5,
+          worstRating: 1
+        }
+      }));
+    if (validReviews.length > 0) {
+      schema.review = validReviews;
+    }
   }
 
   return schema;
@@ -2929,7 +3071,7 @@ function buildProductJsonLd(prod: Product, baseUrl: string): Record<string, unkn
 
 app.get('*', (req: Request, res: Response, next) => {
   const userAgent = req.headers['user-agent'] || '';
-  const isSocialCrawler = /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot|Viber|Snapchat|redditbot|SkypeUriPreview|Embedly/i.test(userAgent);
+  const isSocialCrawler = /facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|WhatsApp|Twitterbot|TelegramBot|LinkedInBot|Pinterest|Googlebot|Googlebot-Image|Google-InspectionTool|GoogleOther|Google-Read-Aloud|AdsBot-Google|Storebot-Google|Applebot|Slackbot|OAI-SearchBot|GPTBot|ClaudeBot|PerplexityBot|bingbot|DuckDuckBot|Discordbot|Viber|Snapchat|redditbot|SkypeUriPreview|Embedly/i.test(userAgent);
 
   if (!isSocialCrawler) {
     return next();
@@ -2962,7 +3104,7 @@ app.get('*', (req: Request, res: Response, next) => {
   const matchedBrand = matchedProduct ? (matchedProduct.brand || 'VANTREL OUTFIT').trim() : 'VANTREL OUTFIT';
 
   const siteTitle = matchedProduct
-    ? `${matchedProduct.name} — ৳${(matchedProduct.discountPrice || matchedProduct.regularPrice).toLocaleString()} | ${matchedBrand}`
+    ? `${matchedProduct.name} — ৳${(matchedProduct.discountPrice ?? matchedProduct.regularPrice).toLocaleString()} | ${matchedBrand}`
     : matchedCategory && !isCategoryAll
     ? `${matchedCategory} Collection (${catProducts.length} Items) | VANTREL OUTFIT`
     : 'VANTREL OUTFIT — Premium Streetwear & Fashion Bangladesh';
@@ -2974,9 +3116,7 @@ app.get('*', (req: Request, res: Response, next) => {
     : 'Shop 420 GSM hoodies, oversized luxury tees, Panjabis, shirts, and denim at VANTREL OUTFIT. Free delivery in Dhaka & Cash on Delivery across Bangladesh.';
 
   const productImages = matchedProduct
-    ? (matchedProduct.images || [])
-        .filter((img) => Boolean(img && typeof img === 'string'))
-        .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN))
+    ? resolveServerSeoImages(matchedProduct, VANTREL_CANONICAL_ORIGIN)
     : [];
 
   const siteImage =
@@ -2984,7 +3124,7 @@ app.get('*', (req: Request, res: Response, next) => {
     (matchedCategory && catProducts[0]?.images?.[0]
       ? toCanonicalSeoImageUrl(catProducts[0].images[0], VANTREL_CANONICAL_ORIGIN)
       : `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`);
-  const effectivePrice = matchedProduct ? (matchedProduct.discountPrice || matchedProduct.regularPrice) : null;
+  const effectivePrice = matchedProduct ? (matchedProduct.discountPrice ?? matchedProduct.regularPrice) : null;
   const canonicalUrl = matchedProduct
     ? `${baseUrl}/product/${encodeURIComponent(matchedSlug)}`
     : matchedCategory && !isCategoryAll
@@ -3135,11 +3275,11 @@ async function startServer() {
           const baseUrl = `${protocol}://${host}`;
           const productSchema = buildProductJsonLd(matchedProduct, baseUrl);
           const safeJsonLd = JSON.stringify(productSchema).replace(/</g, '\\u003c');
-          const effectivePrice = matchedProduct.discountPrice || matchedProduct.regularPrice;
+          const effectivePrice = matchedProduct.discountPrice ?? matchedProduct.regularPrice;
           const productTitle = escapeHtmlAttr(`${matchedProduct.name} - ৳${effectivePrice.toLocaleString()} | VANTREL OUTFIT`);
           const productDesc = escapeHtmlAttr((matchedProduct.description || matchedProduct.tagline || matchedProduct.name).trim());
-          const rawImg = matchedProduct.images?.[0] || '/assets/images/vantrel-logo.png';
-          const absImg = escapeHtmlAttr(toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN));
+          const resolvedProdImgs = resolveServerSeoImages(matchedProduct, VANTREL_CANONICAL_ORIGIN);
+          const absImg = escapeHtmlAttr(resolvedProdImgs[0] || `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`);
           const slimFocused = [matchedProduct, ...products.filter((p) => p.id !== matchedProduct.id && p.category === matchedProduct.category).slice(0, 6)]
             .map((p) => slimProductForServerCatalog(p));
           const ssrScript = `<script type="application/json" id="vantrel-ssr-products" data-partial="true">${JSON.stringify(slimFocused).replace(/</g, '\\u003c')}</script>`;
