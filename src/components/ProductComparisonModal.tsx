@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { X, Check, ShoppingBag, Trash2, Star, ExternalLink } from 'lucide-react';
 import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 
 export const ProductComparisonModal: React.FC = () => {
   const {
@@ -100,7 +101,11 @@ export const ProductComparisonModal: React.FC = () => {
                             </button>
                             <img
                               src={toDisplayImageUrl(p.images[0], 320)}
-                              alt={p.name}
+                              alt={buildSeoImageAlt({
+                                name: p.name,
+                                category: p.category,
+                                brand: p.brand
+                              })}
                               width={260}
                               height={192}
                               loading="lazy"
@@ -279,7 +284,11 @@ export const FloatingComparisonDock: React.FC = () => {
           <img
             key={p.id}
             src={toDisplayImageUrl(p.images[0], 120)}
-            alt={p.name}
+            alt={buildSeoImageAlt({
+              name: p.name,
+              category: p.category,
+              brand: p.brand
+            })}
             width={40}
             height={40}
             loading="lazy"

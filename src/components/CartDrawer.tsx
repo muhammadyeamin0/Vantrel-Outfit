@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   X,
   Trash2,
@@ -304,7 +305,10 @@ export const CartDrawer: React.FC = () => {
                   <div key={item.id} className={`pt-3.5 first:pt-0 flex gap-3 bg-white p-3 rounded-2xl border shadow-2xs ${avail.isUnavailable ? 'border-rose-300 bg-rose-50/40' : 'border-[#E5E1D5]/80'}`}>
                     <img
                       src={toDisplayImageUrl(item.image, 180)}
-                      alt={item.name}
+                      alt={buildSeoImageAlt({
+                        name: item.name,
+                        context: [item.size, item.color].filter(Boolean).join(' ')
+                      })}
                       width={64}
                       height={80}
                       loading="lazy"

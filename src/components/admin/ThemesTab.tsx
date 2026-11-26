@@ -8,6 +8,7 @@ import {
   BANNER_WEBP_MAX_WIDTH,
   DEFAULT_WEBP_QUALITY
 } from '../../utils/webpConverter';
+import { buildSeoImageAlt } from '../../utils/imageSeoAndDownload';
 import {
   Palette,
   Sparkles,
@@ -447,7 +448,10 @@ export const ThemesTab: React.FC = () => {
                 {/* Background Layer with Depth */}
                 <img
                   src={banners3D[0].bgImage}
-                  alt={banners3D[0].title}
+                  alt={buildSeoImageAlt({
+                    name: banners3D[0].title,
+                    context: '3D Hero Banner'
+                  })}
                   className="w-full h-full object-cover object-center scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#14221C] via-[#14221C]/60 to-transparent" />
@@ -489,7 +493,10 @@ export const ThemesTab: React.FC = () => {
               <div className="flex items-start gap-3">
                 <img
                   src={banner.bgImage}
-                  alt={banner.title}
+                  alt={buildSeoImageAlt({
+                    name: banner.title,
+                    context: '3D Storefront Banner'
+                  })}
                   className="w-20 h-20 rounded-xl object-cover border border-[#E5E1D5] shrink-0"
                 />
                 <div className="space-y-1">

@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { OrderStatus } from '../types';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { getOrderProgressInfo } from '../utils/orderProgress';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   CheckCircle2,
   Printer,
@@ -462,7 +463,10 @@ export const OrderConfirmationPage: React.FC = () => {
                 >
                   <img
                     src={toDisplayImageUrl(item.image, 180)}
-                    alt={item.name}
+                    alt={buildSeoImageAlt({
+                      name: item.name,
+                      context: [item.size, item.color].filter(Boolean).join(' ')
+                    })}
                     onError={handleProxyImageError}
                     className="w-16 h-20 sm:w-20 sm:h-24 object-cover rounded-lg bg-stone-100 border border-stone-200 shrink-0"
                   />
@@ -704,7 +708,7 @@ export const OrderConfirmationPage: React.FC = () => {
             <div className="flex items-center gap-3.5">
               <img
                 src="/assets/images/vantrel-logo.webp"
-                alt="VANTREL OUTFIT"
+                alt="Vantrel Outfit Official Invoice Brand Logo"
                 width={56}
                 height={56}
                 decoding="async"
@@ -791,7 +795,10 @@ export const OrderConfirmationPage: React.FC = () => {
                     <td className="px-4 py-3 font-semibold text-[#14221C] flex items-center gap-3">
                       <img
                         src={toDisplayImageUrl(item.image, 140)}
-                        alt=""
+                        alt={buildSeoImageAlt({
+                          name: item.name,
+                          context: [item.size, item.color].filter(Boolean).join(' ')
+                        })}
                         width={40}
                         height={48}
                         loading="lazy"

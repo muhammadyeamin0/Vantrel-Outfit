@@ -6,6 +6,7 @@ import { ProductImage } from '../components/ProductImage';
 import { getProductSeoSlug } from '../utils/seoSlug';
 import { getHomepageShowcaseCategories } from '../utils/categoryShowcase';
 import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   Truck,
   ShieldCheck,
@@ -110,6 +111,48 @@ export const HomePage: React.FC = () => {
       image: item.image
     }));
   }, [categories, products, settings.outOfStockDefaultBehavior]);
+
+  // Hero quick-filter category buttons: only categories with live visible products (Drop Shoulder prioritized first)
+  const heroQuickCategories = useMemo<ProductCategory[]>(() => {
+    const counts = new Map<string, { label: ProductCategory; count: number }>();
+
+    products.forEach((p) => {
+      if (shouldHideProductFromPublic(p, settings.outOfStockDefaultBehavior)) return;
+      const cat = String(p.category || '').trim();
+      if (!cat || cat.toLowerCase() === 'all') return;
+      const key = cat.toLowerCase();
+      const existing = counts.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        counts.set(key, { label: cat, count: 1 });
+      }
+    });
+
+    if (counts.size === 0) {
+      return ['Drop Shoulder', 'Hoodies', 'Long Sleeve T-Shirt', 'Shirts'];
+    }
+
+    const adminOrder = new Map<string, number>();
+    categories.forEach((c, idx) => {
+      if (c && c !== 'All') adminOrder.set(c.trim().toLowerCase(), idx);
+    });
+
+    return Array.from(counts.values())
+      .sort((a, b) => {
+        const aIsDrop = a.label.toLowerCase().includes('drop shoulder');
+        const bIsDrop = b.label.toLowerCase().includes('drop shoulder');
+        if (aIsDrop !== bIsDrop) return aIsDrop ? -1 : 1;
+
+        if (b.count !== a.count) return b.count - a.count;
+
+        const aIdx = adminOrder.get(a.label.toLowerCase()) ?? 9999;
+        const bIdx = adminOrder.get(b.label.toLowerCase()) ?? 9999;
+        return aIdx - bIdx;
+      })
+      .slice(0, 4)
+      .map((entry) => entry.label);
+  }, [products, categories, settings.outOfStockDefaultBehavior]);
 
   // Dynamic Popular / Top Products managed directly by Admin & Store database
   const popularItems = useMemo(() => {
@@ -216,7 +259,11 @@ export const HomePage: React.FC = () => {
                 : undefined
             }
             sizes={currentSlide === 0 ? '(max-width: 768px) 100vw, 941px' : undefined}
-            alt={`${activeSlide.title} - ${activeSlide.tagline1} (${activeSlide.categoryList})`}
+            alt={buildSeoImageAlt({
+              name: activeSlide.title,
+              category: activeSlide.categoryList,
+              context: activeSlide.tagline1
+            })}
             width={941}
             height={1672}
             fetchPriority={currentSlide === 0 ? "high" : "auto"}
@@ -263,16 +310,16 @@ export const HomePage: React.FC = () => {
                 </p>
               </div>
 
-              {/* Category Quick Badges matching the poster (T-SHIRT / HOODIE / PANT / SHIRT) */}
+              {/* Category Quick Badges driven by live categories that have products (Drop Shoulder first) */}
               <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px] font-bold text-white/90">
-                {['T-SHIRT', 'HOODIE', 'PANT', 'SHIRT'].map((item) => (
+                {heroQuickCategories.map((cat) => (
                   <button
-                    key={item}
+                    key={cat}
                     type="button"
-                    onClick={() => handleCategoryNav(item)}
-                    className="min-h-[36px] px-3 py-1.5 bg-black/55 hover:bg-white hover:text-black border border-white/25 rounded-md transition-colors cursor-pointer backdrop-blur-sm"
+                    onClick={() => handleCategoryNav(cat)}
+                    className="min-h-[36px] px-3 py-1.5 bg-black/55 hover:bg-white hover:text-black border border-white/25 rounded-md transition-colors cursor-pointer backdrop-blur-sm uppercase"
                   >
-                    {item}
+                    {cat}
                   </button>
                 ))}
               </div>
@@ -305,7 +352,7 @@ export const HomePage: React.FC = () => {
               >
                 <img
                   src="/assets/aistudio/file_0000000019fc82119e2e85c98ea848fc_c18bf4ba.webp"
-                  alt="VANTREL Choose Your Style - Official High Quality Campaign"
+                  alt="Vantrel Outfit Choose Your Style - Official Streetwear Campaign"
                   width={941}
                   height={1672}
                   className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
@@ -377,7 +424,10 @@ export const HomePage: React.FC = () => {
                 {/* Best Product Image of this Category */}
                 <ProductImage
                   rawSrc={cat.image}
-                  alt={`${cat.title} - ${cat.productName} | VANTREL OUTFIT`}
+                  alt={buildSeoImageAlt({
+                    name: cat.productName,
+                    category: cat.title
+                  })}
                   widths={[320, 480]}
                   defaultWidth={400}
                   sizes="(max-width: 768px) 46vw, 24vw"
@@ -491,7 +541,11 @@ export const HomePage: React.FC = () => {
                   >
                     <ProductImage
                       rawSrc={item.image}
-                      alt={`${item.name} - ${item.category} by ${item.rawProduct?.brand || 'VANTREL OUTFIT'}`}
+                      alt={buildSeoImageAlt({
+                        name: item.name,
+                        category: item.category,
+                        brand: item.rawProduct?.brand
+                      })}
                       widths={[320, 480]}
                       defaultWidth={400}
                       sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 230px"
@@ -652,7 +706,7 @@ export const HomePage: React.FC = () => {
           <div className="relative min-h-[460px] sm:min-h-[540px] lg:min-h-[600px] overflow-hidden bg-neutral-900 border border-white/10 group">
             <img
               src="/assets/images/editorial_cream_hoodie_1793118980188.webp"
-              alt="Comfort Meets Style"
+              alt="Vantrel Outfit Comfort Meets Style Cream Hoodie Collection"
               width={896}
               height={1200}
               loading="lazy"
@@ -690,7 +744,7 @@ export const HomePage: React.FC = () => {
             <div className="absolute bottom-0 right-0 w-3/5 h-3/5 sm:w-1/2 sm:h-1/2 opacity-35 pointer-events-none overflow-hidden">
               <img
                 src="/assets/images/editorial_story_backshot_1793118981432.webp"
-                alt="Vantrel Streetwear Back Detail"
+                alt="Vantrel Outfit Crafted for Modern Men Streetwear Back Detail"
                 width={1024}
                 height={1024}
                 loading="lazy"

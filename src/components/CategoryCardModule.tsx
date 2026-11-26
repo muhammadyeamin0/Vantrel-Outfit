@@ -7,6 +7,7 @@ import {
 } from '../data/categoryShowcaseData';
 import { ArrowRight, Sparkles, Snowflake, Shirt } from 'lucide-react';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 
 interface CategoryCardProps {
   item: CategoryShowcaseItem;
@@ -34,7 +35,11 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({ item, onClick }) => 
 
         <img
           src={toDisplayImageUrl(item.image, 200)}
-          alt={item.title}
+          alt={buildSeoImageAlt({
+            name: item.title,
+            category: item.categoryKey,
+            context: 'Category Collection'
+          })}
           width={96}
           height={96}
           loading="lazy"
@@ -141,7 +146,10 @@ export const CategorySectionModule: React.FC<CategorySectionModuleProps> = ({
               <div className="w-11 h-11 rounded-full bg-[#14221C] border-2 border-[#FF762E] flex items-center justify-center text-white shadow-xs overflow-hidden p-0.5">
                 <img
                   src="/assets/images/bangladeshi_hoodie_look_1793107183737.webp"
-                  alt="Gent's Winter"
+                  alt={buildSeoImageAlt({
+                    category: "Gent's Winter",
+                    context: 'Winter Hoodie Collection'
+                  })}
                   width={44}
                   height={44}
                   loading="lazy"

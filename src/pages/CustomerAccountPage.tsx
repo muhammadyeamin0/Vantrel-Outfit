@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { Address } from '../types';
 import { getOrderProgressInfo } from '../utils/orderProgress';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   User as UserIcon,
   ShoppingBag,
@@ -326,7 +327,10 @@ export const CustomerAccountPage: React.FC = () => {
                       <div key={i.id} className="flex items-center gap-3 text-xs">
                         <img
                           src={i.image}
-                          alt=""
+                          alt={buildSeoImageAlt({
+                            name: i.name,
+                            context: [i.size, i.color].filter(Boolean).join(' ')
+                          })}
                           width={48}
                           height={56}
                           loading="lazy"

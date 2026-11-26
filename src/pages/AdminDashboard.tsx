@@ -44,6 +44,10 @@ import {
   resolveProductFabricLabel
 } from '../utils/productGsm';
 import {
+  buildSeoImageAlt,
+  downloadBatchImages
+} from '../utils/imageSeoAndDownload';
+import {
   ShieldCheck,
   TrendingUp,
   Package,
@@ -248,6 +252,7 @@ export const AdminDashboard: React.FC = () => {
   const [prodImages, setProdImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [isDownloadingImages, setIsDownloadingImages] = useState(false);
   const productImageInputRef = useRef<HTMLInputElement | null>(null);
   const [prodSizes, setProdSizes] = useState<string[]>(['M', 'L', 'XL', 'XXL']);
   const [showPantSizes, setShowPantSizes] = useState<boolean>(false);
@@ -1269,6 +1274,66 @@ export const AdminDashboard: React.FC = () => {
     showToast('Export Complete', `${listToExport.length} products exported to CSV file.`, 'success');
   };
 
+  // Bulk / Batch Image Download with consistent naming (vantrel-outfit-1, vantrel-outfit-2, ...)
+  const handleDownloadCatalogImagesZip = async (targetProducts: Product[]) => {
+    const allImages = targetProducts.flatMap((p) => (Array.isArray(p.images) ? p.images : [])).filter(Boolean);
+    if (allImages.length === 0) {
+      showToast('No Images Found', 'Selected products do not contain downloadable images.', 'info');
+      return;
+    }
+    if (isDownloadingImages) return;
+    setIsDownloadingImages(true);
+    try {
+      const result = await downloadBatchImages(allImages, {
+        mode: allImages.length > 1 ? 'zip' : 'sequential',
+        prefix: 'vantrel-outfit',
+        zipFilename: 'vantrel-outfit-images.zip'
+      });
+      if (result.downloaded > 0) {
+        showToast(
+          'Images Downloaded',
+          result.mode === 'zip'
+            ? `Bundled ${result.downloaded} images as vantrel-outfit-1..${result.downloaded} in ${result.archiveName || 'vantrel-outfit-images.zip'}.`
+            : `Downloaded ${result.archiveName || 'vantrel-outfit-1'}.`,
+          'success'
+        );
+      } else {
+        showToast('Download Failed', 'Unable to fetch product images for download.', 'error');
+      }
+    } catch {
+      showToast('Download Failed', 'Unable to fetch product images for download.', 'error');
+    } finally {
+      setIsDownloadingImages(false);
+    }
+  };
+
+  const handleDownloadModalGalleryImages = async (mode: 'zip' | 'sequential') => {
+    if (prodImages.length === 0 || isDownloadingImages) return;
+    setIsDownloadingImages(true);
+    try {
+      const result = await downloadBatchImages(prodImages, {
+        mode,
+        prefix: 'vantrel-outfit',
+        zipFilename: 'vantrel-outfit-images.zip'
+      });
+      if (result.downloaded > 0) {
+        showToast(
+          'Images Downloaded',
+          result.mode === 'zip'
+            ? `Saved ${result.downloaded} gallery photos into ${result.archiveName || 'vantrel-outfit-images.zip'}.`
+            : `Downloaded ${result.downloaded} photos sequentially (vantrel-outfit-1..${result.downloaded}).`,
+          'success'
+        );
+      } else {
+        showToast('Download Failed', 'Unable to download one or more gallery images.', 'error');
+      }
+    } catch {
+      showToast('Download Failed', 'Unable to fetch one or more gallery images.', 'error');
+    } finally {
+      setIsDownloadingImages(false);
+    }
+  };
+
   // Bulk Product Actions
   const handleBulkDelete = () => {
     if (selectedProductIds.length === 0) return;
@@ -1492,7 +1557,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center gap-3.5">
             <img
               src="/assets/images/vantrel-logo.webp"
-              alt="VANTREL OUTFIT"
+              alt="Vantrel Outfit Admin Panel Logo"
               width={56}
               height={56}
               decoding="async"
@@ -2223,7 +2288,7 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         <img
                           src={p.images[0]}
-                          alt=""
+                          alt={buildSeoImageAlt({ name: p.name, category: p.category, brand: p.brand })}
                           className="w-10 h-12 object-cover rounded-lg bg-white shrink-0"
                         />
                         <div>
@@ -2410,6 +2475,16 @@ export const AdminDashboard: React.FC = () => {
                 )}
 
                 <button
+                  onClick={() => void handleDownloadCatalogImagesZip(filteredProducts)}
+                  disabled={isDownloadingImages || filteredProducts.length === 0}
+                  className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 cursor-pointer"
+                  title="Download filtered product images as vantrel-outfit-images.zip"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#FF762E]" />
+                  <span>{isDownloadingImages ? 'Zipping...' : 'Images (.ZIP)'}</span>
+                </button>
+
+                <button
                   onClick={handleExportProductsCSV}
                   className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
                 >
@@ -2486,7 +2561,7 @@ export const AdminDashboard: React.FC = () => {
                       {tp.images?.[0] ? (
                         <img
                           src={toDisplayImageUrl(tp.images[0])}
-                          alt=""
+                          alt={buildSeoImageAlt({ name: tp.name, category: tp.category, brand: tp.brand })}
                           className="w-5 h-5 rounded object-cover bg-stone-100 shrink-0"
                         />
                       ) : (
@@ -2738,6 +2813,15 @@ export const AdminDashboard: React.FC = () => {
                     <span>⭐ Mark Top</span>
                   </button>
                   <button
+                    onClick={() => void handleDownloadCatalogImagesZip(products.filter((p) => selectedProductIds.includes(p.id)))}
+                    disabled={isDownloadingImages}
+                    className="px-3 py-1 bg-[#FF762E] hover:bg-[#e8631c] text-white rounded-lg font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Download selected product images as vantrel-outfit-images.zip"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>{isDownloadingImages ? 'Zipping...' : 'Download Images (.ZIP)'}</span>
+                  </button>
+                  <button
                     onClick={handleBulkArchive}
                     className="px-3 py-1 bg-stone-700 hover:bg-stone-600 text-white rounded-lg font-bold cursor-pointer"
                   >
@@ -2900,7 +2984,7 @@ export const AdminDashboard: React.FC = () => {
                           {p.images?.[0] ? (
                             <img
                               src={toDisplayImageUrl(p.images[0])}
-                              alt=""
+                              alt={buildSeoImageAlt({ name: p.name, category: p.category, brand: p.brand })}
                               className="w-10 h-12 object-cover rounded bg-stone-100 shrink-0"
                             />
                           ) : (
@@ -3522,7 +3606,7 @@ export const AdminDashboard: React.FC = () => {
                             <div className="relative h-36 rounded-xl overflow-hidden bg-neutral-900 border border-[#E5E1D5]">
                               <img
                                 src={toDisplayImageUrl(activeBest.images[0])}
-                                alt={activeBest.name}
+                                alt={buildSeoImageAlt({ name: activeBest.name, category: activeBest.category, brand: activeBest.brand })}
                                 onError={handleProxyImageError}
                                 className="w-full h-full object-cover object-center"
                               />
@@ -3683,7 +3767,7 @@ export const AdminDashboard: React.FC = () => {
                               {/* Thumbnail */}
                               <img
                                 src={toDisplayImageUrl(p.images?.[0] || '/assets/images/product_premium_hoodie_1792588590406.webp')}
-                                alt=""
+                                alt={buildSeoImageAlt({ name: p.name, category: p.category, brand: p.brand })}
                                 onError={handleProxyImageError}
                                 className="w-12 h-14 object-cover rounded-xl bg-stone-100 border border-stone-200 shrink-0"
                               />
@@ -4411,7 +4495,7 @@ export const AdminDashboard: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <img
                         src={prod.images[0]}
-                        alt=""
+                        alt={buildSeoImageAlt({ name: prod.name, category: prod.category, brand: prod.brand })}
                         className="w-12 h-14 object-cover rounded-lg bg-white shrink-0"
                       />
                       <div>
@@ -6404,7 +6488,7 @@ service cloud.firestore {
 
                 {/* ESSENTIAL FIELD 4: MULTIPLE PRODUCT IMAGES */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <label className="block font-bold text-[#14221C] uppercase tracking-wider text-[11px]">
                         4. Product Images ({prodImages.length}টি যুক্ত আছে)
@@ -6414,9 +6498,28 @@ service cloud.firestore {
                       </span>
                     </div>
                     {prodImages.length > 0 && (
-                      <span className="text-[11px] text-[#202522]/50 font-medium">
-                        ১ম ছবিটি স্টোরফ্রন্ট প্রাইমারি থাম্বনেইল
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void handleDownloadModalGalleryImages('zip')}
+                          disabled={isDownloadingImages}
+                          className="px-2.5 py-1 bg-[#14221C] hover:bg-neutral-800 text-white text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          title="Bundle all gallery photos into vantrel-outfit-images.zip"
+                        >
+                          <Download className="w-3 h-3 text-[#FF762E]" />
+                          <span>{isDownloadingImages ? 'Zipping...' : 'Download ZIP'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDownloadModalGalleryImages('sequential')}
+                          disabled={isDownloadingImages}
+                          className="px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-[#14221C] text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          title="Download files individually as vantrel-outfit-1, vantrel-outfit-2..."
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Sequential</span>
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -6444,7 +6547,17 @@ service cloud.firestore {
                               idx === 0 ? 'border-[#14221C] ring-2 ring-[#FF762E]/20' : 'border-[#E5E1D5]'
                             }`}
                           >
-                            <img src={toDisplayImageUrl(img)} alt={`${prodName || 'Product'} preview ${idx + 1}`} onError={handleProxyImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img
+                              src={toDisplayImageUrl(img)}
+                              alt={buildSeoImageAlt({
+                                name: prodName || 'Apparel Item',
+                                category: isCustomCategory ? customCategoryText : prodCategory,
+                                viewIndex: idx
+                              })}
+                              onError={handleProxyImageError}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
 
                             {/* Primary Badge */}
                             {idx === 0 ? (

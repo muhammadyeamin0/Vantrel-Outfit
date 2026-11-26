@@ -63,7 +63,7 @@ export const AboutPage: React.FC = () => {
         <section className="text-center space-y-6 max-w-3xl mx-auto">
           <img
             src="/assets/images/vantrel-logo.webp"
-            alt="VANTREL OUTFIT"
+            alt="Vantrel Outfit Official Brand Logo"
             width={56}
             height={56}
             loading="eager"
@@ -85,7 +85,7 @@ export const AboutPage: React.FC = () => {
         <div className="relative overflow-hidden border border-white/10 bg-[#141414] aspect-[16/9] shadow-2xl">
           <img
             src="/assets/images/about_vantrel_banner.webp"
-            alt="VANTREL — Wear Your Vibe Streetwear Collection"
+            alt="Vantrel Outfit Wear Your Vibe Streetwear Collection Banner"
             width={1376}
             height={768}
             fetchPriority="high"
@@ -105,7 +105,7 @@ export const AboutPage: React.FC = () => {
           <div className="lg:col-span-6 relative overflow-hidden border border-white/10 bg-[#141414] aspect-[4/5] shadow-xl">
             <img
               src="/assets/images/editorial_story_backshot_1793118981432.webp"
-              alt="VANTREL T-Shirts, Hoodies & Dropshoulder Shirts Silhouette"
+              alt="Vantrel Outfit T-Shirts, Hoodies and Dropshoulder Shirts Silhouette"
               width={1024}
               height={1024}
               loading="lazy"

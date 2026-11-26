@@ -7,6 +7,7 @@ import { ProductImage } from '../components/ProductImage';
 import { trackMetaViewContent } from '../utils/metaPixel';
 import { isProductOutOfStock, shouldHideProductFromPublic } from '../utils/stockVisibility';
 import { resolveProductGsmLabel, resolveProductFabricLabel } from '../utils/productGsm';
+import { buildSeoImageAlt, downloadBatchImages } from '../utils/imageSeoAndDownload';
 import {
   Heart,
   ShoppingBag,
@@ -24,7 +25,8 @@ import {
   Camera,
   Play,
   Image as ImageIcon,
-  Ban
+  Ban,
+  Download
 } from 'lucide-react';
 
 export const ProductDetailPage: React.FC = () => {
@@ -62,6 +64,7 @@ export const ProductDetailPage: React.FC = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [isZoomed, setIsZoomed] = useState(false);
   const [measurementUnit, setMeasurementUnit] = useState<'in' | 'cm'>('in');
+  const [isDownloadingImages, setIsDownloadingImages] = useState(false);
 
   // Delivery Estimator state
   const [selectedDistrict, setSelectedDistrict] = useState<string>('Dhaka');
@@ -230,6 +233,34 @@ export const ProductDetailPage: React.FC = () => {
     showToast('Review Submitted', 'Thank you for your authentic customer feedback!', 'success');
   };
 
+  const handleDownloadProductImages = async () => {
+    if (!product?.images?.length || isDownloadingImages) return;
+    setIsDownloadingImages(true);
+    try {
+      const mode = product.images.length > 1 ? 'zip' : 'sequential';
+      const result = await downloadBatchImages(product.images, {
+        mode,
+        prefix: 'vantrel-outfit',
+        zipFilename: 'vantrel-outfit-images.zip'
+      });
+      if (result.downloaded > 0) {
+        showToast(
+          'Images Downloaded',
+          result.mode === 'zip'
+            ? `Saved ${result.downloaded} images in ${result.archiveName || 'vantrel-outfit-images.zip'} (vantrel-outfit-1...).`
+            : `Saved ${result.archiveName || 'vantrel-outfit-1'}.`,
+          'success'
+        );
+      } else {
+        showToast('Download Unavailable', 'Could not download images due to browser/network restrictions.', 'error');
+      }
+    } catch {
+      showToast('Download Unavailable', 'Could not fetch product images for download.', 'error');
+    } finally {
+      setIsDownloadingImages(false);
+    }
+  };
+
   // Delivery estimate calculation
   const isDhaka = selectedDistrict.toLowerCase() === 'dhaka';
   const deliveryDays = isDhaka ? '1–2 Working Days' : '2–4 Working Days';
@@ -273,17 +304,38 @@ export const ProductDetailPage: React.FC = () => {
           {/* Left: Sticky Image & Video Gallery */}
           <div className="lg:col-span-7 space-y-4 lg:sticky lg:top-24">
             {/* Media Header & GSM Badge */}
-            <div className="flex items-center justify-between pb-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
               <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-[#E5E1D5] shadow-xs text-xs font-bold uppercase tracking-wider text-[#14221C]">
                 <ImageIcon className="w-3.5 h-3.5 text-[#FF762E]" />
                 <span>High-Res Editorial Photography ({product.images.length})</span>
               </div>
 
-              {resolvedGsm && (
-                <span className="px-2.5 py-1 bg-[#14221C] text-white text-[11px] font-bold rounded-lg uppercase tracking-wider">
-                  {resolvedGsm} Weight
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {product.images.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadProductImages}
+                    disabled={isDownloadingImages}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-lg border border-white/15 transition-colors cursor-pointer disabled:opacity-50"
+                    title="Download product images with consistent vantrel-outfit filenames"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#FF762E]" />
+                    <span>
+                      {isDownloadingImages
+                        ? 'Downloading...'
+                        : product.images.length > 1
+                          ? `Save Photos (.ZIP)`
+                          : 'Save Photo'}
+                    </span>
+                  </button>
+                )}
+
+                {resolvedGsm && (
+                  <span className="px-2.5 py-1 bg-[#14221C] text-white text-[11px] font-bold rounded-lg uppercase tracking-wider">
+                    {resolvedGsm} Weight
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Main Stage Display (Photo with Zoom) */}
@@ -294,7 +346,12 @@ export const ProductDetailPage: React.FC = () => {
             >
               <ProductImage
                 rawSrc={product.images[activeImageIndex] || product.images[0]}
-                alt={`${product.name} - ${product.category}${resolvedFabric ? ` (${resolvedFabric})` : ''} | ${product.brand || 'VANTREL OUTFIT'}`}
+                alt={buildSeoImageAlt({
+                  name: product.name,
+                  category: product.category,
+                  brand: product.brand,
+                  context: resolvedFabric || undefined
+                })}
                 widths={[560, 900]}
                 defaultWidth={900}
                 sizes="(max-width: 1024px) 94vw, 660px"
@@ -351,7 +408,12 @@ export const ProductDetailPage: React.FC = () => {
                 >
                   <img
                     src={toDisplayImageUrl(img, 140)}
-                    alt={`${product.name} - ${product.category} View ${idx + 1} | ${product.brand || 'VANTREL OUTFIT'}`}
+                    alt={buildSeoImageAlt({
+                      name: product.name,
+                      category: product.category,
+                      brand: product.brand,
+                      viewIndex: idx
+                    })}
                     width={80}
                     height={96}
                     loading="eager"
@@ -863,7 +925,12 @@ export const ProductDetailPage: React.FC = () => {
                           >
                             <img
                               src={photo}
-                              alt={`${product.name} verified customer review outfit photo`}
+                              alt={buildSeoImageAlt({
+                                name: product.name,
+                                category: product.category,
+                                brand: product.brand,
+                                context: `Verified Customer Review Photo ${pIdx + 1}`
+                              })}
                               width={64}
                               height={80}
                               loading="lazy"
@@ -968,7 +1035,12 @@ export const ProductDetailPage: React.FC = () => {
                     <div className="mt-2 flex items-center gap-2">
                       <img
                         src={newReviewPhoto}
-                        alt="Preview"
+                        alt={buildSeoImageAlt({
+                          name: product.name,
+                          category: product.category,
+                          brand: product.brand,
+                          context: 'Customer Review Photo Preview'
+                        })}
                         width={40}
                         height={48}
                         loading="lazy"

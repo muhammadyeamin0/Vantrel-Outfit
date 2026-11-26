@@ -111,7 +111,7 @@ export const Header: React.FC = () => {
           >
             <img
               src="/assets/images/vantrel-logo.webp"
-              alt="VANTREL"
+              alt="Vantrel Outfit Official Brand Logo"
               width={36}
               height={36}
               decoding="async"
@@ -262,7 +262,7 @@ export const Header: React.FC = () => {
               <div className="flex items-center gap-2.5">
                 <img
                   src="/assets/images/vantrel-logo.webp"
-                  alt="VANTREL"
+                  alt="Vantrel Outfit Mobile Menu Logo"
                   width={32}
                   height={32}
                   loading="lazy"

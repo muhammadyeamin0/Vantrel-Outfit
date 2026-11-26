@@ -6,6 +6,7 @@ import {
   getOrderProgressInfo,
   buildCourierTrackingUrl
 } from '../utils/orderProgress';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   Package,
   Search,
@@ -345,7 +346,7 @@ export const OrderTrackingPage: React.FC = () => {
         <div className="text-center max-w-xl mx-auto space-y-2.5">
           <img
             src="/assets/images/vantrel-logo.webp"
-            alt="VANTREL OUTFIT"
+            alt="Vantrel Outfit Order Tracking Brand Logo"
             width={56}
             height={56}
             decoding="async"
@@ -620,7 +621,10 @@ export const OrderTrackingPage: React.FC = () => {
                   >
                     <img
                       src={toDisplayImageUrl(item.image, 160)}
-                      alt={item.name}
+                      alt={buildSeoImageAlt({
+                        name: item.name,
+                        context: [item.size, item.color].filter(Boolean).join(' ')
+                      })}
                       width={64}
                       height={80}
                       loading="lazy"

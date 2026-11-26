@@ -5,6 +5,7 @@ import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { isProductOutOfStock } from '../utils/stockVisibility';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   ShoppingBag,
   Trash2,
@@ -329,7 +330,10 @@ export const CartPage: React.FC = () => {
                   <div key={item.id} className={`py-5 first:pt-4 last:pb-0 flex flex-col sm:flex-row items-start gap-4 ${avail.isUnavailable ? 'opacity-90' : ''}`}>
                     <img
                       src={toDisplayImageUrl(item.image, 180)}
-                      alt={item.name}
+                      alt={buildSeoImageAlt({
+                        name: item.name,
+                        context: [item.size, item.color].filter(Boolean).join(' ')
+                      })}
                       width={96}
                       height={112}
                       loading="lazy"

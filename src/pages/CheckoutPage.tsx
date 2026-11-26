@@ -6,6 +6,7 @@ import { getSavedAddresses, saveAddressLocally, removeAddressLocally } from '../
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { trackMetaInitiateCheckout } from '../utils/metaPixel';
 import { isProductOutOfStock } from '../utils/stockVisibility';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -703,7 +704,10 @@ export const CheckoutPage: React.FC = () => {
                   <div key={item.id} className="pt-3 first:pt-0 flex items-center gap-3">
                     <img
                       src={toDisplayImageUrl(item.image, 180)}
-                      alt={item.name}
+                      alt={buildSeoImageAlt({
+                        name: item.name,
+                        context: [item.size, item.color].filter(Boolean).join(' ')
+                      })}
                       width={56}
                       height={64}
                       loading="lazy"

@@ -4,6 +4,7 @@ import {
   buildResponsiveImageSrcSet,
   handleProxyImageError
 } from '../utils/imageProxy';
+import { sanitizeAltText } from '../utils/imageSeoAndDownload';
 
 interface ProductImageProps {
   rawSrc?: string;
@@ -32,6 +33,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   skeletonTone = 'dark',
   itemProp
 }) => {
+  const resolvedAlt = sanitizeAltText(alt);
   const resolvedSrc = toDisplayImageUrl(rawSrc || '', defaultWidth);
   const srcSet = rawSrc ? buildResponsiveImageSrcSet(rawSrc, widths) : undefined;
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -64,7 +66,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         src={resolvedSrc}
         srcSet={srcSet}
         sizes={srcSet ? sizes : undefined}
-        alt={alt}
+        alt={resolvedAlt}
         width={width}
         height={height}
         loading={priority ? 'eager' : 'lazy'}

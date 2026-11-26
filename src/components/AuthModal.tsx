@@ -121,7 +121,7 @@ export const AuthModal: React.FC = () => {
           <div className="flex items-center gap-3">
             <img
               src="/assets/images/vantrel-logo.webp"
-              alt="VANTREL"
+              alt="Vantrel Outfit Account Portal Logo"
               width={40}
               height={40}
               loading="lazy"

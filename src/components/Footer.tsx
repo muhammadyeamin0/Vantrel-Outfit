@@ -39,7 +39,7 @@ export const Footer: React.FC = () => {
             >
               <img
                 src="/assets/images/vantrel-logo.webp"
-                alt="VANTREL OUTFIT"
+                alt="Vantrel Outfit Official Brand Logo"
                 width={40}
                 height={40}
                 loading="lazy"

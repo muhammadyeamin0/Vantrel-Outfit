@@ -5,6 +5,7 @@ import { preloadProductImage } from '../utils/imageProxy';
 import { ProductImage } from './ProductImage';
 import { getProductSeoSlug } from '../utils/seoSlug';
 import { isProductOutOfStock } from '../utils/stockVisibility';
+import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import { Heart, ShoppingBag, Star, Zap, Check, Ban } from 'lucide-react';
 
 interface ProductCardProps {
@@ -73,7 +74,11 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, pr
       <div className="relative aspect-square w-full overflow-hidden bg-neutral-900 border-b border-white/5">
         <ProductImage
           rawSrc={product.images?.[0]}
-          alt={`${product.name} - ${product.category} by ${product.brand || 'VANTREL OUTFIT'}`}
+          alt={buildSeoImageAlt({
+            name: product.name,
+            category: product.category,
+            brand: product.brand
+          })}
           widths={[320, 480]}
           defaultWidth={400}
           sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 250px"

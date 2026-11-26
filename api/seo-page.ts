@@ -213,10 +213,12 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
   </div>
   <div>
     ${(images.length > 0 ? images : [primaryImg])
-      .map(
-        (imgUrl, idx) =>
-          `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(`${matchedProduct.name} - ${matchedProduct.category}${idx > 0 ? ` View ${idx + 1}` : ''} | ${brandName}`)}" />`
-      )
+      .map((imgUrl, idx) => {
+        const cleanName = matchedProduct.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item';
+        const cleanCat = matchedProduct.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim();
+        const altStr = `Vantrel Outfit ${cleanName}${cleanCat ? ` - ${cleanCat}` : ''}${idx > 0 ? ` View ${idx + 1}` : ''}`;
+        return `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(altStr)}" />`;
+      })
       .join('\n    ')}
   </div>
   <section>
@@ -313,9 +315,10 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         const pSlug = getProductSeoSlug(p, published);
         const pPrice = p.discountPrice ?? p.regularPrice;
         const pImg = p.images?.[0] ? toCanonicalSeoImageUrl(p.images[0], VANTREL_CANONICAL_ORIGIN) : '';
+        const pAlt = `Vantrel Outfit ${p.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item'}${p.category ? ` - ${p.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim()}` : ''}`;
         return `<li>
       <a href="/product/${encodeURIComponent(pSlug)}">
-        ${pImg ? `<img src="${escapeHtmlAttr(pImg)}" alt="${escapeHtmlAttr(`${p.name} - ${p.category} by ${p.brand || 'VANTREL OUTFIT'}`)}" />` : ''}
+        ${pImg ? `<img src="${escapeHtmlAttr(pImg)}" alt="${escapeHtmlAttr(pAlt)}" />` : ''}
         <span>${escapeHtmlAttr(p.name)}</span> — <strong>৳${pPrice} BDT</strong> (${(p.totalStock ?? 0) > 0 ? 'In Stock' : 'Out of Stock'})
       </a>
     </li>`;
@@ -415,7 +418,8 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
           const pSlug = getProductSeoSlug(p, published);
           const pPrice = p.discountPrice ?? p.regularPrice;
           const pImg = p.images?.[0] ? toCanonicalSeoImageUrl(p.images[0], VANTREL_CANONICAL_ORIGIN) : '';
-          return `<li><a href="/product/${encodeURIComponent(pSlug)}">${pImg ? `<img src="${escapeHtmlAttr(pImg)}" alt="${escapeHtmlAttr(`${p.name} - ${p.category} by ${p.brand || 'VANTREL OUTFIT'}`)}" />` : ''}${escapeHtmlAttr(p.name)} — ৳${pPrice} BDT</a></li>`;
+          const pAlt = `Vantrel Outfit ${p.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item'}${p.category ? ` - ${p.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim()}` : ''}`;
+          return `<li><a href="/product/${encodeURIComponent(pSlug)}">${pImg ? `<img src="${escapeHtmlAttr(pImg)}" alt="${escapeHtmlAttr(pAlt)}" />` : ''}${escapeHtmlAttr(p.name)} — ৳${pPrice} BDT</a></li>`;
         })
         .join('\n      ')}
     </ul>

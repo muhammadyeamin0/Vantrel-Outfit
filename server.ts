@@ -3172,7 +3172,12 @@ app.get('*', (req: Request, res: Response, next) => {
   <p>Price: ৳${effectivePrice} BDT | Availability: ${(matchedProduct.totalStock ?? 0) > 0 ? `In Stock (${matchedProduct.totalStock} available)` : 'Out of Stock'}</p>
   <p>${escapeHtmlAttr(siteDesc)}</p>
   ${(productImages.length > 0 ? productImages : [siteImage])
-    .map((imgUrl, idx) => `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(matchedProduct.name)} - ${escapeHtmlAttr(matchedProduct.category)}${idx > 0 ? ` View ${idx + 1}` : ''} | ${escapeHtmlAttr(matchedBrand)}" />`)
+    .map((imgUrl, idx) => {
+      const cleanName = matchedProduct.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item';
+      const cleanCat = matchedProduct.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim();
+      const altText = `Vantrel Outfit ${cleanName}${cleanCat ? ` - ${cleanCat}` : ''}${idx > 0 ? ` View ${idx + 1}` : ''}`;
+      return `<img src="${escapeHtmlAttr(imgUrl)}" alt="${escapeHtmlAttr(altText)}" />`;
+    })
     .join('\n  ')}
   <a href="${escapeHtmlAttr(canonicalUrl)}">View ${escapeHtmlAttr(matchedProduct.name)} on VANTREL OUTFIT</a>`
     : `<h1>${escapeHtmlAttr(siteTitle)}</h1>
@@ -3183,10 +3188,13 @@ app.get('*', (req: Request, res: Response, next) => {
       const absImg = toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN);
       const pUrl = `${baseUrl}/product/${encodeURIComponent(getProductSeoSlug(p, publishedProducts))}`;
       const pPrice = p.discountPrice || p.regularPrice;
-      const pBrand = (p.brand || 'VANTREL OUTFIT').trim();
+      const pBrand = (p.brand || 'Vantrel Outfit').trim();
+      const cleanName = p.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item';
+      const cleanCat = p.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim();
+      const pAlt = `Vantrel Outfit ${cleanName}${cleanCat ? ` - ${cleanCat}` : ''}`;
       return `<article>
     <a href="${escapeHtmlAttr(pUrl)}">
-      <img src="${escapeHtmlAttr(absImg)}" alt="${escapeHtmlAttr(p.name)} - ${escapeHtmlAttr(p.category)} by ${escapeHtmlAttr(pBrand)}" />
+      <img src="${escapeHtmlAttr(absImg)}" alt="${escapeHtmlAttr(pAlt)}" />
       <h2>${escapeHtmlAttr(p.name)}</h2>
     </a>
     <p>Brand: ${escapeHtmlAttr(pBrand)} | Price: ৳${pPrice} BDT | ${(p.totalStock ?? 0) > 0 ? 'In Stock' : 'Out of Stock'}</p>
