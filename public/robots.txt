@@ -15,6 +15,8 @@ Allow: /assets/
 Allow: /src/assets/
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/product-image
+Allow: /api/product-image?*
 Allow: /api/products
 Allow: /api/product
 Disallow: /admin
@@ -34,6 +36,8 @@ User-agent: Googlebot
 Allow: /
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/product-image
+Allow: /api/product-image?*
 Allow: /api/products
 Allow: /api/product
 Disallow: /admin
@@ -45,6 +49,8 @@ Allow: /assets/
 Allow: /src/assets/
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/product-image
+Allow: /api/product-image?*
 
 # Google Gemini & Extended AI Models
 User-agent: Google-Extended

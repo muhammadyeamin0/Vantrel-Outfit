@@ -268,9 +268,9 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         ? `Explore ${published.length}+ genuine VANTREL OUTFIT garments including hoodies, oversized t-shirts, panjabis, shirts & pants. Free Dhaka delivery.`
         : `Shop authentic ${displayCat} online in Bangladesh at VANTREL OUTFIT. ${catProducts.length} live styles in stock with Free Dhaka delivery & ৳50 nationwide COD.`;
 
-      const leadImage = catProducts[0]?.images?.[0]
-        ? toCanonicalSeoImageUrl(catProducts[0].images[0], VANTREL_CANONICAL_ORIGIN)
-        : ogImage;
+      const leadImage =
+        (catProducts[0] && resolveSeoProductImages(catProducts[0], VANTREL_CANONICAL_ORIGIN)[0]) ||
+        ogImage;
       ogImage = leadImage;
       ogImageAlt = `${displayCat} - VANTREL OUTFIT`;
       focusedSsrProducts = catProducts.slice(0, 20);
@@ -314,7 +314,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
       .map((p) => {
         const pSlug = getProductSeoSlug(p, published);
         const pPrice = p.discountPrice ?? p.regularPrice;
-        const pImg = p.images?.[0] ? toCanonicalSeoImageUrl(p.images[0], VANTREL_CANONICAL_ORIGIN) : '';
+        const pImg = resolveSeoProductImages(p, VANTREL_CANONICAL_ORIGIN)[0] || '';
         const pAlt = `Vantrel Outfit ${p.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item'}${p.category ? ` - ${p.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim()}` : ''}`;
         return `<li>
       <a href="/product/${encodeURIComponent(pSlug)}">
@@ -417,7 +417,7 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         .map((p) => {
           const pSlug = getProductSeoSlug(p, published);
           const pPrice = p.discountPrice ?? p.regularPrice;
-          const pImg = p.images?.[0] ? toCanonicalSeoImageUrl(p.images[0], VANTREL_CANONICAL_ORIGIN) : '';
+          const pImg = resolveSeoProductImages(p, VANTREL_CANONICAL_ORIGIN)[0] || '';
           const pAlt = `Vantrel Outfit ${p.name.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim() || 'Apparel Item'}${p.category ? ` - ${p.category.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim()}` : ''}`;
           return `<li><a href="/product/${encodeURIComponent(pSlug)}">${pImg ? `<img src="${escapeHtmlAttr(pImg)}" alt="${escapeHtmlAttr(pAlt)}" />` : ''}${escapeHtmlAttr(p.name)} — ৳${pPrice} BDT</a></li>`;
         })

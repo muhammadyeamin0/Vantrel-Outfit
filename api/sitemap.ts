@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import {
   VANTREL_CANONICAL_ORIGIN,
-  toCanonicalSeoImageUrl,
+  resolveSeoProductImages,
   getProductSeoSlug,
   getCategorySlug
 } from './_lib/seoUtils.js';
@@ -61,17 +61,19 @@ export default async function handler(req: VercelReq, res: ServerResponse) {
         const prodUrl = `${VANTREL_CANONICAL_ORIGIN}/product/${encodeURIComponent(seoSlug)}`;
         const price = prod.discountPrice ?? prod.regularPrice;
         const lastMod = prod.createdDate ? new Date(prod.createdDate).toISOString() : todayIso;
-        const images = (prod.images || [])
-          .filter((img) => Boolean(img && typeof img === 'string' && !img.startsWith('data:')))
-          .map((img) => toCanonicalSeoImageUrl(img, VANTREL_CANONICAL_ORIGIN));
+        const images = resolveSeoProductImages(prod, VANTREL_CANONICAL_ORIGIN);
+        const stripUrls = (s: string) => s.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim();
+        const safeName = stripUrls(prod.name) || 'Apparel Item';
+        const safeCat = stripUrls(prod.category);
+        const safeCaption = stripUrls(prod.tagline || prod.description || safeName);
 
         const imageTags = images
           .slice(0, 5)
           .map(
             (imgUrl, idx) => `    <image:image>
       <image:loc>${escapeXml(imgUrl)}</image:loc>
-      <image:title>${escapeXml(`${prod.name}${idx > 0 ? ` (${idx + 1})` : ''} - ${prod.brand || 'VANTREL OUTFIT'}`)}</image:title>
-      <image:caption>${escapeXml(`${prod.tagline || prod.description || prod.name} - ৳${price} BDT`)}</image:caption>
+      <image:title>${escapeXml(`Vantrel Outfit ${safeName}${safeCat ? ` - ${safeCat}` : ''}${idx > 0 ? ` (View ${idx + 1})` : ''}`)}</image:title>
+      <image:caption>${escapeXml(`${safeCaption} - ৳${price} BDT`)}</image:caption>
     </image:image>`
           )
           .join('\n');

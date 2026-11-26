@@ -2535,6 +2535,8 @@ Allow: /assets/
 Allow: /src/assets/
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/product-image
+Allow: /api/product-image?*
 Allow: /api/products
 Allow: /api/product
 Disallow: /admin
@@ -2554,6 +2556,8 @@ User-agent: Googlebot
 Allow: /
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/product-image
+Allow: /api/product-image?*
 Allow: /api/products
 Allow: /api/product
 Disallow: /admin
@@ -2565,6 +2569,8 @@ Allow: /assets/
 Allow: /src/assets/
 Allow: /api/image-proxy
 Allow: /api/image-proxy?*
+Allow: /api/product-image
+Allow: /api/product-image?*
 
 # Google Gemini & Extended AI Models
 User-agent: Google-Extended
@@ -2663,22 +2669,38 @@ app.get('/sitemap.xml', (req: Request, res: Response) => {
   const productUrls = published
     .map((prod) => {
       const seoSlug = getProductSeoSlug(prod, published);
-      const rawImg = prod.images && prod.images[0] ? prod.images[0] : '';
-      const imgUrl = rawImg ? toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN).replace(/&/g, '&amp;') : '';
+      const prodImages = resolveServerSeoImages(prod, VANTREL_CANONICAL_ORIGIN).slice(0, 5);
       const price = prod.discountPrice || prod.regularPrice;
-      const cleanName = (prod.name || 'Product').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const cleanDesc = (prod.tagline || prod.description || prod.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const stripUrls = (s: string) => s.replace(/https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+/gi, '').trim();
+      const safeTitle = stripUrls(prod.name || 'Product') || 'Apparel Item';
+      const safeCat = stripUrls(prod.category || '');
+      const cleanDesc = stripUrls(prod.tagline || prod.description || safeTitle)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const imageTitleBase = `Vantrel Outfit ${safeTitle}${safeCat ? ` - ${safeCat}` : ''}`
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      const imageTags = prodImages
+        .map((rawUrl, idx) => {
+          const escapedImgUrl = rawUrl.replace(/&/g, '&amp;');
+          const imgTitle = idx > 0 ? `${imageTitleBase} (View ${idx + 1})` : imageTitleBase;
+          return `    <image:image>
+      <image:loc>${escapedImgUrl}</image:loc>
+      <image:title>${imgTitle}</image:title>
+      <image:caption>${cleanDesc} - Price: ৳${price} BDT</image:caption>
+    </image:image>`;
+        })
+        .join('\n');
 
       return `  <url>
     <loc>${baseUrl}/product/${encodeURIComponent(seoSlug)}</loc>
     <lastmod>${prod.createdDate ? new Date(prod.createdDate).toISOString() : now}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
-    ${imgUrl ? `<image:image>
-      <image:loc>${imgUrl}</image:loc>
-      <image:title>${cleanName}</image:title>
-      <image:caption>${cleanDesc} - Price: ৳${price} BDT</image:caption>
-    </image:image>` : ''}
+${imageTags}
   </url>`;
     }).join('\n');
 
@@ -3119,11 +3141,15 @@ app.get('*', (req: Request, res: Response, next) => {
     ? resolveServerSeoImages(matchedProduct, VANTREL_CANONICAL_ORIGIN)
     : [];
 
+  const categoryLeadImage =
+    matchedCategory && catProducts[0]
+      ? resolveServerSeoImages(catProducts[0], VANTREL_CANONICAL_ORIGIN)[0]
+      : '';
+
   const siteImage =
     productImages[0] ||
-    (matchedCategory && catProducts[0]?.images?.[0]
-      ? toCanonicalSeoImageUrl(catProducts[0].images[0], VANTREL_CANONICAL_ORIGIN)
-      : `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`);
+    categoryLeadImage ||
+    `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-og-image.jpg`;
   const effectivePrice = matchedProduct ? (matchedProduct.discountPrice ?? matchedProduct.regularPrice) : null;
   const canonicalUrl = matchedProduct
     ? `${baseUrl}/product/${encodeURIComponent(matchedSlug)}`
@@ -3184,8 +3210,8 @@ app.get('*', (req: Request, res: Response, next) => {
   <p>${escapeHtmlAttr(siteDesc)}</p>
   ${catProducts
     .map((p) => {
-      const rawImg = p.images?.[0] || '/assets/images/vantrel-logo.png';
-      const absImg = toCanonicalSeoImageUrl(rawImg, VANTREL_CANONICAL_ORIGIN);
+      const resolvedImgs = resolveServerSeoImages(p, VANTREL_CANONICAL_ORIGIN);
+      const absImg = resolvedImgs[0] || `${VANTREL_CANONICAL_ORIGIN}/assets/images/vantrel-logo.png`;
       const pUrl = `${baseUrl}/product/${encodeURIComponent(getProductSeoSlug(p, publishedProducts))}`;
       const pPrice = p.discountPrice || p.regularPrice;
       const pBrand = (p.brand || 'Vantrel Outfit').trim();
