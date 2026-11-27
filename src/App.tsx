@@ -111,7 +111,7 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-white">
+    <div className="flex flex-col min-h-screen w-full max-w-full overflow-x-clip bg-[#0A0A0A] text-white">
       <DynamicMetaTags />
       <Header />
       {currentPage !== 'home' && (
@@ -119,7 +119,7 @@ const MainContent: React.FC = () => {
           <TopCategoryStrip />
         </Suspense>
       )}
-      <main className="flex-1 pb-16 md:pb-20">
+      <main className="flex-1 w-full min-w-0 pb-16 md:pb-20">
         <Suspense fallback={
           <div className="min-h-[40vh] flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-[#FF762E] rounded-full animate-spin" />

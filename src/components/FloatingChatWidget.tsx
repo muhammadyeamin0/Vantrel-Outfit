@@ -13,7 +13,7 @@ export const FloatingChatWidget: React.FC = () => {
     <div className="fixed bottom-20 right-4 sm:bottom-20 sm:right-6 z-40 select-none">
       {/* Expanded Quick Chat Window */}
       {isOpen && (
-        <div className="mb-3 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-[#E5E1D5] overflow-hidden animate-fadeIn flex flex-col">
+        <div className="mb-3 w-[calc(100vw-2rem)] max-w-80 sm:max-w-96 bg-white rounded-3xl shadow-2xl border border-[#E5E1D5] overflow-hidden animate-fadeIn flex flex-col">
           {/* Header */}
           <div className="bg-[#14221C] text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">

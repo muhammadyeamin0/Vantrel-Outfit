@@ -73,13 +73,13 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-white/10 transition-all text-white">
+    <header className="sticky top-0 z-40 w-full max-w-full overflow-x-clip bg-black/95 backdrop-blur-md border-b border-white/10 transition-all text-white">
       {/* Top Announcement Bar */}
       {settings.announcementText && (
-        <div className="bg-[#0D0D0D] text-neutral-100 text-[11px] sm:text-xs font-semibold tracking-wide py-2 px-4 text-center border-b border-white/10">
-          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
+        <div className="bg-[#0D0D0D] text-neutral-100 text-[11px] sm:text-xs font-semibold tracking-wide py-2 px-3 sm:px-4 text-center border-b border-white/10">
+          <div className="max-w-7xl mx-auto min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 overflow-hidden">
             <Truck className="w-3.5 h-3.5 text-[#FF762E] shrink-0" />
-            <span className="truncate">
+            <span className="truncate min-w-0">
               {settings.announcementText}
             </span>
           </div>
@@ -87,13 +87,13 @@ export const Header: React.FC = () => {
       )}
 
       {/* Main Navigation Bar - Follows strict 3-zone contract */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-8 h-18">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 lg:gap-8 h-16 sm:h-18 min-w-0">
           {/* Mobile menu trigger */}
-          <div className="flex items-center lg:hidden">
+          <div className="flex items-center lg:hidden shrink-0">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center -ml-2 text-neutral-300 hover:text-white"
+              className="min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] flex items-center justify-center -ml-1.5 sm:-ml-2 text-neutral-300 hover:text-white"
               aria-label="Open mobile menu"
             >
               <Menu className="w-6 h-6" />
@@ -107,7 +107,7 @@ export const Header: React.FC = () => {
               e.preventDefault();
               handleNavClick('home');
             }}
-            className="flex items-center gap-2.5 sm:gap-3 tracking-wider shrink-0 select-none group"
+            className="flex items-center gap-2 sm:gap-3 tracking-wider shrink-0 min-w-0 select-none group"
           >
             <img
               src="/assets/images/vantrel-logo.webp"
@@ -115,9 +115,9 @@ export const Header: React.FC = () => {
               width={36}
               height={36}
               decoding="async"
-              className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]"
+              className="h-7 w-7 sm:h-9 sm:w-9 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]"
             />
-            <span className="font-heading text-2xl sm:text-3xl font-black tracking-[0.15em] text-white uppercase">
+            <span className="font-heading text-lg sm:text-2xl lg:text-3xl font-black tracking-[0.1em] sm:tracking-[0.15em] text-white uppercase truncate">
               VANTREL
             </span>
           </a>
@@ -138,11 +138,11 @@ export const Header: React.FC = () => {
           </nav>
 
           {/* Zone 3: Functional action cluster (Search, Account, Cart) */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
             {/* Search Button */}
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors"
+              className="min-w-[38px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors"
               aria-label="Search products"
             >
               <Search className="w-5 h-5" />
@@ -157,7 +157,7 @@ export const Header: React.FC = () => {
                   handleNavClick('account');
                 }
               }}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors gap-1.5"
+              className="min-w-[38px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors gap-1.5"
               aria-label="Account"
             >
               <div className="relative">
@@ -171,11 +171,11 @@ export const Header: React.FC = () => {
             {/* Cart Trigger with live count matching mockup */}
             <button
               onClick={() => setIsCartDrawerOpen(true)}
-              className="relative min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors group"
+              className="relative min-w-[38px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] flex items-center justify-center text-neutral-200 hover:text-white transition-colors group"
               aria-label="View shopping bag"
             >
               <ShoppingBag className="w-5 h-5 group-hover:scale-105 transition-transform" />
-              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-white text-black text-[10px] font-black rounded-full flex items-center justify-center tabular-nums">
+              <span className="absolute top-1 right-0.5 sm:right-1 min-w-[16px] h-4 px-1 bg-white text-black text-[10px] font-black rounded-full flex items-center justify-center tabular-nums">
                 {cartItemCount}
               </span>
             </button>

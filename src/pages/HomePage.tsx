@@ -246,7 +246,7 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#0A0A0A] text-white min-h-screen selection:bg-white selection:text-black">
+    <div className="bg-[#0A0A0A] text-white min-h-screen w-full overflow-x-clip selection:bg-white selection:text-black">
       {/* 1. HERO SECTION */}
       <section className="relative w-full min-h-[78vh] sm:min-h-[84vh] md:min-h-[88vh] bg-[#0E0E0E] overflow-hidden flex items-end">
         {/* Background Image with Cinematic Darkness & Subtle Contrast Scrim */}
@@ -278,24 +278,24 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Content Overlay */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 w-full flex flex-col justify-end pt-32 sm:pt-44 md:pt-52 pb-10 sm:pb-12">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-10 lg:px-12 w-full flex flex-col justify-end pt-32 sm:pt-44 md:pt-52 pb-10 sm:pb-12">
           {/* Top Spacing */}
           <div />
 
           {/* Central Main Headline & CTA with High-Quality Campaign Visual */}
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mt-auto">
-            <div className="max-w-2xl space-y-4 sm:space-y-6 pt-10 sm:pt-14 md:pt-16">
+            <div className="max-w-2xl min-w-0 space-y-4 sm:space-y-6 pt-10 sm:pt-14 md:pt-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#FF762E]">
                 <span>Official Drop</span>
                 <span>•</span>
                 <span className="text-white">Be Vantrel</span>
               </div>
 
-              <h1 className="font-heading text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-[0.08em] text-white uppercase drop-shadow-md">
+              <h1 className="font-heading text-4xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-[0.06em] sm:tracking-[0.08em] text-white uppercase drop-shadow-md break-words">
                 {activeSlide.title}
               </h1>
 
-              <div className="space-y-1 sm:space-y-1.5 text-white/90 font-medium tracking-[0.22em] text-xs sm:text-sm md:text-base uppercase">
+              <div className="space-y-1 sm:space-y-1.5 text-white/90 font-medium tracking-[0.12em] sm:tracking-[0.22em] text-xs sm:text-sm md:text-base uppercase">
                 <p>{activeSlide.tagline1}</p>
                 <p>{activeSlide.tagline2}</p>
               </div>
@@ -823,9 +823,9 @@ export const HomePage: React.FC = () => {
 
       {/* 5. BRAND STATEMENT DIVIDER */}
       <section className="py-12 border-t border-white/10 text-center">
-        <div className="max-w-4xl mx-auto px-4 flex items-center justify-center gap-4 text-neutral-500">
+        <div className="max-w-4xl mx-auto px-4 flex items-center justify-center gap-3 sm:gap-4 text-neutral-500">
           <div className="flex-1 h-[1px] bg-white/15" />
-          <p className="text-xs sm:text-sm font-bold tracking-[0.3em] text-neutral-300 uppercase select-none">
+          <p className="text-[11px] sm:text-sm font-bold tracking-[0.14em] sm:tracking-[0.3em] text-neutral-300 uppercase select-none">
             WEAR YOUR STORY — VANTREL
           </p>
           <div className="flex-1 h-[1px] bg-white/15" />

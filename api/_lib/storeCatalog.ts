@@ -1,8 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import {
   VANTREL_CANONICAL_ORIGIN,
   type MinimalProductRecord,
@@ -22,10 +20,11 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
   'prod-016', 'prod-017', 'prod-018', 'prod-019', 'prod-overcoat-005'
 ]);
 
-const CACHE_TTL_MS = 20 * 1000;
+const CACHE_TTL_MS = 15 * 60 * 1000;
 let cachedProducts: ProductRecord[] | null = null;
 let cachedOutOfStockDefaultBehavior: 'show' | 'hide' = 'show';
 let cachedAt = 0;
+let firestoreQuotaBackoffUntil = 0;
 let refreshPromise: Promise<ProductRecord[]> | null = null;
 
 export function applyLiveProductsCache(next: ProductRecord[]): void {
@@ -125,50 +124,98 @@ function normalizeProductsList(list: ProductRecord[]): ProductRecord[] {
   return normalized;
 }
 
+function decodeFirestoreValue(val: unknown): unknown {
+  if (!val || typeof val !== 'object') return undefined;
+  const v = val as Record<string, unknown>;
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return Boolean(v.booleanValue);
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('stringValue' in v) return String(v.stringValue);
+  if ('timestampValue' in v) return String(v.timestampValue);
+  if ('arrayValue' in v) {
+    const arr = (v.arrayValue as { values?: unknown[] } | undefined)?.values;
+    return Array.isArray(arr) ? arr.map((item) => decodeFirestoreValue(item)) : [];
+  }
+  if ('mapValue' in v) {
+    const fields = (v.mapValue as { fields?: Record<string, unknown> } | undefined)?.fields;
+    return decodeFirestoreFields(fields);
+  }
+  return undefined;
+}
+
+function decodeFirestoreFields(fields: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!fields || typeof fields !== 'object') return out;
+  for (const [key, value] of Object.entries(fields)) {
+    const decoded = decodeFirestoreValue(value);
+    if (decoded !== undefined) out[key] = decoded;
+  }
+  return out;
+}
+
 async function refreshFromFirestoreBackground(): Promise<ProductRecord[]> {
+  if (Date.now() < firestoreQuotaBackoffUntil) {
+    return cachedProducts || [];
+  }
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
       const firebaseConfig = readJsonFile<{
         apiKey?: string;
-        authDomain?: string;
         projectId?: string;
-        storageBucket?: string;
-        messagingSenderId?: string;
-        appId?: string;
         firestoreDatabaseId?: string;
       }>('firebase-applet-config.json');
 
-      if (firebaseConfig && firebaseConfig.projectId) {
-        const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-        const db = firebaseConfig.firestoreDatabaseId
-          ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-          : getFirestore(app);
-
-        const [snapshot, storeDocSnap] = await Promise.race([
-          Promise.all([
-            getDocs(collection(db, 'products')),
-            getDoc(doc(db, 'settings', 'store')).catch(() => null)
-          ]),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Firestore read timeout')), 2500)
-          )
-        ]);
-
-        if (storeDocSnap && storeDocSnap.exists()) {
-          const storeData = storeDocSnap.data() as Record<string, unknown>;
-          cachedOutOfStockDefaultBehavior = storeData?.outOfStockDefaultBehavior === 'hide' ? 'hide' : 'show';
-        }
-
+      const projectId = firebaseConfig?.projectId;
+      const apiKey = firebaseConfig?.apiKey;
+      const dbId = firebaseConfig?.firestoreDatabaseId || '(default)';
+      if (projectId && apiKey) {
+        const baseDocUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(dbId)}/documents`;
         const remote: ProductRecord[] = [];
-        snapshot.forEach((docSnap) => {
-          if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-          const data = docSnap.data() as ProductRecord;
-          remote.push({
-            ...data,
-            id: docSnap.id
+        let pageToken = '';
+
+        do {
+          const productsUrl = `${baseDocUrl}/products?pageSize=300&key=${encodeURIComponent(apiKey)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+          const res = await fetch(productsUrl, { signal: AbortSignal.timeout(4500) });
+          if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+              firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+              return cachedProducts || [];
+            }
+            throw new Error(`Firestore REST HTTP ${res.status}`);
+          }
+
+          const payload = (await res.json()) as {
+            documents?: Array<{ name?: string; fields?: Record<string, unknown> }>;
+            nextPageToken?: string;
+          };
+          const docs = Array.isArray(payload.documents) ? payload.documents : [];
+          for (const docItem of docs) {
+            const docId = String(docItem.name || '').split('/').pop() || '';
+            if (!docId || LEGACY_PRIMARY_PRODUCT_IDS.has(docId)) continue;
+            const data = decodeFirestoreFields(docItem.fields) as unknown as ProductRecord;
+            remote.push({
+              ...data,
+              id: docId
+            });
+          }
+          pageToken = payload.nextPageToken || '';
+        } while (pageToken);
+
+        try {
+          const storeRes = await fetch(`${baseDocUrl}/settings/store?key=${encodeURIComponent(apiKey)}`, {
+            signal: AbortSignal.timeout(2500)
           });
-        });
+          if (storeRes.ok) {
+            const storeDoc = (await storeRes.json()) as { fields?: Record<string, unknown> };
+            const storeData = decodeFirestoreFields(storeDoc.fields);
+            cachedOutOfStockDefaultBehavior = storeData?.outOfStockDefaultBehavior === 'hide' ? 'hide' : 'show';
+          }
+        } catch {
+          // Optional setting fetch failure should not block product sync
+        }
 
         if (remote.length > 0) {
           cachedProducts = normalizeProductsList(remote);
@@ -199,22 +246,24 @@ export async function getLiveProducts(forceRefresh = false): Promise<ProductReco
     return cachedProducts;
   }
 
-  // On cold start or forceRefresh, prefer live Firestore (with quick timeout) so updated prices aren't stale
-  try {
-    const fresh = await Promise.race([
-      refreshFromFirestoreBackground(),
-      new Promise<ProductRecord[]>((resolve) => setTimeout(() => resolve([]), forceRefresh ? 2600 : 1500))
-    ]);
-    if (fresh.length > 0) return fresh;
-  } catch {
-    // Fall back cleanly to local disk snapshot below
+  // On cold start or forceRefresh, load live Firestore only if not in quota backoff
+  if (Date.now() >= firestoreQuotaBackoffUntil) {
+    try {
+      const fresh = await Promise.race([
+        refreshFromFirestoreBackground(),
+        new Promise<ProductRecord[]>((resolve) => setTimeout(() => resolve([]), forceRefresh ? 3000 : 1800))
+      ]);
+      if (fresh.length > 0) return fresh;
+    } catch {
+      // Fall back cleanly to local disk snapshot below
+    }
   }
 
   const fallbackData = readJsonFile<ProductRecord[]>('data/products_store.json');
   const fallbackList = Array.isArray(fallbackData) ? fallbackData : [];
   cachedProducts = normalizeProductsList(fallbackList);
-  // Keep TTL very short when serving disk fallback so live Firestore replaces it quickly
-  cachedAt = now - CACHE_TTL_MS + 4000;
+  // Reuse disk cache for 5 minutes before retrying live Firestore
+  cachedAt = now - CACHE_TTL_MS + 5 * 60 * 1000;
   return cachedProducts;
 }
 
@@ -268,41 +317,38 @@ export async function getProductImagesFast(productId: string): Promise<string[] 
     return diskMatch;
   }
 
-  // 4. Fallback to direct Firestore document lookup (e.g. newly added products not yet in static JSON)
-  try {
-    const firebaseConfig = readJsonFile<{
-      apiKey?: string;
-      authDomain?: string;
-      projectId?: string;
-      storageBucket?: string;
-      messagingSenderId?: string;
-      appId?: string;
-      firestoreDatabaseId?: string;
-    }>('firebase-applet-config.json');
+  // 4. Fallback to direct Firestore REST document lookup (e.g. newly added products not yet in static JSON)
+  if (Date.now() >= firestoreQuotaBackoffUntil) {
+    try {
+      const firebaseConfig = readJsonFile<{
+        apiKey?: string;
+        projectId?: string;
+        firestoreDatabaseId?: string;
+      }>('firebase-applet-config.json');
 
-    if (firebaseConfig?.projectId) {
-      const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-      const db = firebaseConfig.firestoreDatabaseId
-        ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-        : getFirestore(app);
-
-      const snap = await Promise.race([
-        getDoc(doc(db, 'products', cleanId)),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
-      ]);
-      if (snap.exists()) {
-        const data = snap.data() as { images?: unknown };
-        if (Array.isArray(data.images) && data.images.length > 0) {
-          const imgs = data.images.filter((x): x is string => typeof x === 'string' && x.length > 0);
-          if (imgs.length > 0) {
-            rawImagesCache.set(cleanId, { images: imgs, cachedAt: Date.now() });
-            return imgs;
+      const projectId = firebaseConfig?.projectId;
+      const apiKey = firebaseConfig?.apiKey;
+      const dbId = firebaseConfig?.firestoreDatabaseId || '(default)';
+      if (projectId && apiKey) {
+        const docUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(dbId)}/documents/products/${encodeURIComponent(cleanId)}?key=${encodeURIComponent(apiKey)}`;
+        const res = await fetch(docUrl, { signal: AbortSignal.timeout(2500) });
+        if (res.status === 429) {
+          firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+        } else if (res.ok) {
+          const docJson = (await res.json()) as { fields?: Record<string, unknown> };
+          const data = decodeFirestoreFields(docJson.fields) as { images?: unknown };
+          if (Array.isArray(data.images) && data.images.length > 0) {
+            const imgs = data.images.filter((x): x is string => typeof x === 'string' && x.length > 0);
+            if (imgs.length > 0) {
+              rawImagesCache.set(cleanId, { images: imgs, cachedAt: Date.now() });
+              return imgs;
+            }
           }
         }
       }
+    } catch {
+      // ignore timeout / network failure
     }
-  } catch {
-    // ignore timeout / network failure
   }
 
   return null;
