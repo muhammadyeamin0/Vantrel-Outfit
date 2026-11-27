@@ -15,6 +15,8 @@ declare global {
     _fbq?: unknown;
     __vantrelInitializedPixelId?: string;
     __vantrelLoadMetaPixel?: () => void;
+    __vantrelInitialPathname?: string;
+    __vantrelPageViewBootstrappedAt?: number;
   }
 }
 
@@ -27,6 +29,21 @@ const firedViewContentKeys = new Set<string>();
 const firedCheckoutKeys = new Set<string>();
 const firedPurchaseOrderNumbers = new Set<string>();
 let lastTrackedRouteKey = '';
+let lastTrackedPathname = '';
+
+function roundBdt(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function resolveProductUnitPrice(product: Product): number {
+  const disc = Number(product.discountPrice);
+  const reg = Number(product.regularPrice);
+  if (Number.isFinite(disc) && disc > 0) return roundBdt(disc);
+  if (Number.isFinite(reg) && reg > 0) return roundBdt(reg);
+  return 0;
+}
 
 function canTrack(pixelId?: string, enabled: boolean = true): boolean {
   if (typeof window === 'undefined') return false;
@@ -58,13 +75,25 @@ export function trackMetaPageView(routeKey: string, pixelId?: string, enabled: b
   if (!ensureMetaPixelLoaded(pixelId, enabled)) return;
   if (!routeKey) return;
 
-  // Avoid double-firing PageView on the initial bootstrap (index.html already queues the first PageView)
-  if (!lastTrackedRouteKey) {
+  const currentPathname = typeof window !== 'undefined' ? window.location.pathname || '/' : '/';
+  const initialPathname = typeof window !== 'undefined' ? window.__vantrelInitialPathname || '/' : '/';
+  const bootstrappedAt = typeof window !== 'undefined' ? Number(window.__vantrelPageViewBootstrappedAt || 0) : 0;
+  const isInitialHydration =
+    !lastTrackedRouteKey ||
+    (bootstrappedAt > 0 && Date.now() - bootstrappedAt < 2500 && currentPathname === initialPathname && !lastTrackedPathname);
+
+  // Avoid double-firing PageView during initial React/URL hydration (index.html already fired the initial PageView)
+  if (isInitialHydration) {
     lastTrackedRouteKey = routeKey;
+    if (currentPathname === initialPathname) {
+      lastTrackedPathname = currentPathname;
+    }
     return;
   }
-  if (lastTrackedRouteKey === routeKey) return;
+
+  if (lastTrackedRouteKey === routeKey && lastTrackedPathname === currentPathname) return;
   lastTrackedRouteKey = routeKey;
+  lastTrackedPathname = currentPathname;
 
   window.fbq?.('track', 'PageView');
 }
@@ -77,25 +106,40 @@ export function trackMetaViewContent(
   if (!product || !product.id) return;
   if (!ensureMetaPixelLoaded(pixelId, enabled)) return;
 
-  if (firedViewContentKeys.has(product.id)) return;
-  firedViewContentKeys.add(product.id);
-  window.setTimeout(() => firedViewContentKeys.delete(product.id), 15000);
+  const prodId = String(product.id).trim();
+  if (!prodId) return;
 
-  const unitPrice = Number(product.discountPrice ?? product.regularPrice ?? 0);
-  window.fbq?.('track', 'ViewContent', {
-    content_ids: [product.id],
-    content_name: product.name,
-    content_category: product.category,
+  if (firedViewContentKeys.has(prodId)) return;
+  firedViewContentKeys.add(prodId);
+  window.setTimeout(() => firedViewContentKeys.delete(prodId), 15000);
+
+  const unitPrice = resolveProductUnitPrice(product);
+  const payload: Record<string, unknown> = {
+    content_ids: [prodId],
+    content_name: String(product.name || 'Vantrel Outfit Apparel').trim(),
+    content_category: String(product.category || 'Apparel').trim(),
     content_type: 'product',
-    value: unitPrice,
-    currency: 'BDT'
-  });
+    contents: [
+      {
+        id: prodId,
+        quantity: 1,
+        ...(unitPrice > 0 ? { item_price: unitPrice } : {})
+      }
+    ]
+  };
+
+  if (unitPrice > 0) {
+    payload.value = unitPrice;
+    payload.currency = 'BDT';
+  }
+
+  window.fbq?.('track', 'ViewContent', payload);
 }
 
 export function trackMetaAddToCart(
   product: Product,
-  size: string,
-  color: string,
+  _size: string,
+  _color: string,
   quantity: number,
   pixelId?: string,
   enabled: boolean = true
@@ -103,25 +147,34 @@ export function trackMetaAddToCart(
   if (!product || !product.id) return;
   if (!ensureMetaPixelLoaded(pixelId, enabled)) return;
 
-  const unitPrice = Number(product.discountPrice ?? product.regularPrice ?? 0);
-  const qty = Math.max(1, Number(quantity || 1));
+  const prodId = String(product.id).trim();
+  if (!prodId) return;
 
-  window.fbq?.('track', 'AddToCart', {
-    content_ids: [product.id],
-    content_name: product.name,
-    content_category: product.category,
+  const unitPrice = resolveProductUnitPrice(product);
+  const qty = Math.max(1, Math.floor(Number(quantity || 1)));
+  const totalValue = roundBdt(unitPrice * qty);
+
+  const payload: Record<string, unknown> = {
+    content_ids: [prodId],
+    content_name: String(product.name || 'Vantrel Outfit Apparel').trim(),
+    content_category: String(product.category || 'Apparel').trim(),
     content_type: 'product',
-    variant: `${size}/${color}`,
-    value: unitPrice * qty,
-    currency: 'BDT',
+    num_items: qty,
     contents: [
       {
-        id: product.id,
+        id: prodId,
         quantity: qty,
-        item_price: unitPrice
+        ...(unitPrice > 0 ? { item_price: unitPrice } : {})
       }
     ]
-  });
+  };
+
+  if (totalValue > 0) {
+    payload.value = totalValue;
+    payload.currency = 'BDT';
+  }
+
+  window.fbq?.('track', 'AddToCart', payload);
 }
 
 export function trackMetaInitiateCheckout(
@@ -133,24 +186,44 @@ export function trackMetaInitiateCheckout(
   if (!Array.isArray(cart) || cart.length === 0) return;
   if (!ensureMetaPixelLoaded(pixelId, enabled)) return;
 
-  const signature = cart.map((i) => `${i.id}:${i.quantity}`).join('|');
+  const signature = cart.map((i) => `${i.productId || i.id}:${i.quantity}`).join('|');
   if (firedCheckoutKeys.has(signature)) return;
   firedCheckoutKeys.add(signature);
   window.setTimeout(() => firedCheckoutKeys.delete(signature), 30000);
 
-  const numItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
-  window.fbq?.('track', 'InitiateCheckout', {
-    content_ids: cart.map((i) => i.productId || i.id),
+  const contents = cart
+    .map((i) => {
+      const id = String(i.productId || i.id || '').trim();
+      const qty = Math.max(1, Math.floor(Number(i.quantity || 1)));
+      const itemPrice = roundBdt(i.price);
+      if (!id) return null;
+      return {
+        id,
+        quantity: qty,
+        ...(itemPrice > 0 ? { item_price: itemPrice } : {})
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  if (contents.length === 0) return;
+
+  const numItems = contents.reduce((sum, item) => sum + item.quantity, 0);
+  const computedSubtotal = contents.reduce((sum, item) => sum + Number(item.item_price || 0) * item.quantity, 0);
+  const safeValue = roundBdt(Number(subtotal) > 0 ? subtotal : computedSubtotal);
+
+  const payload: Record<string, unknown> = {
+    content_ids: contents.map((c) => c.id),
     content_type: 'product',
     num_items: numItems,
-    value: Number(subtotal || 0),
-    currency: 'BDT',
-    contents: cart.map((i) => ({
-      id: i.productId || i.id,
-      quantity: i.quantity || 1,
-      item_price: Number(i.price || 0)
-    }))
-  });
+    contents
+  };
+
+  if (safeValue > 0) {
+    payload.value = safeValue;
+    payload.currency = 'BDT';
+  }
+
+  window.fbq?.('track', 'InitiateCheckout', payload);
 }
 
 export function trackMetaPurchase(
@@ -165,24 +238,32 @@ export function trackMetaPurchase(
   firedPurchaseOrderNumbers.add(order.orderNumber);
 
   const items = Array.isArray(order.items) ? order.items : [];
-  const numItems = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  const contents = items
+    .map((i) => {
+      const id = String(i.productId || i.id || '').trim();
+      const qty = Math.max(1, Math.floor(Number(i.quantity || 1)));
+      const itemPrice = roundBdt(i.price);
+      if (!id) return null;
+      return {
+        id,
+        quantity: qty,
+        ...(itemPrice > 0 ? { item_price: itemPrice } : {})
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
-  window.fbq?.(
-    'track',
-    'Purchase',
-    {
-      content_ids: items.map((i) => i.productId || i.id),
-      content_type: 'product',
-      num_items: numItems,
-      value: Number(order.total || 0),
-      currency: 'BDT',
-      order_id: order.orderNumber,
-      contents: items.map((i) => ({
-        id: i.productId || i.id,
-        quantity: i.quantity || 1,
-        item_price: Number(i.price || 0)
-      }))
-    },
-    { eventID: order.orderNumber }
-  );
+  const numItems = Math.max(1, contents.reduce((sum, item) => sum + item.quantity, 0));
+  const computedSubtotal = contents.reduce((sum, item) => sum + Number(item.item_price || 0) * item.quantity, 0);
+  const safeValue = roundBdt(Number(order.total) > 0 ? order.total : computedSubtotal);
+
+  const payload: Record<string, unknown> = {
+    content_ids: contents.length > 0 ? contents.map((c) => c.id) : [String(order.orderNumber)],
+    content_type: 'product',
+    num_items: numItems,
+    value: safeValue > 0 ? safeValue : 1,
+    currency: 'BDT',
+    ...(contents.length > 0 ? { contents } : {})
+  };
+
+  window.fbq?.('track', 'Purchase', payload, { eventID: String(order.orderNumber) });
 }

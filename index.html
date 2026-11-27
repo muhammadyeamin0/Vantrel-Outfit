@@ -59,7 +59,7 @@
       fetchpriority="high"
     />
 
-    <!-- Crawler-Safe Deferred Meta Pixel Bootstrap (queued immediately, script fetched on user interaction or post-load idle) -->
+    <!-- Crawler-Safe Immediate Meta Pixel Bootstrap -->
     <script>
     (function(f,b,e,v,n,t,s){
       var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'';
@@ -67,27 +67,22 @@
       if(f.fbq)return;
       n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+      f.__vantrelInitialPathname=(f.location&&f.location.pathname)||'/';
+      f.__vantrelPageViewBootstrappedAt=Date.now();
       if(isBot)return;
-      var loaded=false;
       function loadPixel(){
-        if(loaded)return;loaded=true;
+        if(f.__vantrelPixelScriptRequested)return;
+        f.__vantrelPixelScriptRequested=true;
         t=b.createElement(e);t.async=!0;t.src=v;
         s=b.getElementsByTagName(e)[0];
         if(s&&s.parentNode){s.parentNode.insertBefore(t,s);}else{b.head.appendChild(t);}
       }
       f.__vantrelLoadMetaPixel=loadPixel;
       f.__vantrelInitializedPixelId='2167529260510757';
-      ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev){
-        f.addEventListener(ev,loadPixel,{once:true,passive:true});
-      });
-      if(b.readyState==='complete'){
-        setTimeout(loadPixel,1800);
-      }else{
-        f.addEventListener('load',function(){setTimeout(loadPixel,1800);},{once:true});
-      }
+      loadPixel();
+      f.fbq('init','2167529260510757');
+      f.fbq('track','PageView');
     })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init','2167529260510757');
-    fbq('track','PageView');
     </script>
     <!-- End Meta Pixel Code -->
 
