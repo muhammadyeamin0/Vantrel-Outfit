@@ -132,6 +132,9 @@ export const AdminDashboard: React.FC = () => {
     moveProductInCategory,
     setCategoryBestProduct,
     orders,
+    isOrdersSyncing,
+    ordersSyncWarning,
+    refreshOrders,
     clearAllOrders,
     deleteOrder,
     updateOrderStatus,
@@ -3936,8 +3939,25 @@ export const AdminDashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Status Filter */}
+              {/* Status Filter & Actions */}
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  disabled={isOrdersSyncing}
+                  onClick={async () => {
+                    const res = await refreshOrders(true);
+                    if (res.message) {
+                      showToast('অর্ডার সিঙ্ক বিজ্ঞপ্তি', res.message, 'info');
+                    } else {
+                      showToast('অর্ডার সিঙ্ক সম্পন্ন', `সর্বশেষ অর্ডার তালিকা আপডেট করা হয়েছে (${res.count}টি অর্ডার)।`, 'success');
+                    }
+                  }}
+                  className="px-3 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60 shadow-xs"
+                  title="সার্ভার ও ফায়ারবেস থেকে সর্বশেষ অর্ডার আনুন"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isOrdersSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isOrdersSyncing ? 'সিঙ্ক হচ্ছে...' : 'রিফ্রেশ অর্ডার'}</span>
+                </button>
                 <select
                   value={orderStatusFilter}
                   onChange={(e) => setOrderStatusFilter(e.target.value)}
@@ -3983,6 +4003,40 @@ export const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {(ordersSyncWarning || (firebaseAuthLoaded && !isFirebaseAdminAuthenticated)) && (
+              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    {ordersSyncWarning ||
+                      'সব ডিভাইস থেকে নতুন অর্ডার সরাসরি দেখতে Google Admin (muhammadeyamin0@gmail.com) সেশন কানেক্ট করুন।'}
+                  </span>
+                </div>
+                {!isFirebaseAdminAuthenticated && (
+                  <button
+                    type="button"
+                    disabled={isVerifyingAdmin}
+                    onClick={async () => {
+                      setIsVerifyingAdmin(true);
+                      try {
+                        const res = await signInAdminWithGoogle();
+                        if (res.success) {
+                          await refreshOrders(true);
+                        } else if (res.message) {
+                          showToast('Google Verify Error', res.message, 'error');
+                        }
+                      } finally {
+                        setIsVerifyingAdmin(false);
+                      }
+                    }}
+                    className="px-3.5 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-bold rounded-xl shrink-0 cursor-pointer disabled:opacity-60"
+                  >
+                    {isVerifyingAdmin ? 'কানেক্ট হচ্ছে...' : 'Google Admin কানেক্ট করুন'}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Search */}
             <div className="relative">

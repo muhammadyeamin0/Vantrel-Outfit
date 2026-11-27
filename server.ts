@@ -285,6 +285,255 @@ function loadOrdersFromDisk() {
   }
 }
 loadOrdersFromDisk();
+
+const deletedOrderTimestamps = new Map<string, number>();
+let lastOrdersFirestoreSyncAt = 0;
+
+function encodeFirestoreRestValue(val: unknown): Record<string, unknown> | undefined {
+  if (val === undefined) return undefined;
+  if (val === null) return { nullValue: null };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number') {
+    if (!Number.isFinite(val)) return { integerValue: '0' };
+    return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+  }
+  if (typeof val === 'string') return { stringValue: val };
+  if (Array.isArray(val)) {
+    const values = val
+      .map((item) => encodeFirestoreRestValue(item))
+      .filter((item): item is Record<string, unknown> => item !== undefined);
+    return { arrayValue: { values } };
+  }
+  if (typeof val === 'object') {
+    return { mapValue: { fields: encodeFirestoreRestFields(val as Record<string, unknown>) } };
+  }
+  return undefined;
+}
+
+function encodeFirestoreRestFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    const encoded = encodeFirestoreRestValue(val);
+    if (encoded !== undefined) {
+      fields[key] = encoded;
+    }
+  }
+  return fields;
+}
+
+function getFirestoreRestConfig(): { baseDocUrl: string; apiKey: string } | null {
+  try {
+    const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
+    if (!fs.existsSync(configPath)) return null;
+    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+      projectId?: string;
+      apiKey?: string;
+      firestoreDatabaseId?: string;
+    };
+    if (!cfg.projectId || !cfg.apiKey) return null;
+    const dbId = cfg.firestoreDatabaseId || '(default)';
+    return {
+      baseDocUrl: `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(cfg.projectId)}/databases/${encodeURIComponent(dbId)}/documents`,
+      apiKey: cfg.apiKey
+    };
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeOrderForFirestoreServer(order: Order): Record<string, unknown> {
+  const cleanId = String(order.id || `ord-${Date.now()}`)
+    .replace(/[/\\.]/g, '-')
+    .slice(0, 128);
+  const rawNum = String(order.orderNumber || `VT-${Math.floor(10000 + Math.random() * 90000)}`)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '-');
+  const cleanOrderNum = (rawNum.startsWith('VT-') ? rawNum : `VT-${rawNum}`).slice(0, 40);
+  const c = order.customer || ({} as Order['customer']);
+  const paymentMethod = String(order.paymentMethod || 'Cash on Delivery (COD)').trim().slice(0, 80) || 'Cash on Delivery (COD)';
+  const paymentStatus =
+    paymentMethod === 'Cash on Delivery (COD)' && !['Paid', 'Refunded', 'Partially Paid'].includes(String(order.paymentStatus))
+      ? 'Pending'
+      : String(order.paymentStatus || 'Pending');
+
+  return JSON.parse(
+    JSON.stringify({
+      ...order,
+      id: cleanId,
+      orderNumber: cleanOrderNum,
+      customer: {
+        ...c,
+        fullName: String(c.fullName || 'Customer').trim().slice(0, 120) || 'Customer',
+        phone: String(c.phone || '01700000000').trim().slice(0, 24) || '01700000000',
+        district: String(c.district || 'Dhaka').trim().slice(0, 80) || 'Dhaka',
+        upazila: String(c.upazila || c.district || 'সদর').trim().slice(0, 80) || 'সদর',
+        streetAddress: String(c.streetAddress || 'Bangladesh').trim().slice(0, 400) || 'Bangladesh'
+      },
+      items: Array.isArray(order.items) ? order.items.slice(0, 50) : [],
+      subtotal: Math.max(0, Math.min(5000000, Number(order.subtotal) || 0)),
+      deliveryFee: Math.max(
+        0,
+        Math.min(5000, Number((order as Order & { deliveryFee?: number }).deliveryFee ?? order.deliveryCharge ?? 0))
+      ),
+      total: Math.max(0, Math.min(5000000, Number(order.total) || 0)),
+      paymentMethod,
+      paymentStatus,
+      createdAt: String(order.createdAt || new Date().toISOString()).slice(0, 64),
+      savedToFirestoreAt: new Date().toISOString()
+    })
+  ) as Record<string, unknown>;
+}
+
+async function persistOrderToFirestoreRest(order: Order): Promise<void> {
+  if (Date.now() < firestoreQuotaBackoffUntil) return;
+  const conn = getFirestoreRestConfig();
+  if (!conn) return;
+  try {
+    const clean = sanitizeOrderForFirestoreServer(order);
+    const url = `${conn.baseDocUrl}/orders?documentId=${encodeURIComponent(String(clean.id))}&key=${encodeURIComponent(conn.apiKey)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: encodeFirestoreRestFields(clean) }),
+      signal: AbortSignal.timeout(7000)
+    });
+    if (res.ok || res.status === 409) return;
+    const errBody = await res.text().catch(() => '');
+    if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+      firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+    }
+  } catch (err) {
+    console.warn('[VANTREL ENGINE] Firestore order create notice:', err instanceof Error ? err.message : err);
+  }
+}
+
+async function patchOrderInFirestoreRest(order: Order, bearerToken?: string): Promise<void> {
+  if (!bearerToken || Date.now() < firestoreQuotaBackoffUntil) return;
+  const conn = getFirestoreRestConfig();
+  if (!conn) return;
+  try {
+    const clean = sanitizeOrderForFirestoreServer(order);
+    const url = `${conn.baseDocUrl}/orders/${encodeURIComponent(String(clean.id))}?key=${encodeURIComponent(conn.apiKey)}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${bearerToken}`
+      },
+      body: JSON.stringify({ fields: encodeFirestoreRestFields(clean) }),
+      signal: AbortSignal.timeout(7000)
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+        firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+      }
+    }
+  } catch {
+    // Non-fatal mirror notice
+  }
+}
+
+async function deleteOrderFromFirestoreRest(id: string, bearerToken?: string): Promise<void> {
+  if (!bearerToken || Date.now() < firestoreQuotaBackoffUntil) return;
+  const conn = getFirestoreRestConfig();
+  if (!conn) return;
+  try {
+    const url = `${conn.baseDocUrl}/orders/${encodeURIComponent(id)}?key=${encodeURIComponent(conn.apiKey)}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!res.ok && res.status !== 404) {
+      const errBody = await res.text().catch(() => '');
+      if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+        firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+async function syncOrdersFromFirestoreRest(
+  bearerToken: string,
+  force = false
+): Promise<{ quotaExceeded: boolean }> {
+  if (!bearerToken) return { quotaExceeded: false };
+  if (Date.now() < firestoreQuotaBackoffUntil) return { quotaExceeded: true };
+  if (!force && Date.now() - lastOrdersFirestoreSyncAt < 20_000) {
+    return { quotaExceeded: false };
+  }
+  const conn = getFirestoreRestConfig();
+  if (!conn) return { quotaExceeded: false };
+
+  const remoteOrders: Order[] = [];
+  let pageToken = '';
+  let pageCount = 0;
+
+  try {
+    do {
+      pageCount += 1;
+      const url = `${conn.baseDocUrl}/orders?pageSize=300&key=${encodeURIComponent(conn.apiKey)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+        signal: AbortSignal.timeout(8500)
+      });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+          firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+          return { quotaExceeded: true };
+        }
+        return { quotaExceeded: false };
+      }
+      const payload = (await res.json()) as {
+        documents?: Array<{ name?: string; fields?: Record<string, unknown> }>;
+        nextPageToken?: string;
+      };
+      const docs = Array.isArray(payload.documents) ? payload.documents : [];
+      for (const docItem of docs) {
+        const docId = String(docItem.name || '').split('/').pop() || '';
+        if (!docId) continue;
+        const decoded = decodeFirestoreRestFields(docItem.fields) as unknown as Order;
+        remoteOrders.push({ ...decoded, id: docId });
+      }
+      pageToken = payload.nextPageToken || '';
+    } while (pageToken && pageCount < 10);
+
+    lastOrdersFirestoreSyncAt = Date.now();
+    if (remoteOrders.length > 0) {
+      const mergedMap = new Map<string, Order>();
+      const upsert = (ord: Order) => {
+        if (!ord || !ord.id) return;
+        const deletedAt = deletedOrderTimestamps.get(ord.id);
+        if (deletedAt) {
+          const createdMs = new Date(ord.createdAt || 0).getTime();
+          if (!Number.isFinite(createdMs) || createdMs <= deletedAt) return;
+        }
+        const existing = mergedMap.get(ord.id);
+        if (!existing) {
+          mergedMap.set(ord.id, ord);
+          return;
+        }
+        const existingHist = Array.isArray(existing.statusHistory) ? existing.statusHistory.length : 0;
+        const incomingHist = Array.isArray(ord.statusHistory) ? ord.statusHistory.length : 0;
+        mergedMap.set(ord.id, incomingHist >= existingHist ? { ...existing, ...ord } : { ...ord, ...existing });
+      };
+      orders.forEach(upsert);
+      remoteOrders.forEach(upsert);
+      orders = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      saveOrdersToDisk();
+    }
+    return { quotaExceeded: false };
+  } catch {
+    return { quotaExceeded: false };
+  }
+}
 let coupons = [...INITIAL_COUPONS];
 let customers: User[] = [...INITIAL_CUSTOMERS];
 let smsLogs: SmsLog[] = [...INITIAL_SMS_LOGS];
@@ -1576,8 +1825,36 @@ app.delete('/api/products/:id', (req: Request, res: Response) => {
 });
 
 // 3. Orders Endpoints
-app.get('/api/orders', (req: Request, res: Response) => {
-  const { status, phone, search, orderNumber } = req.query;
+app.get('/api/orders', async (req: Request, res: Response) => {
+  const { status, phone, search, orderNumber, force } = req.query;
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const adminCheck = bearerToken ? await verifyAdminRequest(req) : { authorized: false };
+
+  // Public customer tracking strictly requires BOTH orderNumber/trackingCode AND phone
+  if (!adminCheck.authorized) {
+    if (!orderNumber || !phone) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+    const cleanNum = String(orderNumber).trim().toUpperCase();
+    const digits = String(phone).replace(/[^\d]/g, '');
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    if (last10.length < 10) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+    const found = orders.filter((o) => {
+      const matchNum =
+        o.orderNumber.toUpperCase() === cleanNum ||
+        String(o.trackingNumber || '').trim().toUpperCase() === cleanNum ||
+        String(o.courierTrackingCode || '').trim().toUpperCase() === cleanNum;
+      const ordDigits = String(o.customer?.phone || '').replace(/[^\d]/g, '');
+      const ordLast10 = ordDigits.length >= 10 ? ordDigits.slice(-10) : ordDigits;
+      return matchNum && ordLast10 === last10;
+    });
+    return res.json({ success: true, count: found.length, data: found });
+  }
+
+  const syncMeta = await syncOrdersFromFirestoreRest(bearerToken, force === '1' || force === 'true');
   let result = [...orders];
 
   if (status && status !== 'All') {
@@ -1616,10 +1893,19 @@ app.get('/api/orders', (req: Request, res: Response) => {
     );
   }
 
-  res.json({ success: true, count: result.length, data: result });
+  res.json({
+    success: true,
+    count: result.length,
+    data: result,
+    ...(syncMeta.quotaExceeded ? { quotaExceeded: true } : {})
+  });
 });
 
-app.get('/api/orders/:id', (req: Request, res: Response) => {
+app.get('/api/orders/:id', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
   const found = orders.find((o) => o.id === req.params.id || o.orderNumber === req.params.id);
   if (!found) {
     return res.status(404).json({ success: false, error: 'Order not found' });
@@ -1677,7 +1963,9 @@ app.post('/api/orders', (req: Request, res: Response) => {
       saveProductsToDisk();
     }
 
+    deletedOrderTimestamps.delete(incomingOrder.id);
     saveOrdersToDisk();
+    void persistOrderToFirestoreRest(incomingOrder);
 
     recordAudit(
       incomingOrder.customer.fullName || 'Customer',
@@ -1772,8 +2060,10 @@ app.post('/api/orders', (req: Request, res: Response) => {
     ]
   };
 
+  deletedOrderTimestamps.delete(newOrder.id);
   orders.unshift(newOrder);
   saveOrdersToDisk();
+  void persistOrderToFirestoreRest(newOrder);
 
   // Send Transactional SMS
   dispatchSms(
@@ -1839,7 +2129,13 @@ app.post('/api/send-whatsapp-confirmation', (req: Request, res: Response) => {
   });
 });
 
-app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
+app.patch('/api/orders/:id/status', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const { status, note, orderSnapshot } = req.body;
   let idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
   if (idx === -1 && orderSnapshot && typeof orderSnapshot === 'object' && orderSnapshot.id) {
@@ -1865,6 +2161,7 @@ app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
   ];
 
   saveOrdersToDisk();
+  void patchOrderInFirestoreRest(orders[idx], bearerToken);
 
   recordAudit(
     'Staff Operator',
@@ -1940,7 +2237,13 @@ app.post('/api/orders/:id/auto-confirm', (req: Request, res: Response) => {
 });
 
 // Staff Approval endpoint
-app.post('/api/orders/:id/approve', (req: Request, res: Response) => {
+app.post('/api/orders/:id/approve', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const { orderSnapshot, note } = req.body || {};
   let idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
   if (idx === -1 && orderSnapshot && typeof orderSnapshot === 'object' && orderSnapshot.id) {
@@ -1965,6 +2268,7 @@ app.post('/api/orders/:id/approve', (req: Request, res: Response) => {
   ];
 
   saveOrdersToDisk();
+  void patchOrderInFirestoreRest(orders[idx], bearerToken);
 
   recordAudit(
     'Staff Operator',
@@ -2028,10 +2332,25 @@ app.post('/api/orders/:id/cancel', (req: Request, res: Response) => {
 });
 
 // Delete a single order by ID
-app.delete('/api/orders/:id', (req: Request, res: Response) => {
+app.delete('/api/orders/:id', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const targetId = req.params.id;
   const initialLen = orders.length;
+  const matched = orders.filter((o) => o.id === targetId || o.orderNumber === targetId);
   orders = orders.filter((o) => o.id !== targetId && o.orderNumber !== targetId);
+  deletedOrderTimestamps.set(targetId, Date.now());
+  matched.forEach((m) => {
+    deletedOrderTimestamps.set(m.id, Date.now());
+    void deleteOrderFromFirestoreRest(m.id, bearerToken);
+  });
+  if (matched.length === 0) {
+    void deleteOrderFromFirestoreRest(targetId, bearerToken);
+  }
   saveOrdersToDisk();
 
   recordAudit(
@@ -2049,8 +2368,19 @@ app.delete('/api/orders/:id', (req: Request, res: Response) => {
 });
 
 // Clear ALL Orders from server memory and disk
-app.delete('/api/orders', (_req: Request, res: Response) => {
+app.delete('/api/orders', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const count = orders.length;
+  const now = Date.now();
+  orders.forEach((o) => {
+    deletedOrderTimestamps.set(o.id, now);
+    void deleteOrderFromFirestoreRest(o.id, bearerToken);
+  });
   orders = [];
   saveOrdersToDisk();
 
@@ -2069,7 +2399,13 @@ app.delete('/api/orders', (_req: Request, res: Response) => {
 });
 
 // Assign Courier & Tracking ID
-app.post('/api/orders/:id/courier', (req: Request, res: Response) => {
+app.post('/api/orders/:id/courier', async (req: Request, res: Response) => {
+  const adminCheck = await verifyAdminRequest(req);
+  if (!adminCheck.authorized) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+  const authHeader = String(req.headers.authorization || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const { courierName, trackingCode, trackingNumber, trackingUrl, targetStatus, note, orderSnapshot } = req.body || {};
   let idx = orders.findIndex((o) => o.id === req.params.id || o.orderNumber === req.params.id);
   if (idx === -1 && orderSnapshot && typeof orderSnapshot === 'object' && orderSnapshot.id) {
@@ -2116,6 +2452,7 @@ app.post('/api/orders/:id/courier', (req: Request, res: Response) => {
   ];
 
   saveOrdersToDisk();
+  void patchOrderInFirestoreRest(orders[idx], bearerToken);
 
   recordAudit(
     'Staff Operator',

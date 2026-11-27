@@ -421,6 +421,9 @@ export interface StoreContextType {
 
   // Orders (16-Stage Lifecycle)
   orders: Order[];
+  isOrdersSyncing: boolean;
+  ordersSyncWarning: string | null;
+  refreshOrders: (force?: boolean) => Promise<{ success: boolean; count: number; message?: string }>;
   lastPlacedOrder: Order | null;
   placeOrder: (data: {
     customer: Address;
@@ -812,6 +815,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return [];
   });
+  const [isOrdersSyncing, setIsOrdersSyncing] = useState(false);
+  const [ordersSyncWarning, setOrdersSyncWarning] = useState<string | null>(null);
+  const deletedOrderIdsRef = useRef<Set<string>>(new Set());
 
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(() => {
     const saved = localStorage.getItem('vt_last_order') || localStorage.getItem('yw_last_order');
@@ -1931,45 +1937,168 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [products, currentPage, isFirebaseAdminAuthenticated, getAdminAuthHeaders, recordSkippedWebpUrl]);
 
+  const mergeOrderCollections = useCallback((existingList: Order[], incomingList: Order[]) => {
+    const mergedMap = new Map<string, Order>();
+    const upsert = (ord: Order) => {
+      if (!ord || !ord.id) return;
+      if (deletedOrderIdsRef.current.has(ord.id)) return;
+      const existing = mergedMap.get(ord.id);
+      if (!existing) {
+        mergedMap.set(ord.id, ord);
+        return;
+      }
+      const existingHistLen = Array.isArray(existing.statusHistory) ? existing.statusHistory.length : 0;
+      const incomingHistLen = Array.isArray(ord.statusHistory) ? ord.statusHistory.length : 0;
+      const existingHasTracking = Boolean(existing.trackingNumber || existing.courierTrackingCode);
+      const incomingHasTracking = Boolean(ord.trackingNumber || ord.courierTrackingCode);
+
+      if (incomingHistLen > existingHistLen || (!existingHasTracking && incomingHasTracking)) {
+        mergedMap.set(ord.id, { ...existing, ...ord });
+      } else if (existingHistLen > incomingHistLen) {
+        mergedMap.set(ord.id, { ...ord, ...existing });
+      } else {
+        mergedMap.set(ord.id, { ...existing, ...ord });
+      }
+    };
+
+    existingList.forEach(upsert);
+    incomingList.forEach(upsert);
+
+    return Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+  }, []);
+
+  const refreshOrders = useCallback(
+    async (force = false): Promise<{ success: boolean; count: number; message?: string }> => {
+      setIsOrdersSyncing(true);
+      let combinedIncoming: Order[] = [];
+      let warningMsg: string | null = null;
+      let serverCount = 0;
+
+      try {
+        const headers = await getAdminAuthHeaders();
+        if (!headers.Authorization) {
+          warningMsg =
+            'Google Admin (muhammadeyamin0@gmail.com) সেশন কানেক্টেড না থাকায় ক্লাউড অর্ডার সিঙ্ক করা যায়নি।';
+        } else {
+          const res = await fetch(`/api/orders${force ? '?force=1' : ''}`, {
+            headers,
+            cache: 'no-store'
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.quotaExceeded) {
+              warningMsg =
+                'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। বর্তমানে ক্যাশ ও সার্ভারের অর্ডার দেখানো হচ্ছে।';
+            }
+            if (json.success && Array.isArray(json.data)) {
+              combinedIncoming = [...combinedIncoming, ...(json.data as Order[])];
+              serverCount = json.data.length;
+            }
+          }
+        }
+      } catch {
+        // Fallback to direct Firestore read below
+      }
+
+      if (force && IS_GOOGLE_CLOUD_CONNECTED) {
+        try {
+          const fbAuth = await getFirebaseAuth();
+          if (typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+            await (fbAuth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => {});
+          }
+          const activeEmail = fbAuth.currentUser?.email?.trim().toLowerCase();
+          if (activeEmail === 'muhammadeyamin0@gmail.com' && fbAuth.currentUser?.emailVerified) {
+            const [db, { collection, getDocs }] = await Promise.all([
+              getFirebaseDb(),
+              getFirestoreModule()
+            ]);
+            const snap = await getDocs(collection(db, 'orders'));
+            const firestoreList: Order[] = [];
+            snap.forEach((docSnap) => {
+              firestoreList.push({ ...(docSnap.data() as Order), id: docSnap.id });
+            });
+            combinedIncoming = [...combinedIncoming, ...firestoreList];
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('Quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+            warningMsg =
+              'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। অনুগ্রহ করে কোটা রিসেট হওয়া পর্যন্ত অপেক্ষা করুন অথবা Blaze প্ল্যান আপগ্রেড করুন।';
+          }
+        }
+      }
+
+      if (combinedIncoming.length > 0) {
+        setOrders((prev) => mergeOrderCollections(prev, combinedIncoming));
+      }
+      setOrdersSyncWarning(warningMsg);
+      setIsOrdersSyncing(false);
+      return {
+        success: combinedIncoming.length > 0 || !warningMsg,
+        count: Math.max(serverCount, combinedIncoming.length),
+        message: warningMsg || undefined
+      };
+    },
+    [getAdminAuthHeaders, mergeOrderCollections]
+  );
+
   // Scoped Orders Synchronization: Full list only inside authenticated Admin Dashboard
   useEffect(() => {
     if (currentPage !== 'admin' || isSearchCrawler()) return;
-    if (
-      currentUser?.email?.trim().toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
-      !currentUser?.emailVerified
-    ) {
+    const isVerifiedSuperAdminEmail =
+      currentUser?.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+      Boolean(currentUser?.emailVerified);
+    if (!isFirebaseAdminAuthenticated && !isVerifiedSuperAdminEmail) {
       return;
     }
+
     let isMounted = true;
-    let lastSig = '';
+    let lastServerSig = '';
+    let lastFirestoreSig = '';
+
+    const buildSig = (list: Order[]) =>
+      list
+        .map(
+          (o) =>
+            `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
+        )
+        .join('|');
 
     const syncOrdersWithServer = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const headers = await getAdminAuthHeaders();
-        const res = await fetch('/api/orders', { headers });
+        if (!headers.Authorization) {
+          if (isMounted && firebaseAuthLoaded && !isFirebaseAdminAuthenticated) {
+            setOrdersSyncWarning(
+              'Google Admin (muhammadeyamin0@gmail.com) সেশন কানেক্টেড নেই। অর্ডার সিঙ্ক করতে উপরে বাটনে ক্লিক করে Google Admin কানেক্ট করুন।'
+            );
+          }
+          return;
+        }
+        const res = await fetch('/api/orders', { headers, cache: 'no-store' });
         if (!res.ok) return;
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMounted && json.data.length > 0) {
+        if (!isMounted) return;
+
+        if (json.quotaExceeded) {
+          setOrdersSyncWarning(
+            'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। বর্তমানে সার্ভার ক্যাশ ও লোকাল অর্ডার দেখানো হচ্ছে।'
+          );
+        } else {
+          setOrdersSyncWarning(null);
+        }
+
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           const sorted = (json.data as Order[]).sort(
             (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
           );
-          const nextSig = sorted
-            .map(
-              (o) =>
-                `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
-            )
-            .join('|');
-          if (nextSig !== lastSig) {
-            lastSig = nextSig;
-            setOrders((prev) => {
-              const mergedMap = new Map<string, Order>();
-              prev.forEach((o) => mergedMap.set(o.id, o));
-              sorted.forEach((o) => mergedMap.set(o.id, o));
-              return Array.from(mergedMap.values()).sort(
-                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-              );
-            });
+          const nextSig = buildSig(sorted);
+          if (nextSig !== lastServerSig) {
+            lastServerSig = nextSig;
+            setOrders((prev) => mergeOrderCollections(prev, sorted));
           }
         }
       } catch {
@@ -1977,12 +2106,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
-    syncOrdersWithServer();
-    const interval = setInterval(syncOrdersWithServer, 25000);
+    void syncOrdersWithServer();
+    const interval = setInterval(syncOrdersWithServer, 20000);
 
-    // Real-time orders stream is scoped strictly to Admin Dashboard
+    // Real-time orders stream is scoped strictly to Firebase-verified Admin Dashboard
     let firestoreUnsub: (() => void) | undefined;
-    if (IS_GOOGLE_CLOUD_CONNECTED) {
+    if (IS_GOOGLE_CLOUD_CONNECTED && isFirebaseAdminAuthenticated) {
       (async () => {
         try {
           const [db, { collection, onSnapshot }] = await Promise.all([
@@ -1994,7 +2123,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           firestoreUnsub = onSnapshot(
             ordersCol,
             (snapshot) => {
-              if (!isMounted || snapshot.empty) return;
+              if (!isMounted) return;
+              if (snapshot.empty) return;
               const remoteOrders: Order[] = [];
               snapshot.forEach((docSnap) => {
                 const remote = docSnap.data() as Order;
@@ -2003,19 +2133,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               remoteOrders.sort(
                 (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
               );
-              const nextSig = remoteOrders
-                .map(
-                  (o) =>
-                    `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
-                )
-                .join('|');
-              if (nextSig !== lastSig) {
-                lastSig = nextSig;
-                setOrders(remoteOrders);
+              const nextSig = buildSig(remoteOrders);
+              if (nextSig !== lastFirestoreSig) {
+                lastFirestoreSig = nextSig;
+                setOrdersSyncWarning(null);
+                setOrders((prev) => mergeOrderCollections(prev, remoteOrders));
               }
             },
             (error) => {
               console.warn('Firestore orders onSnapshot notice:', error.message);
+              if (!isMounted) return;
+              if (
+                error.message.includes('Quota') ||
+                error.message.includes('RESOURCE_EXHAUSTED') ||
+                error.code === 'resource-exhausted'
+              ) {
+                setOrdersSyncWarning(
+                  'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। সার্ভার থেকে অর্ডার দেখানো হচ্ছে।'
+                );
+              } else if (error.code === 'permission-denied') {
+                setOrdersSyncWarning(
+                  'Firestore অর্ডার পড়ার অনুমতি পাওয়া যায়নি। Google Admin (muhammadeyamin0@gmail.com) রি-কানেক্ট করুন।'
+                );
+              }
             }
           );
         } catch (e) {
@@ -2029,7 +2169,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearInterval(interval);
       if (firestoreUnsub) firestoreUnsub();
     };
-  }, [currentPage, currentUser?.email, currentUser?.emailVerified, getAdminAuthHeaders]);
+  }, [
+    currentPage,
+    currentUser?.email,
+    currentUser?.emailVerified,
+    isFirebaseAdminAuthenticated,
+    firebaseAuthLoaded,
+    getAdminAuthHeaders,
+    mergeOrderCollections
+  ]);
 
   // Listen to Firebase Auth state changes lazily (deferred on public storefront unless prior session or auth route)
   const firebaseAuthListenerAttachedRef = useRef(false);
@@ -3949,10 +4097,22 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       Date.now() + (settings.confirmationWindowMinutes || 15) * 60 * 1000
     ).toISOString();
 
+    const normalizedCustomer: Address = {
+      ...data.customer,
+      fullName: String(data.customer.fullName || 'Customer').trim().slice(0, 120) || 'Customer',
+      phone: String(data.customer.phone || '').trim().slice(0, 24) || '01700000000',
+      district: String(data.customer.district || 'Dhaka').trim().slice(0, 80) || 'Dhaka',
+      upazila:
+        String(data.customer.upazila || data.customer.district || 'সদর').trim().slice(0, 80) ||
+        'সদর',
+      streetAddress:
+        String(data.customer.streetAddress || 'Bangladesh').trim().slice(0, 400) || 'Bangladesh'
+    };
+
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
       orderNumber,
-      customer: data.customer,
+      customer: normalizedCustomer,
       items: [...cart],
       subtotal,
       discount: totalDiscounts,
@@ -3981,7 +4141,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 1 : 2,
       estimatedDeliveryMaxDays:
         data.deliveryZone === 'inside_dhaka' || data.deliveryZone === 'dhaka_sub_area' ? 2 : 4,
-      userId: currentUser?.id || `usr-${Date.now()}`,
+      userId: getCurrentFirebaseUserSync()?.uid || currentUser?.id || `usr-${Date.now()}`,
       isVerifiedCustomer: Boolean(currentUser?.isVerified ?? true),
       verificationMethod: currentUser?.verificationMethod || 'phone_otp',
       verifiedAt: currentUser?.verifiedAt || new Date().toISOString(),
@@ -4103,6 +4263,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     });
 
     // Save order
+    deletedOrderIdsRef.current.delete(newOrder.id);
     setOrders((prev) => [newOrder, ...prev]);
     setLastPlacedOrder(newOrder);
     setCart([]);
@@ -4110,28 +4271,47 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     setAppliedPointsDiscount(0);
     setAppliedReferralCode(null);
 
-    // 1. Direct sync to Express backend server (Guarantees Admin Dashboard presence immediately across all sessions/devices)
+    // 1. Direct sync to backend server + Firestore REST fallback (Guarantees Admin Dashboard presence across all devices)
     try {
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newOrder, skipEmailNotification: true })
-      }).catch((err) => {
-        console.warn('Server backend order sync warning:', err);
-      });
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const errTxt = await res.text().catch(() => '');
+            console.warn('Server backend order sync HTTP notice:', res.status, errTxt);
+          }
+        })
+        .catch((err) => {
+          console.warn('Server backend order sync warning:', err);
+        });
     } catch (e) {
       console.warn('Server order sync warning:', e);
     }
 
-    // 2. Sync to Google Cloud Firestore orders collection
+    // 2. Sync to Google Cloud Firestore orders collection (matching authenticated uid if any so firestore.rules allow create)
     if (IS_GOOGLE_CLOUD_CONNECTED) {
-      const cleanOrderPayload = sanitizeFirestoreData({
-        ...newOrder,
-        savedToFirestoreAt: new Date().toISOString()
-      });
       void (async () => {
         try {
-          const [db, { doc, setDoc }] = await Promise.all([getFirebaseDb(), getFirestoreModule()]);
+          const [fbAuth, db, { doc, setDoc }] = await Promise.all([
+            getFirebaseAuth(),
+            getFirebaseDb(),
+            getFirestoreModule()
+          ]);
+          if (typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
+            await (fbAuth as { authStateReady: () => Promise<void> }).authStateReady().catch(() => {});
+          }
+          const activeFbUser = fbAuth.currentUser;
+          const isFbAdmin =
+            activeFbUser?.email?.trim().toLowerCase() === 'muhammadeyamin0@gmail.com' &&
+            Boolean(activeFbUser?.emailVerified);
+          const cleanOrderPayload = sanitizeFirestoreData({
+            ...newOrder,
+            ...(activeFbUser?.uid && !isFbAdmin ? { userId: activeFbUser.uid } : {}),
+            savedToFirestoreAt: new Date().toISOString()
+          });
           await setDoc(doc(db, 'orders', newOrder.id), cleanOrderPayload);
         } catch (err) {
           console.warn('Firestore order save background warning:', err);
@@ -4713,6 +4893,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
   );
 
   const clearAllOrders = async () => {
+    orders.forEach((o) => {
+      if (o?.id) deletedOrderIdsRef.current.add(o.id);
+    });
     setOrders([]);
     setLastPlacedOrder(null);
     localStorage.removeItem('vt_orders');
@@ -4741,6 +4924,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         if (!snapshot.empty) {
           const batch = writeBatch(db);
           snapshot.forEach((docSnap) => {
+            deletedOrderIdsRef.current.add(docSnap.id);
             batch.delete(doc(db, 'orders', docSnap.id));
           });
           await batch.commit();
@@ -4756,6 +4940,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
 
   const deleteOrder = async (id: string) => {
     const target = orders.find((o) => o.id === id);
+    deletedOrderIdsRef.current.add(id);
     setOrders((prev) => prev.filter((o) => o.id !== id));
     if (lastPlacedOrder && lastPlacedOrder.id === id) {
       setLastPlacedOrder(null);
@@ -5579,6 +5764,9 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         banners,
         updateBanner,
         orders,
+        isOrdersSyncing,
+        ordersSyncWarning,
+        refreshOrders,
         lastPlacedOrder,
         placeOrder,
         updateOrderStatus,
