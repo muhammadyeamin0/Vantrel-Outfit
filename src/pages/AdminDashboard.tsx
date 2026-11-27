@@ -131,10 +131,20 @@ export const AdminDashboard: React.FC = () => {
     reorderCategories,
     moveProductInCategory,
     setCategoryBestProduct,
+    isCatalogSyncing,
+    catalogLastSyncedAt,
+    catalogSyncWarning,
+    refreshCatalog,
     orders,
     isOrdersSyncing,
     ordersSyncWarning,
+    ordersLastSyncedAt,
+    ordersHasMore,
+    ordersFetchLimit,
+    ordersDateRangeDays,
+    setOrdersDateRangeDays,
     refreshOrders,
+    loadMoreOrders,
     clearAllOrders,
     deleteOrder,
     updateOrderStatus,
@@ -656,10 +666,24 @@ export const AdminDashboard: React.FC = () => {
     .sort((a, b) => (b.isBestSeller ? 1 : 0) - (a.isBestSeller ? 1 : 0) || b.rating - a.rating)
     .slice(0, 4);
 
+  const formatSyncTime = (iso: string | null) => {
+    if (!iso) return 'এখনো সিঙ্ক হয়নি';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return 'এখনো সিঙ্ক হয়নি';
+    return `${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} (${d.toLocaleDateString('en-GB')})`;
+  };
+
   // Filtered orders
   const filteredOrders = orders.filter((order) => {
     if (orderStatusFilter !== 'All' && order.orderStatus !== orderStatusFilter) {
       return false;
+    }
+    if (typeof ordersDateRangeDays === 'number' && ordersDateRangeDays > 0) {
+      const createdMs = new Date(order.createdAt || 0).getTime();
+      const cutoffMs = Date.now() - ordersDateRangeDays * 24 * 60 * 60 * 1000;
+      if (Number.isFinite(createdMs) && createdMs < cutoffMs) {
+        return false;
+      }
     }
     if (orderSearch.trim()) {
       const q = orderSearch.toLowerCase();
@@ -2488,6 +2512,24 @@ export const AdminDashboard: React.FC = () => {
                 </button>
 
                 <button
+                  type="button"
+                  disabled={isCatalogSyncing}
+                  onClick={async () => {
+                    const res = await refreshCatalog(true);
+                    if (res.message) {
+                      showToast('ক্যাটালগ সিঙ্ক বিজ্ঞপ্তি', res.message, 'info');
+                    } else {
+                      showToast('ক্যাটালগ সিঙ্ক সম্পন্ন', `সর্বশেষ প্রোডাক্ট ও ক্যাটাগরি আপডেট হয়েছে (${res.count}টি)।`, 'success');
+                    }
+                  }}
+                  className="px-3 py-2 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                  title="সার্ভার ও Firestore থেকে সর্বশেষ প্রোডাক্ট রিফ্রেশ করুন"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isCatalogSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isCatalogSyncing ? 'সিঙ্ক হচ্ছে...' : 'রিফ্রেশ ক্যাটালগ'}</span>
+                </button>
+
+                <button
                   onClick={handleExportProductsCSV}
                   className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-[#E5E1D5] text-[#14221C] text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
                 >
@@ -2505,19 +2547,19 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Firebase Live Cloud Protection Banner */}
-            <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl flex items-center justify-between gap-3 text-xs">
+            {/* Quota-Safe Cache & Cloud Protection Banner */}
+            <div className={`p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs border ${catalogSyncWarning ? 'bg-amber-50 border-amber-300' : 'bg-emerald-50/80 border-emerald-200/80'}`}>
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-bold text-emerald-950">
-                  Firebase Cloud Firestore & Server Storage সক্রিয়:
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${catalogSyncWarning ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                <span className={`font-bold ${catalogSyncWarning ? 'text-amber-950' : 'text-emerald-950'}`}>
+                  {catalogSyncWarning ? 'ক্যাশ ফলব্যাক সক্রিয়:' : 'Quota-Safe ক্যাটালগ ক্যাশ সক্রিয় (২০ মিনিট TTL):'}
                 </span>
-                <span className="text-emerald-800 hidden sm:inline">
-                  অ্যাড, এডিট বা ডিলিট করা সমস্ত প্রোডাক্ট রিয়েল-টাইমে ক্লাউড ও সার্ভার ডিস্কে সেভ হয় এবং সব ডিভাইসে তাৎক্ষণিক লাইভ আপডেট হয়ে যায়।
+                <span className={`${catalogSyncWarning ? 'text-amber-900' : 'text-emerald-800'} hidden sm:inline`}>
+                  {catalogSyncWarning || 'ট্যাব পরিবর্তন বা রি-ওপেনে অপ্রয়োজনীয় Firestore রিড হয় না; নতুন ডেটা আনতে রিফ্রেশ বাটন ব্যবহার করুন।'}
                 </span>
               </div>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full uppercase shrink-0">
-                Live Synced
+              <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full shrink-0 ${catalogSyncWarning ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                সর্বশেষ সিঙ্ক: {formatSyncTime(catalogLastSyncedAt)}
               </span>
             </div>
 
@@ -3256,9 +3298,30 @@ export const AdminDashboard: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500 bg-[#F7F5EF] px-3 py-1.5 rounded-xl border border-[#E5E1D5] shrink-0">
-                  <span>মোট প্রোডাক্ট:</span>
-                  <span className="font-black text-[#14221C]">{products.length}টি</span>
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
+                  <span className="text-[11px] font-semibold text-neutral-600 bg-[#F7F5EF] px-3 py-1.5 rounded-xl border border-[#E5E1D5]">
+                    সর্বশেষ সিঙ্ক: {formatSyncTime(catalogLastSyncedAt)}
+                  </span>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500 bg-[#F7F5EF] px-3 py-1.5 rounded-xl border border-[#E5E1D5]">
+                    <span>মোট প্রোডাক্ট:</span>
+                    <span className="font-black text-[#14221C]">{products.length}টি</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isCatalogSyncing}
+                    onClick={async () => {
+                      const res = await refreshCatalog(true);
+                      if (res.message) {
+                        showToast('ক্যাটালগ সিঙ্ক বিজ্ঞপ্তি', res.message, 'info');
+                      } else {
+                        showToast('ক্যাটাগরি সিঙ্ক সম্পন্ন', 'ক্যাটাগরি ও প্রোডাক্ট তালিকা আপডেট হয়েছে।', 'success');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#14221C] hover:bg-[#202522] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isCatalogSyncing ? 'animate-spin' : ''}`} />
+                    <span>{isCatalogSyncing ? 'সিঙ্ক হচ্ছে...' : 'রিফ্রেশ'}</span>
+                  </button>
                 </div>
               </div>
 
@@ -3937,15 +4000,22 @@ export const AdminDashboard: React.FC = () => {
                 <p className="text-xs text-[#202522]/60 mt-0.5">
                   16-stage order lifecycle with automated 15-min customer confirmation, staff verification, and BD courier tracking.
                 </p>
+                <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full bg-stone-100 border border-[#E5E1D5] text-[10px] font-semibold text-[#14221C]">
+                  সর্বশেষ সিঙ্ক: {formatSyncTime(ordersLastSyncedAt)}
+                </span>
               </div>
 
-              {/* Status Filter & Actions */}
+              {/* Status Filter, Date Filter & Actions */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   disabled={isOrdersSyncing}
                   onClick={async () => {
-                    const res = await refreshOrders(true);
+                    const res = await refreshOrders(true, {
+                      limit: ordersFetchLimit,
+                      sinceDays: ordersDateRangeDays,
+                      status: orderStatusFilter !== 'All' ? orderStatusFilter : undefined
+                    });
                     if (res.message) {
                       showToast('অর্ডার সিঙ্ক বিজ্ঞপ্তি', res.message, 'info');
                     } else {
@@ -3958,6 +4028,20 @@ export const AdminDashboard: React.FC = () => {
                   <RotateCcw className={`w-3.5 h-3.5 ${isOrdersSyncing ? 'animate-spin' : ''}`} />
                   <span>{isOrdersSyncing ? 'সিঙ্ক হচ্ছে...' : 'রিফ্রেশ অর্ডার'}</span>
                 </button>
+                <select
+                  value={String(ordersDateRangeDays)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setOrdersDateRangeDays(val === 'all' ? 'all' : Number(val));
+                  }}
+                  className="px-3 py-2 text-xs bg-[#F7F5EF] border border-[#E5E1D5] rounded-xl font-semibold text-[#14221C]"
+                  title="তারিখ অনুযায়ী অর্ডার ফিল্টার"
+                >
+                  <option value="all">সব তারিখ (All Dates)</option>
+                  <option value="1">আজকের অর্ডার (২৪ ঘণ্টা)</option>
+                  <option value="7">গত ৭ দিন</option>
+                  <option value="30">গত ৩০ দিন</option>
+                </select>
                 <select
                   value={orderStatusFilter}
                   onChange={(e) => setOrderStatusFilter(e.target.value)}
@@ -4300,6 +4384,30 @@ export const AdminDashboard: React.FC = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Orders Pagination Footer */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-[#E5E1D5] text-xs text-[#202522]/70">
+              <span>
+                মোট লোডকৃত অর্ডার: <strong className="text-[#14221C]">{orders.length}টি</strong> · ফিল্টার প্রদর্শিত: <strong className="text-[#14221C]">{filteredOrders.length}টি</strong> (সর্বোচ্চ সীমা: {ordersFetchLimit})
+              </span>
+              {(ordersHasMore || orders.length >= ordersFetchLimit) && ordersFetchLimit < 300 && (
+                <button
+                  type="button"
+                  disabled={isOrdersSyncing}
+                  onClick={async () => {
+                    const res = await loadMoreOrders();
+                    if (res.message) {
+                      showToast('অর্ডার লোড বিজ্ঞপ্তি', res.message, 'info');
+                    } else {
+                      showToast('আরো অর্ডার লোড সম্পন্ন', `এখন মোট ${res.count}টি অর্ডার লোড রয়েছে।`, 'success');
+                    }
+                  }}
+                  className="px-4 py-2 bg-[#F7F5EF] hover:bg-[#E5E1D5]/60 border border-[#E5E1D5] text-[#14221C] text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-60 self-start sm:self-auto"
+                >
+                  {isOrdersSyncing ? 'লোড হচ্ছে...' : 'আরো অর্ডার লোড করুন (+50)'}
+                </button>
+              )}
             </div>
           </div>
         )}

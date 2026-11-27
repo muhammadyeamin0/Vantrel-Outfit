@@ -457,51 +457,118 @@ async function deleteOrderFromFirestoreRest(id: string, bearerToken?: string): P
   }
 }
 
+const ORDERS_SYNC_TTL_MS = 15 * 60 * 1000;
+const DEFAULT_ORDER_QUERY_LIMIT = 50;
+
 async function syncOrdersFromFirestoreRest(
   bearerToken: string,
-  force = false
-): Promise<{ quotaExceeded: boolean }> {
-  if (!bearerToken) return { quotaExceeded: false };
-  if (Date.now() < firestoreQuotaBackoffUntil) return { quotaExceeded: true };
-  if (!force && Date.now() - lastOrdersFirestoreSyncAt < 20_000) {
-    return { quotaExceeded: false };
+  options?: { force?: boolean; limit?: number; sinceDays?: number | null }
+): Promise<{
+  quotaExceeded: boolean;
+  hasMore: boolean;
+  usedCache: boolean;
+  lastSyncedAt: string | null;
+}> {
+  if (!bearerToken) {
+    return {
+      quotaExceeded: false,
+      hasMore: false,
+      usedCache: true,
+      lastSyncedAt: lastOrdersFirestoreSyncAt ? new Date(lastOrdersFirestoreSyncAt).toISOString() : null
+    };
+  }
+  if (Date.now() < firestoreQuotaBackoffUntil) {
+    return {
+      quotaExceeded: true,
+      hasMore: false,
+      usedCache: true,
+      lastSyncedAt: lastOrdersFirestoreSyncAt ? new Date(lastOrdersFirestoreSyncAt).toISOString() : null
+    };
+  }
+  if (
+    !options?.force &&
+    lastOrdersFirestoreSyncAt > 0 &&
+    Date.now() - lastOrdersFirestoreSyncAt < ORDERS_SYNC_TTL_MS
+  ) {
+    return {
+      quotaExceeded: false,
+      hasMore: false,
+      usedCache: true,
+      lastSyncedAt: new Date(lastOrdersFirestoreSyncAt).toISOString()
+    };
   }
   const conn = getFirestoreRestConfig();
-  if (!conn) return { quotaExceeded: false };
+  if (!conn) {
+    return {
+      quotaExceeded: false,
+      hasMore: false,
+      usedCache: true,
+      lastSyncedAt: lastOrdersFirestoreSyncAt ? new Date(lastOrdersFirestoreSyncAt).toISOString() : null
+    };
+  }
+
+  const fetchLimit = Math.max(1, Math.min(300, Number(options?.limit) || DEFAULT_ORDER_QUERY_LIMIT));
+  const sinceDays = options?.sinceDays && options.sinceDays > 0 ? options.sinceDays : null;
+  const structuredQuery: Record<string, unknown> = {
+    from: [{ collectionId: 'orders' }],
+    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+    limit: fetchLimit
+  };
+  if (sinceDays) {
+    const cutoffIso = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
+    structuredQuery.where = {
+      fieldFilter: {
+        field: { fieldPath: 'createdAt' },
+        op: 'GREATER_THAN_OR_EQUAL',
+        value: { stringValue: cutoffIso }
+      }
+    };
+  }
 
   const remoteOrders: Order[] = [];
-  let pageToken = '';
-  let pageCount = 0;
-
   try {
-    do {
-      pageCount += 1;
-      const url = `${conn.baseDocUrl}/orders?pageSize=300&key=${encodeURIComponent(conn.apiKey)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${bearerToken}` },
-        signal: AbortSignal.timeout(8500)
-      });
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
-          firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
-          return { quotaExceeded: true };
-        }
-        return { quotaExceeded: false };
+    const runQueryUrl = `${conn.baseDocUrl}:runQuery?key=${encodeURIComponent(conn.apiKey)}`;
+    const res = await fetch(runQueryUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${bearerToken}`
+      },
+      body: JSON.stringify({ structuredQuery }),
+      signal: AbortSignal.timeout(8500)
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+        firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+        return {
+          quotaExceeded: true,
+          hasMore: false,
+          usedCache: true,
+          lastSyncedAt: lastOrdersFirestoreSyncAt ? new Date(lastOrdersFirestoreSyncAt).toISOString() : null
+        };
       }
-      const payload = (await res.json()) as {
-        documents?: Array<{ name?: string; fields?: Record<string, unknown> }>;
-        nextPageToken?: string;
+      return {
+        quotaExceeded: false,
+        hasMore: false,
+        usedCache: true,
+        lastSyncedAt: lastOrdersFirestoreSyncAt ? new Date(lastOrdersFirestoreSyncAt).toISOString() : null
       };
-      const docs = Array.isArray(payload.documents) ? payload.documents : [];
-      for (const docItem of docs) {
-        const docId = String(docItem.name || '').split('/').pop() || '';
+    }
+
+    const rows = (await res.json()) as Array<{
+      document?: { name?: string; fields?: Record<string, unknown> };
+    }>;
+    if (Array.isArray(rows)) {
+      for (const row of rows) {
+        if (!row?.document?.name) continue;
+        const docId = String(row.document.name).split('/').pop() || '';
         if (!docId) continue;
-        const decoded = decodeFirestoreRestFields(docItem.fields) as unknown as Order;
+        const decoded = decodeFirestoreRestFields(row.document.fields) as unknown as Order;
         remoteOrders.push({ ...decoded, id: docId });
       }
-      pageToken = payload.nextPageToken || '';
-    } while (pageToken && pageCount < 10);
+    }
 
     lastOrdersFirestoreSyncAt = Date.now();
     if (remoteOrders.length > 0) {
@@ -529,9 +596,19 @@ async function syncOrdersFromFirestoreRest(
       );
       saveOrdersToDisk();
     }
-    return { quotaExceeded: false };
+    return {
+      quotaExceeded: false,
+      hasMore: remoteOrders.length >= fetchLimit,
+      usedCache: false,
+      lastSyncedAt: new Date(lastOrdersFirestoreSyncAt).toISOString()
+    };
   } catch {
-    return { quotaExceeded: false };
+    return {
+      quotaExceeded: false,
+      hasMore: false,
+      usedCache: true,
+      lastSyncedAt: lastOrdersFirestoreSyncAt ? new Date(lastOrdersFirestoreSyncAt).toISOString() : null
+    };
   }
 }
 let coupons = [...INITIAL_COUPONS];
@@ -1826,7 +1903,7 @@ app.delete('/api/products/:id', (req: Request, res: Response) => {
 
 // 3. Orders Endpoints
 app.get('/api/orders', async (req: Request, res: Response) => {
-  const { status, phone, search, orderNumber, force } = req.query;
+  const { status, phone, search, orderNumber, force, limit, sinceDays } = req.query;
   const authHeader = String(req.headers.authorization || '');
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const adminCheck = bearerToken ? await verifyAdminRequest(req) : { authorized: false };
@@ -1854,8 +1931,21 @@ app.get('/api/orders', async (req: Request, res: Response) => {
     return res.json({ success: true, count: found.length, data: found });
   }
 
-  const syncMeta = await syncOrdersFromFirestoreRest(bearerToken, force === '1' || force === 'true');
+  const parsedSinceDays =
+    sinceDays && sinceDays !== 'all' && Number.isFinite(Number(sinceDays))
+      ? Math.max(1, Math.min(365, Math.round(Number(sinceDays))))
+      : null;
+  const syncMeta = await syncOrdersFromFirestoreRest(bearerToken, {
+    force: force === '1' || force === 'true',
+    limit: limit ? Number(limit) : DEFAULT_ORDER_QUERY_LIMIT,
+    sinceDays: parsedSinceDays
+  });
   let result = [...orders];
+
+  if (parsedSinceDays) {
+    const cutoffMs = Date.now() - parsedSinceDays * 24 * 60 * 60 * 1000;
+    result = result.filter((o) => new Date(o.createdAt || 0).getTime() >= cutoffMs);
+  }
 
   if (status && status !== 'All') {
     result = result.filter((o) => o.orderStatus === status);
@@ -1897,6 +1987,9 @@ app.get('/api/orders', async (req: Request, res: Response) => {
     success: true,
     count: result.length,
     data: result,
+    hasMore: syncMeta.hasMore,
+    usedCache: syncMeta.usedCache,
+    lastSyncedAt: syncMeta.lastSyncedAt,
     ...(syncMeta.quotaExceeded ? { quotaExceeded: true } : {})
   });
 });

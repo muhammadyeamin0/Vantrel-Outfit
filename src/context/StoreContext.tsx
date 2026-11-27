@@ -103,6 +103,78 @@ const LEGACY_PRIMARY_PRODUCT_IDS = new Set([
 export const COST_TO_SELLING_MARKUP_BDT = 220;
 export const SELLING_TO_REGULAR_MARKUP_BDT = 200;
 
+const CATALOG_CACHE_TTL_MS = 20 * 60 * 1000;
+const ORDERS_CACHE_TTL_MS = 15 * 60 * 1000;
+const WISHLIST_CACHE_TTL_MS = 20 * 60 * 1000;
+const CLIENT_QUOTA_BACKOFF_MS = 60 * 60 * 1000;
+
+const VT_PRODUCTS_SYNCED_AT_KEY = 'vt_products_last_synced_at';
+const VT_CATEGORIES_SYNCED_AT_KEY = 'vt_categories_last_synced_at';
+const VT_ORDERS_SYNCED_AT_KEY = 'vt_orders_last_synced_at';
+const VT_CLIENT_QUOTA_BACKOFF_KEY = 'vt_fs_quota_backoff_until';
+
+function readSyncTimestamp(key: string): string | null {
+  try {
+    const val = localStorage.getItem(key);
+    if (!val) return null;
+    const ms = new Date(val).getTime();
+    return Number.isFinite(ms) ? val : null;
+  } catch {
+    return null;
+  }
+}
+
+function isCacheTimestampFresh(key: string, ttlMs: number): boolean {
+  try {
+    const val = localStorage.getItem(key);
+    if (!val) return false;
+    const ms = new Date(val).getTime();
+    return Number.isFinite(ms) && Date.now() - ms < ttlMs;
+  } catch {
+    return false;
+  }
+}
+
+function stampSyncTimestamp(key: string, isoOverride?: string): string {
+  const iso = isoOverride || new Date().toISOString();
+  try {
+    localStorage.setItem(key, iso);
+  } catch {
+    // ignore storage errors
+  }
+  return iso;
+}
+
+function isClientFirestoreQuotaBackedOff(): boolean {
+  try {
+    const until = Number(localStorage.getItem(VT_CLIENT_QUOTA_BACKOFF_KEY) || 0);
+    return Number.isFinite(until) && until > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function markClientFirestoreQuotaBackedOff(): void {
+  try {
+    localStorage.setItem(VT_CLIENT_QUOTA_BACKOFF_KEY, String(Date.now() + CLIENT_QUOTA_BACKOFF_MS));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function isQuotaExceededError(err: unknown): boolean {
+  if (!err) return false;
+  const code = typeof (err as { code?: unknown }).code === 'string' ? (err as { code: string }).code.toLowerCase() : '';
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  return (
+    code === 'resource-exhausted' ||
+    lower.includes('resource_exhausted') ||
+    lower.includes('quota') ||
+    lower.includes('free daily read units')
+  );
+}
+
 export function dedupeProductsById(list: Product[]): Product[] {
   const seen = new Set<string>();
   const unique: Product[] = [];
@@ -363,10 +435,14 @@ export interface StoreContextType {
     subtotal: number
   ) => number;
 
-  // Products
+  // Products & Catalog Sync
   products: Product[];
   activeProducts: Product[];
   archivedProducts: Product[];
+  isCatalogSyncing: boolean;
+  catalogLastSyncedAt: string | null;
+  catalogSyncWarning: string | null;
+  refreshCatalog: (force?: boolean) => Promise<{ success: boolean; count: number; message?: string }>;
   addProduct: (
     product: Omit<Product, 'id' | 'createdDate'>
   ) => Promise<{ success: boolean; firestoreSynced: boolean; apiSynced: boolean; error?: string }>;
@@ -423,7 +499,16 @@ export interface StoreContextType {
   orders: Order[];
   isOrdersSyncing: boolean;
   ordersSyncWarning: string | null;
-  refreshOrders: (force?: boolean) => Promise<{ success: boolean; count: number; message?: string }>;
+  ordersLastSyncedAt: string | null;
+  ordersHasMore: boolean;
+  ordersFetchLimit: number;
+  ordersDateRangeDays: number | 'all';
+  setOrdersDateRangeDays: (days: number | 'all') => void;
+  refreshOrders: (
+    force?: boolean,
+    options?: { limit?: number; sinceDays?: number | 'all'; status?: string }
+  ) => Promise<{ success: boolean; count: number; message?: string; hasMore?: boolean }>;
+  loadMoreOrders: () => Promise<{ success: boolean; count: number; message?: string }>;
   lastPlacedOrder: Order | null;
   placeOrder: (data: {
     customer: Address;
@@ -618,6 +703,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return [];
   });
   const [isProductsLoading, setIsProductsLoading] = useState<boolean>(() => products.length === 0);
+  const [isCatalogSyncing, setIsCatalogSyncing] = useState<boolean>(false);
+  const [catalogLastSyncedAt, setCatalogLastSyncedAt] = useState<string | null>(() =>
+    readSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY)
+  );
+  const [catalogSyncWarning, setCatalogSyncWarning] = useState<string | null>(null);
+  const productsRef = useRef<Product[]>(products);
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
 
   // Categories
   const [categories, setCategories] = useState<ProductCategory[]>(() => {
@@ -817,6 +911,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [isOrdersSyncing, setIsOrdersSyncing] = useState(false);
   const [ordersSyncWarning, setOrdersSyncWarning] = useState<string | null>(null);
+  const [ordersLastSyncedAt, setOrdersLastSyncedAt] = useState<string | null>(() =>
+    readSyncTimestamp(VT_ORDERS_SYNCED_AT_KEY)
+  );
+  const [ordersHasMore, setOrdersHasMore] = useState<boolean>(false);
+  const [ordersFetchLimit, setOrdersFetchLimit] = useState<number>(50);
+  const [ordersDateRangeDays, setOrdersDateRangeDays] = useState<number | 'all'>('all');
+  const ordersRef = useRef<Order[]>(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
   const deletedOrderIdsRef = useRef<Set<string>>(new Set());
 
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(() => {
@@ -1145,17 +1249,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [currentPage, currentUser?.email, settings.gmailNotificationAppPassword, settings.orderNotificationEmail, settings.gmailNotificationUser, getAdminAuthHeaders]);
 
-  // Validate Firestore server connectivity strictly when authenticated Admin enters Admin Dashboard
+  // Validate Firestore server connectivity once per browser session when verified Admin enters Admin Dashboard
   useEffect(() => {
     const syncUser = getCurrentFirebaseUserSync();
     if (
       currentPage !== 'admin' ||
       !IS_GOOGLE_CLOUD_CONNECTED ||
       isSearchCrawler() ||
+      isClientFirestoreQuotaBackedOff() ||
       syncUser?.email?.toLowerCase() !== 'muhammadeyamin0@gmail.com' ||
       !syncUser?.emailVerified
     ) {
       return;
+    }
+    try {
+      if (sessionStorage.getItem('vt_fb_conn_checked_v1') === '1') return;
+    } catch {
+      // continue check
     }
     let cancelled = false;
     async function testConnection() {
@@ -1166,8 +1276,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ]);
         if (cancelled) return;
         await withTimeout(getDocFromServer(doc(db, 'test', 'connection')), 4000, 'Connection check timed out');
+        try {
+          sessionStorage.setItem('vt_fb_conn_checked_v1', '1');
+        } catch {
+          // ignore
+        }
       } catch (error) {
-        if (!cancelled && error instanceof Error && error.message.includes('the client is offline')) {
+        if (isQuotaExceededError(error)) {
+          markClientFirestoreQuotaBackedOff();
+        } else if (!cancelled && error instanceof Error && error.message.includes('the client is offline')) {
           console.warn('Firebase client is offline or network unavailable.');
         }
       }
@@ -1255,6 +1372,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setProducts((prev) => dedupeProductsById([...cleanSsr, ...prev]));
             setIsProductsLoading(false);
             mergeDynamicCategories(cleanSsr);
+            if (!readSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY)) {
+              setCatalogLastSyncedAt(stampSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY));
+            }
           }
         } catch {
           // Proceed to fetch below
@@ -1283,7 +1403,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           searchParams.get('productId') ||
           (searchParams.get('page') === 'product' ? searchParams.get('id') : null);
 
-        if (deepLinkParam && !findProductByUrlParam(deepLinkParam, products)) {
+        if (deepLinkParam && !findProductByUrlParam(deepLinkParam, productsRef.current)) {
           fetch(`/api/products?id=${encodeURIComponent(deepLinkParam)}`, {
             headers: { Accept: 'application/json' },
             cache: 'default'
@@ -1307,16 +1427,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
-    // 2. Clean single-shot HTTP fetch to /api/products (uses CDN/HTTP cache for public ad traffic!)
+    const hasRecentAdminMutation = (() => {
+      try {
+        const ts = Number(sessionStorage.getItem('vt_catalog_mutated_at') || 0);
+        return ts > 0 && Date.now() - ts < 5 * 60 * 1000;
+      } catch {
+        return false;
+      }
+    })();
+
+    // 2. Clean single-shot HTTP fetch to /api/products (skips on mount when valid cached catalog < 20 min exists)
     const loadFromProductsApi = async () => {
-      const hasRecentAdminMutation = (() => {
-        try {
-          const ts = Number(sessionStorage.getItem('vt_catalog_mutated_at') || 0);
-          return ts > 0 && Date.now() - ts < 5 * 60 * 1000;
-        } catch {
-          return false;
-        }
-      })();
+      const hasValidLocalCatalog =
+        productsRef.current.length > 0 &&
+        isCacheTimestampFresh(VT_PRODUCTS_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS) &&
+        !hasRecentAdminMutation;
+
+      if (hasValidLocalCatalog) {
+        if (isMounted) setIsProductsLoading(false);
+        return;
+      }
+
       const isAdminEntry =
         hasRecentAdminMutation ||
         (typeof window !== 'undefined' &&
@@ -1345,15 +1476,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 )
             )
           );
-          setProducts(serverProducts);
+          if (serverProducts.length > 0) {
+            setProducts(serverProducts);
+            mergeDynamicCategories(serverProducts);
+          }
           setIsProductsLoading(false);
-          mergeDynamicCategories(serverProducts);
+          setCatalogSyncWarning(null);
+          setCatalogLastSyncedAt(stampSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY));
         } else if (isMounted) {
           setIsProductsLoading(false);
         }
       } catch (err) {
-        // Emergency Firestore fallback ONLY for non-crawler browser sessions if /api/products fails
-        if (!isMounted || isSearchCrawler() || !IS_GOOGLE_CLOUD_CONNECTED) {
+        // Emergency Firestore fallback ONLY if cache is empty, non-crawler, and not quota-backed-off
+        if (
+          !isMounted ||
+          isSearchCrawler() ||
+          !IS_GOOGLE_CLOUD_CONNECTED ||
+          isClientFirestoreQuotaBackedOff() ||
+          productsRef.current.length > 0
+        ) {
           if (isMounted) setIsProductsLoading(false);
           console.warn('Products API load notice:', err);
           return;
@@ -1386,10 +1527,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             );
           });
           const sorted = sortProductsList(dedupeProductsById(remoteProducts));
-          setProducts(sorted);
+          if (sorted.length > 0) {
+            setProducts(sorted);
+            mergeDynamicCategories(sorted);
+            setCatalogLastSyncedAt(stampSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY));
+          }
           setIsProductsLoading(false);
-          mergeDynamicCategories(sorted);
         } catch (fbErr) {
+          if (isQuotaExceededError(fbErr)) {
+            markClientFirestoreQuotaBackedOff();
+            setCatalogSyncWarning(
+              'Firebase Firestore কোটা সীমা পূর্ণ হওয়ায় ক্যাশ থেকে প্রোডাক্ট দেখানো হচ্ছে।'
+            );
+          }
           if (isMounted) setIsProductsLoading(false);
           console.warn('Products fallback load notice:', fbErr);
         }
@@ -1400,14 +1550,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       loadFromProductsApi();
     }
 
-    // Defer secondary Firestore settings/categories sync on public pages until interaction or idle
-    // so vendor-firebase (179 KiB) stays completely off the initial FCP/LCP critical path.
+    // Defer secondary Firestore settings/categories sync and skip entirely if 20-minute TTL cache is fresh
     let firestoreHydrateStarted = false;
     let hydrateTimer: number | undefined;
     const interactionEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
 
     const hydrateRemoteSettings = async () => {
-      if (!isMounted || firestoreHydrateStarted || !IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) return;
+      if (
+        !isMounted ||
+        firestoreHydrateStarted ||
+        !IS_GOOGLE_CLOUD_CONNECTED ||
+        isSearchCrawler() ||
+        isClientFirestoreQuotaBackedOff()
+      ) {
+        return;
+      }
+      const hasValidCachedCategories =
+        categoriesRef.current.length > 1 &&
+        isCacheTimestampFresh(VT_CATEGORIES_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS) &&
+        !hasRecentAdminMutation;
+
+      if (hasValidCachedCategories) {
+        firestoreHydrateStarted = true;
+        return;
+      }
+
       firestoreHydrateStarted = true;
       try {
         const [db, { doc, getDoc }] = await Promise.all([
@@ -1436,8 +1603,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               setCategories(withAll);
               localStorage.setItem('vt_categories_v2', JSON.stringify(withAll));
             }
+            stampSyncTimestamp(VT_CATEGORIES_SYNCED_AT_KEY);
           })
           .catch((err) => {
+            if (isQuotaExceededError(err)) {
+              markClientFirestoreQuotaBackedOff();
+            }
             console.warn('Firestore categories load notice:', err);
           });
 
@@ -1482,8 +1653,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   : prev.outOfStockDefaultBehavior
             }));
           })
-          .catch(() => {
-            // Retain local settings cache seamlessly
+          .catch((err) => {
+            if (isQuotaExceededError(err)) {
+              markClientFirestoreQuotaBackedOff();
+            }
           });
       } catch {
         // Ignore deferred Firebase settings hydration error
@@ -1512,84 +1685,127 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const autoPriceHealAttemptedRef = useRef<boolean>(false);
 
-  // Scoped Real-Time Firestore Products Sync: Only active inside Admin Dashboard for non-crawler sessions
-  useEffect(() => {
-    if (currentPage !== 'admin' || !IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) {
-      return;
-    }
+  // Manual / TTL-Gated Catalog Refresh (replaces continuous Firestore products onSnapshot listener)
+  const refreshCatalog = useCallback(
+    async (force = false): Promise<{ success: boolean; count: number; message?: string }> => {
+      if (isSearchCrawler()) {
+        return { success: true, count: productsRef.current.length };
+      }
 
-    let isMounted = true;
-    let unsubscribe: (() => void) | undefined;
+      const sortProductsList = (items: Product[]) =>
+        [...items].sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
+            return a.sortOrder - b.sortOrder;
+          }
+          return 0;
+        });
 
-    (async () => {
+      const cacheFresh =
+        productsRef.current.length > 0 &&
+        isCacheTimestampFresh(VT_PRODUCTS_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS) &&
+        isCacheTimestampFresh(VT_CATEGORIES_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS);
+
+      if (!force && cacheFresh) {
+        return { success: true, count: productsRef.current.length };
+      }
+
+      setIsCatalogSyncing(true);
+      let loadedProducts: Product[] = [];
+      let warningMsg: string | null = null;
+      let syncedSuccessfully = false;
+
+      // 1. Fetch server catalog REST API first (keeps Firestore reads cached server-side)
       try {
-        const [db, { collection, onSnapshot }] = await Promise.all([
-          getFirebaseDb(),
-          getFirestoreModule()
-        ]);
-        if (!isMounted) return;
-        const productsCol = collection(db, 'products');
+        const res = await fetch(`/api/products${force ? '?fresh=1' : ''}`, {
+          headers: { Accept: 'application/json' },
+          cache: force ? 'no-store' : 'default'
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            loadedProducts = sortProductsList(
+              dedupeProductsById(
+                (json.data as Product[])
+                  .filter((p) => p && !LEGACY_PRIMARY_PRODUCT_IDS.has(p.id))
+                  .map((p) =>
+                    sanitizeProductSizes({
+                      ...p,
+                      discountPrice:
+                        typeof p.discountPrice === 'number' && p.discountPrice > 0 ? p.discountPrice : undefined,
+                      discountPercent:
+                        typeof p.discountPercent === 'number' && p.discountPercent > 0 ? p.discountPercent : undefined,
+                      isArchived: Boolean(p.isArchived || p.status === 'archived')
+                    })
+                  )
+              )
+            );
+            syncedSuccessfully = true;
+          }
+        }
+      } catch {
+        // Proceed to Firestore getDocs fallback if needed
+      }
 
-        unsubscribe = onSnapshot(
-          productsCol,
-          (snapshot) => {
-            if (!isMounted) return;
-            if (snapshot.empty) {
-              if (snapshot.metadata.fromCache) return;
-              setProducts([]);
-              return;
-            }
+      // 2. Direct one-time Firestore getDocs / getDoc on manual Refresh or when API returned nothing
+      const fbUser = getCurrentFirebaseUserSync();
+      const isVerifiedAdmin =
+        fbUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' && Boolean(fbUser?.emailVerified);
 
-            const remoteProducts: Product[] = [];
-            const priceFixesToSync: Product[] = [];
-            snapshot.forEach((docSnap) => {
-              if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-              const data = docSnap.data() as Product;
-              const normalized = sanitizeProductSizes({
-                ...data,
-                id: docSnap.id,
-                discountPrice:
-                  typeof data.discountPrice === 'number' && data.discountPrice > 0 ? data.discountPrice : undefined,
-                discountPercent:
-                  typeof data.discountPercent === 'number' && data.discountPercent > 0 ? data.discountPercent : undefined,
-                isArchived: Boolean(data.isArchived || data.status === 'archived')
+      if ((force || loadedProducts.length === 0) && IS_GOOGLE_CLOUD_CONNECTED && !isClientFirestoreQuotaBackedOff()) {
+        try {
+          const [db, { collection, doc, getDoc, getDocs }] = await Promise.all([
+            getFirebaseDb(),
+            getFirestoreModule()
+          ]);
+
+          // Only hit Firestore products collection directly if manual force refresh by Admin or API failed
+          if (force || loadedProducts.length === 0) {
+            const snapshot = await withTimeout(
+              getDocs(collection(db, 'products')),
+              7000,
+              'Catalog Firestore read timed out'
+            );
+            if (!snapshot.empty) {
+              const remoteProducts: Product[] = [];
+              const priceFixesToSync: Product[] = [];
+              snapshot.forEach((docSnap) => {
+                if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
+                const data = docSnap.data() as Product;
+                const normalized = sanitizeProductSizes({
+                  ...data,
+                  id: docSnap.id,
+                  discountPrice:
+                    typeof data.discountPrice === 'number' && data.discountPrice > 0 ? data.discountPrice : undefined,
+                  discountPercent:
+                    typeof data.discountPercent === 'number' && data.discountPercent > 0 ? data.discountPercent : undefined,
+                  isArchived: Boolean(data.isArchived || data.status === 'archived')
+                });
+                remoteProducts.push(normalized);
+
+                const rawCost = typeof data.costPrice === 'number' ? data.costPrice : Number(data.costPrice);
+                if (
+                  Number.isFinite(rawCost) &&
+                  rawCost > 0 &&
+                  (data.discountPrice !== normalized.discountPrice ||
+                    data.regularPrice !== normalized.regularPrice ||
+                    data.discountPercent !== normalized.discountPercent)
+                ) {
+                  priceFixesToSync.push(normalized);
+                }
               });
-              remoteProducts.push(normalized);
 
-              const rawCost = typeof data.costPrice === 'number' ? data.costPrice : Number(data.costPrice);
-              if (
-                Number.isFinite(rawCost) &&
-                rawCost > 0 &&
-                (data.discountPrice !== normalized.discountPrice ||
-                  data.regularPrice !== normalized.regularPrice ||
-                  data.discountPercent !== normalized.discountPercent)
-              ) {
-                priceFixesToSync.push(normalized);
+              if (remoteProducts.length > 0) {
+                loadedProducts = sortProductsList(dedupeProductsById(remoteProducts));
+                syncedSuccessfully = true;
               }
-            });
 
-            remoteProducts.sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              if (typeof a.sortOrder === 'number' && typeof b.sortOrder === 'number') {
-                return a.sortOrder - b.sortOrder;
-              }
-              return 0;
-            });
-
-            setProducts(dedupeProductsById(remoteProducts));
-
-            // Silently sync any legacy Firestore docs whose price didn't match Cost + 220
-            if (priceFixesToSync.length > 0 && !autoPriceHealAttemptedRef.current) {
-              const fbUser = getCurrentFirebaseUserSync();
-              const isVerifiedAdmin =
-                fbUser?.email?.toLowerCase() === 'muhammadeyamin0@gmail.com' &&
-                Boolean(fbUser?.emailVerified);
-              if (isVerifiedAdmin) {
+              if (priceFixesToSync.length > 0 && !autoPriceHealAttemptedRef.current && isVerifiedAdmin) {
                 autoPriceHealAttemptedRef.current = true;
                 void (async () => {
                   try {
-                    const { doc, writeBatch } = await getFirestoreModule();
+                    const { writeBatch } = await getFirestoreModule();
                     for (let i = 0; i < priceFixesToSync.length; i += 400) {
                       const chunk = priceFixesToSync.slice(i, i + 400);
                       const batch = writeBatch(db);
@@ -1613,21 +1829,96 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 })();
               }
             }
-          },
-          (error) => {
-            console.warn('Admin Firestore products sync notice:', error.message);
           }
-        );
-      } catch (e) {
-        console.warn('Admin Firestore products sync init notice:', e);
+
+          // Refresh categories order one-time when forced or stale
+          if (force || !isCacheTimestampFresh(VT_CATEGORIES_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS)) {
+            const catSnap = await withTimeout(
+              getDoc(doc(db, 'settings', 'categories')),
+              5000,
+              'Categories read timed out'
+            );
+            if (catSnap.exists() && !hasLocalCategoryMutationRef.current) {
+              const data = catSnap.data() as { list?: unknown; deleted?: unknown };
+              const remoteDeleted = Array.isArray(data.deleted)
+                ? data.deleted.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean)
+                : [];
+              deletedCategoriesRef.current = remoteDeleted;
+              setDeletedCategories(remoteDeleted);
+              localStorage.setItem('vt_deleted_categories_v1', JSON.stringify(remoteDeleted));
+
+              if (Array.isArray(data.list) && data.list.length > 0) {
+                const cleanList = data.list.map((c) => String(c || '').trim()).filter(Boolean);
+                const withAll = cleanList.some((c) => c.toLowerCase() === 'all')
+                  ? cleanList
+                  : ['All', ...cleanList];
+                categoriesRef.current = withAll;
+                setCategories(withAll);
+                localStorage.setItem('vt_categories_v2', JSON.stringify(withAll));
+              }
+              stampSyncTimestamp(VT_CATEGORIES_SYNCED_AT_KEY);
+            }
+          }
+        } catch (err) {
+          if (isQuotaExceededError(err)) {
+            markClientFirestoreQuotaBackedOff();
+            warningMsg =
+              'Firebase Firestore ফ্রি ডেইলি রিড কোটা শেষ হয়েছে। বর্তমানে ক্যাশ করা প্রোডাক্ট ও ক্যাটাগরি দেখানো হচ্ছে।';
+          } else {
+            console.warn('Catalog Firestore refresh notice:', err);
+          }
+        }
+      } else if (isClientFirestoreQuotaBackedOff() && force) {
+        warningMsg =
+          'Firebase Firestore ফ্রি ডেইলি রিড কোটা সাময়িকভাবে সীমাবদ্ধ। বর্তমানে লোকাল/সার্ভার ক্যাশ দেখানো হচ্ছে।';
+      }
+
+      if (loadedProducts.length > 0) {
+        setProducts(loadedProducts);
+        const ts = stampSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY);
+        stampSyncTimestamp(VT_CATEGORIES_SYNCED_AT_KEY, ts);
+        setCatalogLastSyncedAt(ts);
+        try {
+          sessionStorage.removeItem('vt_catalog_mutated_at');
+        } catch {
+          // ignore
+        }
+      } else if (syncedSuccessfully) {
+        const ts = stampSyncTimestamp(VT_PRODUCTS_SYNCED_AT_KEY);
+        setCatalogLastSyncedAt(ts);
+      }
+
+      setCatalogSyncWarning(warningMsg);
+      setIsCatalogSyncing(false);
+      return {
+        success: loadedProducts.length > 0 || syncedSuccessfully,
+        count: loadedProducts.length > 0 ? loadedProducts.length : productsRef.current.length,
+        message: warningMsg || undefined
+      };
+    },
+    []
+  );
+
+  // Scoped Admin Catalog Sync on Mount: Only fetches when cache is empty, mutated, or > 20-min TTL stale
+  useEffect(() => {
+    if (currentPage !== 'admin' || isSearchCrawler()) return;
+    const hasRecentMutation = (() => {
+      try {
+        const ts = Number(sessionStorage.getItem('vt_catalog_mutated_at') || 0);
+        return ts > 0 && Date.now() - ts < 5 * 60 * 1000;
+      } catch {
+        return false;
       }
     })();
+    const isFresh =
+      productsRef.current.length > 0 &&
+      isCacheTimestampFresh(VT_PRODUCTS_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS) &&
+      isCacheTimestampFresh(VT_CATEGORIES_SYNCED_AT_KEY, CATALOG_CACHE_TTL_MS);
 
-    return () => {
-      isMounted = false;
-      if (unsubscribe) unsubscribe();
-    };
-  }, [currentPage]);
+    if (!isFresh || hasRecentMutation) {
+      void refreshCatalog(hasRecentMutation);
+    }
+  }, [currentPage, refreshCatalog]);
 
   // Automatic Background WebP Upgrade (App & Admin Load):
   // Checks stored/database banners, logo, and products for any non-WebP images and converts them via Browser Canvas.
@@ -1970,11 +2261,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const refreshOrders = useCallback(
-    async (force = false): Promise<{ success: boolean; count: number; message?: string }> => {
+    async (
+      force = false,
+      options?: { limit?: number; sinceDays?: number | 'all'; status?: string }
+    ): Promise<{ success: boolean; count: number; message?: string; hasMore?: boolean }> => {
+      const targetLimit = Math.min(300, Math.max(10, options?.limit ?? ordersFetchLimit));
+      const targetSinceDays = options?.sinceDays ?? ordersDateRangeDays;
+      const targetStatus = options?.status;
+
+      const cacheIsFresh =
+        ordersRef.current.length > 0 &&
+        isCacheTimestampFresh(VT_ORDERS_SYNCED_AT_KEY, ORDERS_CACHE_TTL_MS) &&
+        !options;
+
+      if (!force && cacheIsFresh) {
+        return {
+          success: true,
+          count: ordersRef.current.length,
+          hasMore: ordersHasMore
+        };
+      }
+
       setIsOrdersSyncing(true);
       let combinedIncoming: Order[] = [];
       let warningMsg: string | null = null;
       let serverCount = 0;
+      let serverHasMore = false;
+      let serverSyncedAt: string | null = null;
 
       try {
         const headers = await getAdminAuthHeaders();
@@ -1982,7 +2295,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           warningMsg =
             'Google Admin (muhammadeyamin0@gmail.com) সেশন কানেক্টেড না থাকায় ক্লাউড অর্ডার সিঙ্ক করা যায়নি।';
         } else {
-          const res = await fetch(`/api/orders${force ? '?force=1' : ''}`, {
+          const qs = new URLSearchParams();
+          qs.set('limit', String(targetLimit));
+          if (force) qs.set('force', '1');
+          if (typeof targetSinceDays === 'number' && targetSinceDays > 0) {
+            qs.set('sinceDays', String(targetSinceDays));
+          }
+          if (targetStatus && targetStatus !== 'All') {
+            qs.set('status', targetStatus);
+          }
+          const res = await fetch(`/api/orders?${qs.toString()}`, {
             headers,
             cache: 'no-store'
           });
@@ -1992,6 +2314,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               warningMsg =
                 'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। বর্তমানে ক্যাশ ও সার্ভারের অর্ডার দেখানো হচ্ছে।';
             }
+            if (typeof json.hasMore === 'boolean') {
+              serverHasMore = json.hasMore;
+            }
+            if (typeof json.lastSyncedAt === 'string') {
+              serverSyncedAt = json.lastSyncedAt;
+            }
             if (json.success && Array.isArray(json.data)) {
               combinedIncoming = [...combinedIncoming, ...(json.data as Order[])];
               serverCount = json.data.length;
@@ -1999,10 +2327,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       } catch {
-        // Fallback to direct Firestore read below
+        // Fallback to bounded direct Firestore read below
       }
 
-      if (force && IS_GOOGLE_CLOUD_CONNECTED) {
+      let firestoreHasMore = false;
+      if (force && IS_GOOGLE_CLOUD_CONNECTED && !isClientFirestoreQuotaBackedOff()) {
         try {
           const fbAuth = await getFirebaseAuth();
           if (typeof (fbAuth as { authStateReady?: () => Promise<void> }).authStateReady === 'function') {
@@ -2010,41 +2339,70 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
           const activeEmail = fbAuth.currentUser?.email?.trim().toLowerCase();
           if (activeEmail === 'muhammadeyamin0@gmail.com' && fbAuth.currentUser?.emailVerified) {
-            const [db, { collection, getDocs }] = await Promise.all([
+            const [db, { collection, getDocs, limit: fsLimit, orderBy, query, where }] = await Promise.all([
               getFirebaseDb(),
               getFirestoreModule()
             ]);
-            const snap = await getDocs(collection(db, 'orders'));
+            // Use single-field createdAt index only (no firestore.indexes.json composite queries)
+            const constraints: unknown[] = [];
+            if (typeof targetSinceDays === 'number' && targetSinceDays > 0) {
+              const cutoffIso = new Date(Date.now() - targetSinceDays * 24 * 60 * 60 * 1000).toISOString();
+              constraints.push(where('createdAt', '>=', cutoffIso));
+            }
+            constraints.push(orderBy('createdAt', 'desc'));
+            constraints.push(fsLimit(targetLimit));
+
+            const boundedQuery = query(collection(db, 'orders'), ...(constraints as never[]));
+            const snap = await withTimeout(getDocs(boundedQuery), 7000, 'Firestore orders read timed out');
             const firestoreList: Order[] = [];
             snap.forEach((docSnap) => {
               firestoreList.push({ ...(docSnap.data() as Order), id: docSnap.id });
             });
+            firestoreHasMore = snap.size >= targetLimit;
             combinedIncoming = [...combinedIncoming, ...firestoreList];
           }
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes('Quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+          if (isQuotaExceededError(err)) {
+            markClientFirestoreQuotaBackedOff();
             warningMsg =
-              'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। অনুগ্রহ করে কোটা রিসেট হওয়া পর্যন্ত অপেক্ষা করুন অথবা Blaze প্ল্যান আপগ্রেড করুন।';
+              'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। অনুগ্রহ করে কোটা রিসেট হওয়া পর্যন্ত অপেক্ষা করুন; আপনার লোকাল ও ক্যাশ অর্ডার সুরক্ষিত আছে।';
           }
         }
+      } else if (force && isClientFirestoreQuotaBackedOff() && !warningMsg) {
+        warningMsg =
+          'Firebase Firestore ফ্রি রিড কোটা সাময়িকভাবে সীমাবদ্ধ। বর্তমানে লোকাল ও সার্ভার ক্যাশ অর্ডার দেখানো হচ্ছে।';
       }
 
       if (combinedIncoming.length > 0) {
         setOrders((prev) => mergeOrderCollections(prev, combinedIncoming));
+        const syncedIso = stampSyncTimestamp(VT_ORDERS_SYNCED_AT_KEY, serverSyncedAt || undefined);
+        setOrdersLastSyncedAt(syncedIso);
+      } else if (!warningMsg) {
+        const syncedIso = stampSyncTimestamp(VT_ORDERS_SYNCED_AT_KEY, serverSyncedAt || undefined);
+        setOrdersLastSyncedAt(syncedIso);
       }
+
+      const finalHasMore = Boolean(serverHasMore || firestoreHasMore);
+      setOrdersHasMore(finalHasMore);
       setOrdersSyncWarning(warningMsg);
       setIsOrdersSyncing(false);
       return {
         success: combinedIncoming.length > 0 || !warningMsg,
-        count: Math.max(serverCount, combinedIncoming.length),
+        count: Math.max(serverCount, combinedIncoming.length, ordersRef.current.length),
+        hasMore: finalHasMore,
         message: warningMsg || undefined
       };
     },
-    [getAdminAuthHeaders, mergeOrderCollections]
+    [getAdminAuthHeaders, mergeOrderCollections, ordersDateRangeDays, ordersFetchLimit, ordersHasMore]
   );
 
-  // Scoped Orders Synchronization: Full list only inside authenticated Admin Dashboard
+  const loadMoreOrders = useCallback(async (): Promise<{ success: boolean; count: number; message?: string }> => {
+    const nextLimit = Math.min(300, ordersFetchLimit + 50);
+    setOrdersFetchLimit(nextLimit);
+    return refreshOrders(true, { limit: nextLimit, sinceDays: ordersDateRangeDays });
+  }, [ordersDateRangeDays, ordersFetchLimit, refreshOrders]);
+
+  // Scoped Orders Synchronization on Admin Mount: Replaces continuous onSnapshot & 20s setInterval polling
   useEffect(() => {
     if (currentPage !== 'admin' || isSearchCrawler()) return;
     const isVerifiedSuperAdminEmail =
@@ -2054,129 +2412,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    let isMounted = true;
-    let lastServerSig = '';
-    let lastFirestoreSig = '';
+    const hasValidCachedOrders =
+      ordersRef.current.length > 0 && isCacheTimestampFresh(VT_ORDERS_SYNCED_AT_KEY, ORDERS_CACHE_TTL_MS);
 
-    const buildSig = (list: Order[]) =>
-      list
-        .map(
-          (o) =>
-            `${o.id}:${o.orderStatus}:${o.paymentStatus}:${o.total}:${o.trackingNumber || ''}:${o.courierTrackingCode || ''}:${o.courierName || ''}:${o.currentLocationNote || ''}:${(o.statusHistory || []).length}`
-        )
-        .join('|');
-
-    const syncOrdersWithServer = async () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      try {
-        const headers = await getAdminAuthHeaders();
-        if (!headers.Authorization) {
-          if (isMounted && firebaseAuthLoaded && !isFirebaseAdminAuthenticated) {
-            setOrdersSyncWarning(
-              'Google Admin (muhammadeyamin0@gmail.com) সেশন কানেক্টেড নেই। অর্ডার সিঙ্ক করতে উপরে বাটনে ক্লিক করে Google Admin কানেক্ট করুন।'
-            );
-          }
-          return;
-        }
-        const res = await fetch('/api/orders', { headers, cache: 'no-store' });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!isMounted) return;
-
-        if (json.quotaExceeded) {
-          setOrdersSyncWarning(
-            'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। বর্তমানে সার্ভার ক্যাশ ও লোকাল অর্ডার দেখানো হচ্ছে।'
-          );
-        } else {
-          setOrdersSyncWarning(null);
-        }
-
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const sorted = (json.data as Order[]).sort(
-            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-          );
-          const nextSig = buildSig(sorted);
-          if (nextSig !== lastServerSig) {
-            lastServerSig = nextSig;
-            setOrders((prev) => mergeOrderCollections(prev, sorted));
-          }
-        }
-      } catch {
-        // Fallback gracefully
-      }
-    };
-
-    void syncOrdersWithServer();
-    const interval = setInterval(syncOrdersWithServer, 20000);
-
-    // Real-time orders stream is scoped strictly to Firebase-verified Admin Dashboard
-    let firestoreUnsub: (() => void) | undefined;
-    if (IS_GOOGLE_CLOUD_CONNECTED && isFirebaseAdminAuthenticated) {
-      (async () => {
-        try {
-          const [db, { collection, onSnapshot }] = await Promise.all([
-            getFirebaseDb(),
-            getFirestoreModule()
-          ]);
-          if (!isMounted) return;
-          const ordersCol = collection(db, 'orders');
-          firestoreUnsub = onSnapshot(
-            ordersCol,
-            (snapshot) => {
-              if (!isMounted) return;
-              if (snapshot.empty) return;
-              const remoteOrders: Order[] = [];
-              snapshot.forEach((docSnap) => {
-                const remote = docSnap.data() as Order;
-                remoteOrders.push({ ...remote, id: docSnap.id });
-              });
-              remoteOrders.sort(
-                (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-              );
-              const nextSig = buildSig(remoteOrders);
-              if (nextSig !== lastFirestoreSig) {
-                lastFirestoreSig = nextSig;
-                setOrdersSyncWarning(null);
-                setOrders((prev) => mergeOrderCollections(prev, remoteOrders));
-              }
-            },
-            (error) => {
-              console.warn('Firestore orders onSnapshot notice:', error.message);
-              if (!isMounted) return;
-              if (
-                error.message.includes('Quota') ||
-                error.message.includes('RESOURCE_EXHAUSTED') ||
-                error.code === 'resource-exhausted'
-              ) {
-                setOrdersSyncWarning(
-                  'Firebase Firestore-এর ফ্রি ডেইলি রিড লিমিট শেষ হয়েছে। সার্ভার থেকে অর্ডার দেখানো হচ্ছে।'
-                );
-              } else if (error.code === 'permission-denied') {
-                setOrdersSyncWarning(
-                  'Firestore অর্ডার পড়ার অনুমতি পাওয়া যায়নি। Google Admin (muhammadeyamin0@gmail.com) রি-কানেক্ট করুন।'
-                );
-              }
-            }
-          );
-        } catch (e) {
-          console.warn('Firestore orders sync notice:', e);
-        }
-      })();
+    if (!hasValidCachedOrders) {
+      void refreshOrders(false, { limit: ordersFetchLimit, sinceDays: ordersDateRangeDays });
     }
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-      if (firestoreUnsub) firestoreUnsub();
-    };
   }, [
     currentPage,
     currentUser?.email,
     currentUser?.emailVerified,
     isFirebaseAdminAuthenticated,
-    firebaseAuthLoaded,
-    getAdminAuthHeaders,
-    mergeOrderCollections
+    ordersDateRangeDays,
+    ordersFetchLimit,
+    refreshOrders
   ]);
 
   // Listen to Firebase Auth state changes lazily (deferred on public storefront unless prior session or auth route)
@@ -2302,9 +2551,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [currentPage]);
 
-  // Real-time Firestore Wishlist Sync for authenticated / logged-in user (human sessions only)
+  // One-time TTL-guarded Firestore Wishlist Sync for authenticated user (replaces live onSnapshot)
   useEffect(() => {
-    if (!IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler()) return;
+    if (!IS_GOOGLE_CLOUD_CONNECTED || isSearchCrawler() || isClientFirestoreQuotaBackedOff()) return;
     let hasSessionFlag = false;
     try {
       hasSessionFlag = localStorage.getItem('vt_has_fb_session') === '1';
@@ -2315,41 +2564,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!syncUid && !hasSessionFlag) return;
 
     let mounted = true;
-    let unsubscribe: (() => void) | undefined;
-
     (async () => {
       try {
         const fbAuth = await getFirebaseAuth();
         const firebaseUid = fbAuth.currentUser?.uid;
         if (!mounted || !firebaseUid) return;
 
-        const [db, { collection, onSnapshot }] = await Promise.all([
+        const wishlistSyncKey = `vt_wishlist_last_synced_at_${firebaseUid}`;
+        if (isCacheTimestampFresh(wishlistSyncKey, WISHLIST_CACHE_TTL_MS)) {
+          return;
+        }
+
+        const [db, { collection, getDocs }] = await Promise.all([
           getFirebaseDb(),
           getFirestoreModule()
         ]);
         if (!mounted) return;
 
         const wishlistCol = collection(db, 'users', firebaseUid, 'wishlist');
-        unsubscribe = onSnapshot(
-          wishlistCol,
-          (snapshot) => {
-            const itemIds = snapshot.docs.map((d) => d.id);
-            if (itemIds.length > 0 || !snapshot.metadata.fromCache) {
-              setWishlist(itemIds);
-            }
-          },
-          (error) => {
-            console.warn('Firestore wishlist sync notice:', error.message);
-          }
-        );
+        const snapshot = await withTimeout(getDocs(wishlistCol), 5000, 'Wishlist read timed out');
+        if (!mounted) return;
+        const itemIds = snapshot.docs.map((d) => d.id);
+        if (itemIds.length > 0 || !snapshot.metadata.fromCache) {
+          setWishlist(itemIds);
+        }
+        stampSyncTimestamp(wishlistSyncKey);
       } catch (e) {
-        console.warn('Firestore wishlist sync init notice:', e);
+        if (isQuotaExceededError(e)) {
+          markClientFirestoreQuotaBackedOff();
+        }
+        console.warn('Firestore wishlist sync notice:', e);
       }
     })();
 
     return () => {
       mounted = false;
-      if (unsubscribe) unsubscribe();
     };
   }, [currentUser?.id]);
 
@@ -5734,6 +5983,10 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         calculateDeliveryFee,
         products,
         isProductsLoading,
+        isCatalogSyncing,
+        catalogLastSyncedAt,
+        catalogSyncWarning,
+        refreshCatalog,
         activeProducts,
         archivedProducts,
         addProduct,
@@ -5766,7 +6019,13 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
         orders,
         isOrdersSyncing,
         ordersSyncWarning,
+        ordersLastSyncedAt,
+        ordersHasMore,
+        ordersFetchLimit,
+        ordersDateRangeDays,
+        setOrdersDateRangeDays,
         refreshOrders,
+        loadMoreOrders,
         lastPlacedOrder,
         placeOrder,
         updateOrderStatus,
