@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useStore, PageRoute } from '../context/StoreContext';
 import { VANTREL_CANONICAL_ORIGIN, toCanonicalSeoImageUrl } from '../utils/imageProxy';
 import {
@@ -58,90 +58,119 @@ export const DynamicMetaTags: React.FC = () => {
     settings
   } = useStore();
 
-  // 1. Parse incoming URL (/product/:slug, /category/:slug, /shop, or ?product= / ?page= / ?category=) on mount & product load
+  const hasParsedInitialUrlRef = useRef(false);
+  const pendingInitialProductParamRef = useRef<string | null>(null);
+  const suppressSyncOnceRef = useRef(false);
+
+  // 1. Parse incoming URL (/product/:slug, /category/:slug, /shop, or ?product= / ?page= / ?category=) once on initial load
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const params = new URLSearchParams(window.location.search);
-      const pathParts = window.location.pathname.split('/').filter(Boolean);
-      const firstSeg = (pathParts[0] || '').toLowerCase();
-      const secondSeg = pathParts[1] ? decodeURIComponent(pathParts[1]) : null;
+      if (!hasParsedInitialUrlRef.current) {
+        hasParsedInitialUrlRef.current = true;
+        const params = new URLSearchParams(window.location.search);
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const firstSeg = (pathParts[0] || '').toLowerCase();
+        const secondSeg = pathParts[1] ? decodeURIComponent(pathParts[1]) : null;
 
-      const prodParam =
-        (firstSeg === 'product' && secondSeg) ||
-        params.get('product') ||
-        params.get('productId') ||
-        (params.get('page') === 'product' ? params.get('id') : null);
+        const prodParam =
+          (firstSeg === 'product' && secondSeg) ||
+          params.get('product') ||
+          params.get('productId') ||
+          (params.get('page') === 'product' ? params.get('id') : null);
 
-      if (prodParam && products.length > 0) {
-        const found = findProductByUrlParam(prodParam, products);
-        if (found) {
-          if (selectedProductId !== found.id || currentPage !== 'product-detail') {
-            openProductDetail(found.id);
+        if (prodParam) {
+          if (products.length > 0) {
+            const found = findProductByUrlParam(prodParam, products);
+            if (found) {
+              suppressSyncOnceRef.current = true;
+              openProductDetail(found.id);
+              return;
+            }
+          } else {
+            pendingInitialProductParamRef.current = prodParam;
+            suppressSyncOnceRef.current = true;
+            return;
           }
+        }
+
+        if (firstSeg === 'category' && secondSeg) {
+          const matchedCat = findCategoryBySlug(secondSeg, categories) || secondSeg;
+          suppressSyncOnceRef.current = true;
+          setSelectedCategory(matchedCat);
+          setCurrentPage('shop');
           return;
         }
-      }
 
-      if (firstSeg === 'category' && secondSeg) {
-        const matchedCat = findCategoryBySlug(secondSeg, categories) || secondSeg;
-        setSelectedCategory(matchedCat);
-        setCurrentPage('shop');
+        const categoryQuery = params.get('category');
+        if (categoryQuery) {
+          suppressSyncOnceRef.current = true;
+          setSelectedCategory(categoryQuery);
+          setCurrentPage('shop');
+          return;
+        }
+
+        const pathRouteMap: Record<string, PageRoute> = {
+          shop: 'shop',
+          products: 'shop',
+          cart: 'cart',
+          checkout: 'checkout',
+          confirmation: 'confirmation',
+          track: 'tracking',
+          tracking: 'tracking',
+          account: 'account',
+          compare: 'compare',
+          admin: 'admin',
+          about: 'about',
+          contact: 'contact',
+          faqs: 'faqs',
+          'size-guide': 'size-guide',
+          'shipping-policy': 'shipping-policy',
+          'return-policy': 'return-policy',
+          'privacy-policy': 'privacy-policy',
+          terms: 'terms'
+        };
+
+        const routeFromPath = pathRouteMap[firstSeg];
+        const pageParam = (routeFromPath || params.get('page')) as PageRoute | null;
+
+        if (pageParam && pageParam !== 'home') {
+          const validPages: PageRoute[] = [
+            'shop',
+            'cart',
+            'checkout',
+            'confirmation',
+            'tracking',
+            'account',
+            'compare',
+            'admin',
+            'about',
+            'contact',
+            'faqs',
+            'size-guide',
+            'shipping-policy',
+            'return-policy',
+            'privacy-policy',
+            'terms'
+          ];
+          if (validPages.includes(pageParam)) {
+            suppressSyncOnceRef.current = true;
+            setCurrentPage(pageParam);
+          }
+        }
         return;
       }
 
-      const categoryQuery = params.get('category');
-      if (categoryQuery) {
-        setSelectedCategory(categoryQuery);
-        setCurrentPage('shop');
-        return;
-      }
-
-      const pathRouteMap: Record<string, PageRoute> = {
-        shop: 'shop',
-        products: 'shop',
-        cart: 'cart',
-        checkout: 'checkout',
-        confirmation: 'confirmation',
-        track: 'tracking',
-        tracking: 'tracking',
-        account: 'account',
-        compare: 'compare',
-        admin: 'admin',
-        about: 'about',
-        contact: 'contact',
-        faqs: 'faqs',
-        'size-guide': 'size-guide',
-        'shipping-policy': 'shipping-policy',
-        'return-policy': 'return-policy',
-        'privacy-policy': 'privacy-policy',
-        terms: 'terms'
-      };
-
-      const routeFromPath = pathRouteMap[firstSeg];
-      const pageParam = (routeFromPath || params.get('page')) as PageRoute | null;
-
-      if (pageParam && pageParam !== 'home') {
-        const validPages: PageRoute[] = [
-          'shop',
-          'cart',
-          'checkout',
-          'confirmation',
-          'tracking',
-          'account',
-          'compare',
-          'admin',
-          'about',
-          'contact',
-          'faqs',
-          'size-guide',
-          'shipping-policy',
-          'return-policy',
-          'privacy-policy',
-          'terms'
-        ];
-        if (validPages.includes(pageParam)) {
-          setCurrentPage(pageParam);
+      // Resolve deferred /product/:slug only if still waiting for initial catalog hydration on initial home state
+      if (pendingInitialProductParamRef.current && products.length > 0) {
+        const pendingParam = pendingInitialProductParamRef.current;
+        pendingInitialProductParamRef.current = null;
+        if (currentPage === 'home') {
+          const found = findProductByUrlParam(pendingParam, products);
+          if (found) {
+            suppressSyncOnceRef.current = true;
+            openProductDetail(found.id);
+          }
         }
       }
     } catch (e) {
@@ -149,9 +178,14 @@ export const DynamicMetaTags: React.FC = () => {
     }
   }, [products]);
 
-  // 2. Synchronize clean SEO-friendly path URLs with active SPA navigation without page reload
+  // 2. Synchronize clean SEO-friendly path URLs & fire SPA PageView once per unique route
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (suppressSyncOnceRef.current) {
+      suppressSyncOnceRef.current = false;
+      return;
+    }
+
     try {
       const url = new URL(window.location.href);
       let nextPath = '/';
@@ -189,7 +223,24 @@ export const DynamicMetaTags: React.FC = () => {
     } catch (e) {
       console.warn('URL sync note:', e);
     }
-  }, [currentPage, selectedProductId, selectedCategory, products]);
+
+    const pixelEnabled = settings.isMetaPixelEnabled ?? true;
+    ensureMetaPixelLoaded(settings.metaPixelId, pixelEnabled);
+    const pixelRouteKey =
+      currentPage === 'product-detail'
+        ? `product-detail:${selectedProductId || ''}`
+        : currentPage === 'shop'
+          ? `shop:${selectedCategory || 'All'}`
+          : currentPage;
+    trackMetaPageView(pixelRouteKey, settings.metaPixelId, pixelEnabled);
+  }, [
+    currentPage,
+    selectedProductId,
+    selectedCategory,
+    products,
+    settings.metaPixelId,
+    settings.isMetaPixelEnabled
+  ]);
 
   // 3. Dynamically update <title>, description, robots, canonical, OG, Twitter & Schema JSON-LD
   useEffect(() => {
@@ -693,17 +744,6 @@ export const DynamicMetaTags: React.FC = () => {
     settings.deliveryFeeInsideDhaka,
     settings.deliveryFeeOutsideDhaka
   ]);
-
-  // 4. Synchronize Meta Pixel initialization and fire SPA PageView events
-  useEffect(() => {
-    const pixelEnabled = settings.isMetaPixelEnabled ?? true;
-    ensureMetaPixelLoaded(settings.metaPixelId, pixelEnabled);
-    trackMetaPageView(
-      `${currentPage}:${selectedProductId || ''}:${selectedCategory || ''}`,
-      settings.metaPixelId,
-      pixelEnabled
-    );
-  }, [currentPage, selectedProductId, selectedCategory, settings.metaPixelId, settings.isMetaPixelEnabled]);
 
   return null;
 };

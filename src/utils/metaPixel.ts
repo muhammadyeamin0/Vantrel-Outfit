@@ -11,12 +11,14 @@ declare global {
       loaded?: boolean;
       version?: string;
       push?: (...args: unknown[]) => void;
+      disablePushState?: boolean;
     };
     _fbq?: unknown;
     __vantrelInitializedPixelId?: string;
     __vantrelLoadMetaPixel?: () => void;
     __vantrelInitialPathname?: string;
     __vantrelPageViewBootstrappedAt?: number;
+    __vantrelInitialPageViewTracked?: boolean;
   }
 }
 
@@ -28,8 +30,17 @@ export function sanitizeMetaPixelId(rawId?: string): string {
 const firedViewContentKeys = new Set<string>();
 const firedCheckoutKeys = new Set<string>();
 const firedPurchaseOrderNumbers = new Set<string>();
+let hasConsumedInitialPageView = false;
 let lastTrackedRouteKey = '';
 let lastTrackedPathname = '';
+
+function normalizePixelPath(pathname: string): string {
+  const clean = String(pathname || '/').trim() || '/';
+  if (clean.length > 1 && clean.endsWith('/')) {
+    return clean.slice(0, -1);
+  }
+  return clean;
+}
 
 function roundBdt(value: unknown): number {
   const n = Number(value);
@@ -62,6 +73,8 @@ export function ensureMetaPixelLoaded(pixelId?: string, enabled: boolean = true)
   }
 
   if (typeof window.fbq === 'function') {
+    // Prevent Meta's fbevents.js from auto-firing PageView on History pushState/replaceState
+    window.fbq.disablePushState = true;
     if (window.__vantrelInitializedPixelId !== cleanId) {
       window.fbq('init', cleanId);
       window.__vantrelInitializedPixelId = cleanId;
@@ -73,26 +86,40 @@ export function ensureMetaPixelLoaded(pixelId?: string, enabled: boolean = true)
 
 export function trackMetaPageView(routeKey: string, pixelId?: string, enabled: boolean = true): void {
   if (!ensureMetaPixelLoaded(pixelId, enabled)) return;
-  if (!routeKey) return;
+  const cleanRouteKey = String(routeKey || '').trim();
+  if (!cleanRouteKey) return;
 
-  const currentPathname = typeof window !== 'undefined' ? window.location.pathname || '/' : '/';
-  const initialPathname = typeof window !== 'undefined' ? window.__vantrelInitialPathname || '/' : '/';
-  const bootstrappedAt = typeof window !== 'undefined' ? Number(window.__vantrelPageViewBootstrappedAt || 0) : 0;
-  const isInitialHydration =
-    !lastTrackedRouteKey ||
-    (bootstrappedAt > 0 && Date.now() - bootstrappedAt < 2500 && currentPathname === initialPathname && !lastTrackedPathname);
+  const currentPathname = normalizePixelPath(
+    typeof window !== 'undefined' ? window.location.pathname || '/' : '/'
+  );
+  const initialPathname = normalizePixelPath(
+    typeof window !== 'undefined' ? window.__vantrelInitialPathname || '/' : '/'
+  );
+  const bootstrappedAt =
+    typeof window !== 'undefined' ? Number(window.__vantrelPageViewBootstrappedAt || 0) : 0;
 
   // Avoid double-firing PageView during initial React/URL hydration (index.html already fired the initial PageView)
-  if (isInitialHydration) {
-    lastTrackedRouteKey = routeKey;
-    if (currentPathname === initialPathname) {
+  if (!hasConsumedInitialPageView) {
+    hasConsumedInitialPageView = true;
+    if (
+      window.__vantrelInitialPageViewTracked &&
+      (currentPathname === initialPathname ||
+        (bootstrappedAt > 0 && Date.now() - bootstrappedAt < 2500))
+    ) {
+      lastTrackedRouteKey = cleanRouteKey;
       lastTrackedPathname = currentPathname;
+      return;
     }
+  }
+
+  // Deduplicate by both canonical route key and URL pathname so re-renders or unrelated state changes never double-fire
+  if (cleanRouteKey === lastTrackedRouteKey || currentPathname === lastTrackedPathname) {
+    lastTrackedRouteKey = cleanRouteKey;
+    lastTrackedPathname = currentPathname;
     return;
   }
 
-  if (lastTrackedRouteKey === routeKey && lastTrackedPathname === currentPathname) return;
-  lastTrackedRouteKey = routeKey;
+  lastTrackedRouteKey = cleanRouteKey;
   lastTrackedPathname = currentPathname;
 
   window.fbq?.('track', 'PageView');

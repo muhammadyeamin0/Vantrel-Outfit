@@ -8,8 +8,6 @@ import compression from 'compression';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import {
   VANTREL_CANONICAL_ORIGIN,
   normalizeThirdPartyImageUrl,
@@ -132,43 +130,118 @@ function loadProductsFromDisk() {
 }
 loadProductsFromDisk();
 
-async function syncProductsFromFirestore() {
-  try {
-    const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
-    if (!fs.existsSync(configPath)) return;
-    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    const firestoreDb = firebaseConfig.firestoreDatabaseId
-      ? getFirestore(fbApp, firebaseConfig.firestoreDatabaseId)
-      : getFirestore(fbApp);
+let firestoreQuotaBackoffUntil = 0;
 
-    const [snapshot, storeSettingsSnap] = await Promise.all([
-      getDocs(collection(firestoreDb, 'products')),
-      getDoc(doc(firestoreDb, 'settings', 'store')).catch(() => null)
-    ]);
-    if (storeSettingsSnap && storeSettingsSnap.exists()) {
-      const sData = storeSettingsSnap.data() as Record<string, unknown>;
-      if (sData?.outOfStockDefaultBehavior === 'hide' || sData?.outOfStockDefaultBehavior === 'show') {
-        settings.outOfStockDefaultBehavior = sData.outOfStockDefaultBehavior;
+function decodeFirestoreRestValue(val: unknown): unknown {
+  if (!val || typeof val !== 'object') return undefined;
+  const v = val as Record<string, unknown>;
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return Boolean(v.booleanValue);
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('stringValue' in v) return String(v.stringValue);
+  if ('timestampValue' in v) return String(v.timestampValue);
+  if ('arrayValue' in v) {
+    const arr = (v.arrayValue as { values?: unknown[] } | undefined)?.values;
+    return Array.isArray(arr) ? arr.map((item) => decodeFirestoreRestValue(item)) : [];
+  }
+  if ('mapValue' in v) {
+    const fields = (v.mapValue as { fields?: Record<string, unknown> } | undefined)?.fields;
+    return decodeFirestoreRestFields(fields);
+  }
+  return undefined;
+}
+
+function decodeFirestoreRestFields(fields: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!fields || typeof fields !== 'object') return out;
+  for (const [key, value] of Object.entries(fields)) {
+    const decoded = decodeFirestoreRestValue(value);
+    if (decoded !== undefined) out[key] = decoded;
+  }
+  return out;
+}
+
+async function syncProductsFromFirestore(isStartup: boolean = false) {
+  try {
+    if (Date.now() < firestoreQuotaBackoffUntil) return;
+
+    // On startup, reuse recent disk cache (< 60 mins old) so rapid restarts never burn Firestore daily read quota
+    if (isStartup && products.length > 0 && fs.existsSync(PRODUCTS_PERSIST_FILE)) {
+      const stats = fs.statSync(PRODUCTS_PERSIST_FILE);
+      if (Date.now() - stats.mtimeMs < 60 * 60 * 1000) {
+        return;
       }
     }
+
+    const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
+    if (!fs.existsSync(configPath)) return;
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+      projectId?: string;
+      apiKey?: string;
+      firestoreDatabaseId?: string;
+    };
+    const projectId = firebaseConfig.projectId;
+    const apiKey = firebaseConfig.apiKey;
+    const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+    if (!projectId || !apiKey) return;
+
+    const baseDocUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(dbId)}/documents`;
+
     const remoteProducts: Product[] = [];
-    snapshot.forEach((docSnap) => {
-      if (LEGACY_PRIMARY_PRODUCT_IDS.has(docSnap.id)) return;
-      const data = docSnap.data() as Product;
-      remoteProducts.push(
-        applyServerCostMarkup({
-          ...data,
-          id: docSnap.id,
-          discountPrice:
-            typeof data.discountPrice === 'number' && data.discountPrice > 0 ? data.discountPrice : undefined,
-          discountPercent:
-            typeof data.discountPercent === 'number' && data.discountPercent > 0 ? data.discountPercent : undefined,
-          images: rewriteProductImagesToProxy(data.images),
-          isArchived: Boolean(data.isArchived || data.status === 'archived')
-        })
-      );
-    });
+    let pageToken = '';
+    do {
+      const productsUrl = `${baseDocUrl}/products?pageSize=300&key=${encodeURIComponent(apiKey)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+      const res = await fetch(productsUrl, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.includes('Quota limit exceeded')) {
+          firestoreQuotaBackoffUntil = Date.now() + 6 * 60 * 60 * 1000;
+          console.warn('[VANTREL ENGINE] Firestore read quota reached; using persisted disk cache for the next 6 hours.');
+          return;
+        }
+        throw new Error(`Firestore REST HTTP ${res.status}`);
+      }
+
+      const payload = (await res.json()) as {
+        documents?: Array<{ name?: string; fields?: Record<string, unknown> }>;
+        nextPageToken?: string;
+      };
+      const docs = Array.isArray(payload.documents) ? payload.documents : [];
+      for (const docItem of docs) {
+        const docId = String(docItem.name || '').split('/').pop() || '';
+        if (!docId || LEGACY_PRIMARY_PRODUCT_IDS.has(docId)) continue;
+        const data = decodeFirestoreRestFields(docItem.fields) as unknown as Product;
+        remoteProducts.push(
+          applyServerCostMarkup({
+            ...data,
+            id: docId,
+            discountPrice:
+              typeof data.discountPrice === 'number' && data.discountPrice > 0 ? data.discountPrice : undefined,
+            discountPercent:
+              typeof data.discountPercent === 'number' && data.discountPercent > 0 ? data.discountPercent : undefined,
+            images: rewriteProductImagesToProxy(data.images),
+            isArchived: Boolean(data.isArchived || data.status === 'archived')
+          })
+        );
+      }
+      pageToken = payload.nextPageToken || '';
+    } while (pageToken);
+
+    try {
+      const settingsRes = await fetch(`${baseDocUrl}/settings/store?key=${encodeURIComponent(apiKey)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (settingsRes.ok) {
+        const settingsDoc = (await settingsRes.json()) as { fields?: Record<string, unknown> };
+        const sData = decodeFirestoreRestFields(settingsDoc.fields);
+        if (sData?.outOfStockDefaultBehavior === 'hide' || sData?.outOfStockDefaultBehavior === 'show') {
+          settings.outOfStockDefaultBehavior = sData.outOfStockDefaultBehavior;
+        }
+      }
+    } catch {
+      // Optional store setting check failure should not block product sync
+    }
 
     remoteProducts.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -3273,11 +3346,11 @@ app.get('*', (req: Request, res: Response, next) => {
 // VITE DEV SERVER OR PRODUCTION SERVING
 // ==========================================
 async function startServer() {
-  // Hydrate latest Admin products from Firebase Firestore asynchronously so HTTP server listens immediately
-  void syncProductsFromFirestore().catch(() => {});
+  // Hydrate latest Admin products from Firebase Firestore asynchronously (skipping if fresh disk cache exists)
+  void syncProductsFromFirestore(true).catch(() => {});
   setInterval(() => {
-    syncProductsFromFirestore().catch(() => {});
-  }, 5 * 60 * 1000);
+    syncProductsFromFirestore(false).catch(() => {});
+  }, 60 * 60 * 1000);
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');

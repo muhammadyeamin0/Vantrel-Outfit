@@ -66,7 +66,7 @@
       var isBot=/bot|crawler|spider|crawling|googlebot|google-inspectiontool|googleother|google-read-aloud|duplexweb-google|adsbot-google|storebot-google|mediapartners-google|bingbot|applebot|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|lighthouse|chrome-lighthouse|pagespeed|gtmetrix|headlesschrome|ptst/i.test(ua)||Boolean(typeof navigator!=='undefined'&&navigator.webdriver);
       if(f.fbq)return;
       n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];n.disablePushState=!0;
       f.__vantrelInitialPathname=(f.location&&f.location.pathname)||'/';
       f.__vantrelPageViewBootstrappedAt=Date.now();
       if(isBot)return;
@@ -79,6 +79,7 @@
       }
       f.__vantrelLoadMetaPixel=loadPixel;
       f.__vantrelInitializedPixelId='2167529260510757';
+      f.__vantrelInitialPageViewTracked=!0;
       loadPixel();
       f.fbq('init','2167529260510757');
       f.fbq('track','PageView');
