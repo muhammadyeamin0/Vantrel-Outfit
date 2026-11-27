@@ -47,8 +47,7 @@ import { findProductByUrlParam } from '../utils/seoSlug';
 import {
   ensureMetaPixelLoaded,
   sanitizeMetaPixelId,
-  trackMetaAddToCart,
-  trackMetaPurchase
+  trackMetaAddToCart
 } from '../utils/metaPixel';
 import {
   IS_GOOGLE_CLOUD_CONNECTED,
@@ -2928,6 +2927,7 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
       setIsCartDrawerOpen(true);
     }
 
+    // Fire Meta Pixel AddToCart whenever a customer adds a product to cart
     trackMetaAddToCart(
       product,
       selectedSize,
@@ -4598,8 +4598,6 @@ VANTREL OUTFIT বেছে নেওয়ার জন্য ধন্যবা�
     });
 
     addAuditLog('ORDER_PLACED', `New order #${newOrder.orderNumber} placed for ৳${newOrder.total}`);
-
-    trackMetaPurchase(newOrder, settings.metaPixelId, settings.isMetaPixelEnabled ?? true);
 
     return { success: true, order: newOrder };
   };

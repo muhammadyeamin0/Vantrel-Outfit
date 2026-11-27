@@ -178,7 +178,7 @@ export const DynamicMetaTags: React.FC = () => {
     }
   }, [products]);
 
-  // 2. Synchronize clean SEO-friendly path URLs & fire SPA PageView once per unique route
+  // 2. Synchronize clean SEO-friendly path URLs
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (suppressSyncOnceRef.current) {
@@ -223,7 +223,11 @@ export const DynamicMetaTags: React.FC = () => {
     } catch (e) {
       console.warn('URL sync note:', e);
     }
+  }, [currentPage, selectedProductId, selectedCategory, products]);
 
+  // 2b. Fire Meta Pixel SPA PageView once per unique route change (never on component re-renders)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     const pixelEnabled = settings.isMetaPixelEnabled ?? true;
     ensureMetaPixelLoaded(settings.metaPixelId, pixelEnabled);
     const pixelRouteKey =
@@ -237,7 +241,6 @@ export const DynamicMetaTags: React.FC = () => {
     currentPage,
     selectedProductId,
     selectedCategory,
-    products,
     settings.metaPixelId,
     settings.isMetaPixelEnabled
   ]);

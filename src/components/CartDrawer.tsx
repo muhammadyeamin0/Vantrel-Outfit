@@ -23,6 +23,7 @@ import { Address } from '../types';
 import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
 import { BANGLADESH_DIVISIONS, isDhakaSubArea, resolveDeliveryZone } from '../data/bangladeshData';
 import { isProductOutOfStock } from '../utils/stockVisibility';
+import { applyMetaAdvancedMatching, trackMetaInitiateCheckout } from '../utils/metaPixel';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -75,6 +76,25 @@ export const CartDrawer: React.FC = () => {
   const [address, setAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const initiatedDrawerCheckoutRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!isCartDrawerOpen) {
+      initiatedDrawerCheckoutRef.current = false;
+    }
+  }, [isCartDrawerOpen]);
+
+  // Fire Meta Pixel InitiateCheckout once when customer starts checkout inside CartDrawer
+  const triggerDrawerInitiateCheckout = () => {
+    if (initiatedDrawerCheckoutRef.current || cart.length === 0) return;
+    initiatedDrawerCheckoutRef.current = true;
+    trackMetaInitiateCheckout(
+      cart,
+      cartSubtotal,
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
+  };
 
   const currentDistrictObj = allDistricts.find(
     (d) => d.name.toLowerCase() === district.toLowerCase()
@@ -207,6 +227,20 @@ export const CartDrawer: React.FC = () => {
       upazila: finalUpazila,
       streetAddress: address.trim()
     };
+
+    // Ensure InitiateCheckout and Advanced Matching are recorded on direct drawer order submit
+    triggerDrawerInitiateCheckout();
+    applyMetaAdvancedMatching(
+      {
+        email: currentUser?.email,
+        phone: customerAddress.phone,
+        fullName: customerAddress.fullName,
+        city: customerAddress.district,
+        country: 'bd'
+      },
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
 
     setTimeout(() => {
       const result = placeOrder({
@@ -397,7 +431,7 @@ export const CartDrawer: React.FC = () => {
                   </span>
                 </div>
 
-                <form onSubmit={handleDirectCartOrder} className="space-y-2.5 text-xs">
+                <form onSubmit={handleDirectCartOrder} onFocus={triggerDrawerInitiateCheckout} className="space-y-2.5 text-xs">
                   {/* Saved Address Selector */}
                   {savedAddresses.length > 0 && (
                     <div className="p-2.5 bg-white rounded-xl border border-[#E5E1D5] space-y-2">

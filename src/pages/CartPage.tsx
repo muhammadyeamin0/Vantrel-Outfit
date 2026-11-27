@@ -6,6 +6,7 @@ import { getSavedAddresses, saveAddressLocally } from '../utils/addressStorage';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { isProductOutOfStock } from '../utils/stockVisibility';
 import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
+import { applyMetaAdvancedMatching, trackMetaInitiateCheckout } from '../utils/metaPixel';
 import {
   ShoppingBag,
   Trash2,
@@ -38,6 +39,7 @@ export const CartPage: React.FC = () => {
     setCurrentPage,
     currentUser,
     addUserAddress,
+    settings,
     showToast
   } = useStore();
 
@@ -56,6 +58,20 @@ export const CartPage: React.FC = () => {
   const [streetAddress, setStreetAddress] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const initiatedCartCheckoutRef = React.useRef(false);
+
+  // Fire Meta Pixel InitiateCheckout once when customer opens CartPage checkout view with items
+  useEffect(() => {
+    if (cart.length > 0 && !initiatedCartCheckoutRef.current) {
+      initiatedCartCheckoutRef.current = true;
+      trackMetaInitiateCheckout(
+        cart,
+        cartSubtotal,
+        settings.metaPixelId,
+        settings.isMetaPixelEnabled ?? true
+      );
+    }
+  }, [cart, cartSubtotal, settings.metaPixelId, settings.isMetaPixelEnabled]);
 
   // Flat list of all 64 districts with their upazilas
   const allDistricts = useMemo(() => {
@@ -200,6 +216,19 @@ export const CartPage: React.FC = () => {
       upazila: upazila || 'সদর',
       streetAddress: streetAddress.trim()
     };
+
+    // Send normalized customer info via fbq('init', ...) on checkout submission for Event Match Quality
+    applyMetaAdvancedMatching(
+      {
+        email: currentUser?.email,
+        phone: customerAddress.phone,
+        fullName: customerAddress.fullName,
+        city: customerAddress.district,
+        country: 'bd'
+      },
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
 
     setTimeout(() => {
       const result = placeOrder({

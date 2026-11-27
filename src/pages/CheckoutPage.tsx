@@ -4,7 +4,7 @@ import { BANGLADESH_DIVISIONS, resolveDeliveryZone } from '../data/bangladeshDat
 import { PaymentMethod, Address, User } from '../types';
 import { getSavedAddresses, saveAddressLocally, removeAddressLocally } from '../utils/addressStorage';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
-import { trackMetaInitiateCheckout } from '../utils/metaPixel';
+import { applyMetaAdvancedMatching, trackMetaInitiateCheckout } from '../utils/metaPixel';
 import { isProductOutOfStock } from '../utils/stockVisibility';
 import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
 import {
@@ -63,9 +63,12 @@ export const CheckoutPage: React.FC = () => {
     }
   }, [cart, setCurrentPage]);
 
-  // Fire Meta Pixel InitiateCheckout once per cart signature
+  const initiatedCheckoutRef = React.useRef(false);
+
+  // Fire Meta Pixel InitiateCheckout once when checkout page opens with items
   useEffect(() => {
-    if (cart.length > 0 && !orderPlacedRef.current) {
+    if (cart.length > 0 && !orderPlacedRef.current && !initiatedCheckoutRef.current) {
+      initiatedCheckoutRef.current = true;
       trackMetaInitiateCheckout(
         cart,
         cartSubtotal,
@@ -372,6 +375,19 @@ export const CheckoutPage: React.FC = () => {
 
     // Auto-save address locally so customer has it ready for future orders
     saveAddressLocally(customerAddress);
+
+    // Send normalized customer info via fbq('init', ...) on checkout submission for Event Match Quality
+    applyMetaAdvancedMatching(
+      {
+        email: customerAddress.email || currentUser?.email,
+        phone: customerAddress.phone,
+        fullName: customerAddress.fullName,
+        city: customerAddress.district,
+        country: 'bd'
+      },
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
 
     orderPlacedRef.current = true;
     setTimeout(() => {

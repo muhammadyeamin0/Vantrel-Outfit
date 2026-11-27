@@ -4,6 +4,7 @@ import { OrderStatus } from '../types';
 import { toDisplayImageUrl, handleProxyImageError } from '../utils/imageProxy';
 import { getOrderProgressInfo } from '../utils/orderProgress';
 import { buildSeoImageAlt } from '../utils/imageSeoAndDownload';
+import { trackMetaPurchase } from '../utils/metaPixel';
 import {
   CheckCircle2,
   Printer,
@@ -41,7 +42,8 @@ export const OrderConfirmationPage: React.FC = () => {
     updateOrderStatus,
     refreshOrderFromServer,
     showToast,
-    generateWhatsAppOrderUrl
+    generateWhatsAppOrderUrl,
+    settings
   } = useStore();
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isWithinWindow, setIsWithinWindow] = useState<boolean>(true);
@@ -60,6 +62,16 @@ export const OrderConfirmationPage: React.FC = () => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
+
+  // Fire Meta Pixel Purchase ONCE on the order confirmation step (deduplicated in localStorage across refreshes)
+  useEffect(() => {
+    if (!order?.orderNumber) return;
+    trackMetaPurchase(
+      order,
+      settings.metaPixelId,
+      settings.isMetaPixelEnabled ?? true
+    );
+  }, [order, settings.metaPixelId, settings.isMetaPixelEnabled]);
 
   // Synchronize status if store updates
   useEffect(() => {

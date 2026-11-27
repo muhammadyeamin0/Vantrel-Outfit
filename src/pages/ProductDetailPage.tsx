@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
 import { BANGLADESH_DIVISIONS } from '../data/bangladeshData';
@@ -89,15 +89,20 @@ export const ProductDetailPage: React.FC = () => {
     }
   }, [product?.id]);
 
-  // Fire Meta Pixel ViewContent for Ad attribution & dynamic product remarketing
+  // Track which product ID fired ViewContent for this page mount so re-renders never double-fire
+  const lastTrackedViewProductIdRef = useRef<string | null>(null);
+
+  // Fire Meta Pixel ViewContent every time a product detail page opens
   useEffect(() => {
     if (!product?.id) return;
+    if (lastTrackedViewProductIdRef.current === product.id) return;
+    lastTrackedViewProductIdRef.current = product.id;
     trackMetaViewContent(
       product,
       settings.metaPixelId,
       settings.isMetaPixelEnabled ?? true
     );
-  }, [product?.id, settings.metaPixelId, settings.isMetaPixelEnabled]);
+  }, [product, settings.metaPixelId, settings.isMetaPixelEnabled]);
 
   // Show fast dark skeleton while deep-linked /product/:slug resolves instead of flashing "Product not found"
   if (!product && (isProductsLoading || (hasDeepLinkProductUrl && !selectedProductId))) {

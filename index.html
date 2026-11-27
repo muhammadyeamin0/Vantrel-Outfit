@@ -77,12 +77,16 @@
         s=b.getElementsByTagName(e)[0];
         if(s&&s.parentNode){s.parentNode.insertBefore(t,s);}else{b.head.appendChild(t);}
       }
+      var initEventId='pv-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
       f.__vantrelLoadMetaPixel=loadPixel;
       f.__vantrelInitializedPixelId='2167529260510757';
       f.__vantrelInitialPageViewTracked=!0;
+      f.__vantrelInitialPageViewEventId=initEventId;
       loadPixel();
-      f.fbq('init','2167529260510757');
-      f.fbq('track','PageView');
+      try{
+        f.fbq('init','2167529260510757');
+        f.fbq('track','PageView',{},{eventID:initEventId});
+      }catch(err){}
     })(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     </script>
     <!-- End Meta Pixel Code -->
